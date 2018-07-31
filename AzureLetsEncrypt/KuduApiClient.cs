@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace AzureLetsEncrypt
 {
-    public class KuduApiClient
+    internal class KuduApiClient
     {
         public KuduApiClient(string siteName, string userName, string password)
         {

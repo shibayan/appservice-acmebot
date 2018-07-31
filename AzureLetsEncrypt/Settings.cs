@@ -2,7 +2,7 @@
 
 namespace AzureLetsEncrypt
 {
-    public class Settings
+    internal class Settings
     {
         public Settings()
         {
