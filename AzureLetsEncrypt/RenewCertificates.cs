@@ -48,7 +48,7 @@ namespace AzureLetsEncrypt
                 log.LogInformation($"{site.Name}");
 
                 // 証明書の更新処理を開始
-                //await context.CallSubOrchestratorAsync("RenewSiteCertificates", (site, hostNameSslStates));
+                await context.CallSubOrchestratorAsync("RenewSiteCertificates", (site, hostNameSslStates));
             }
         }
 
@@ -65,7 +65,10 @@ namespace AzureLetsEncrypt
 
                 await context.CallActivityAsync(nameof(SharedFunctions.Authorization), (site, authzUrl));
 
-                await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
+                if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
+                {
+                    continue;
+                }
 
                 var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
 
