@@ -227,23 +227,21 @@ namespace AzureLetsEncrypt
             return acme;
         }
 
-        private static bool LoadState<T>(ref T value, string path)
+        private static void LoadState<T>(ref T value, string path)
         {
             var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
 
             if (!File.Exists(fullPath))
             {
-                return false;
+                return;
             }
 
             var json = File.ReadAllText(fullPath);
 
             value = JsonConvert.DeserializeObject<T>(json);
-
-            return true;
         }
 
-        private static bool SaveState<T>(T value, string path)
+        private static void SaveState<T>(T value, string path)
         {
             var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
             var directoryPath = Path.GetDirectoryName(fullPath);
@@ -256,8 +254,6 @@ namespace AzureLetsEncrypt
             var json = JsonConvert.SerializeObject(value, Formatting.Indented);
 
             File.WriteAllText(fullPath, json);
-
-            return true;
         }
 
         private static async Task<WebSiteManagementClient> CreateManagementClientAsync()
