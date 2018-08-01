@@ -55,6 +55,8 @@ namespace AzureLetsEncrypt
 
             var websiteClient = await CreateManagementClientAsync();
 
+            // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
+            //var certificates = await websiteClient.Certificates.ListAsync();
             var certificates = await websiteClient.Certificates.ListByResourceGroupAsync("Default-Web-JapanEast");
 
             return certificates.Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
@@ -165,9 +167,9 @@ namespace AzureLetsEncrypt
         {
             var websiteClient = await CreateManagementClientAsync();
 
-            var (site, thumbprint, pfxBlob) = context.GetInput<(Site, string, byte[])>();
+            var (site, certificateName, pfxBlob) = context.GetInput<(Site, string, byte[])>();
 
-            await websiteClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, $"{site.Name}-{thumbprint}", new Certificate
+            await websiteClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",
@@ -271,6 +273,6 @@ namespace AzureLetsEncrypt
         }
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
-        private static readonly string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"ACMEStaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
+        private static readonly string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
     }
 }

@@ -36,11 +36,12 @@ namespace AzureLetsEncrypt
             foreach (var site in sites)
             {
                 // 期限切れが近い証明書がバインドされているか確認
-                var hostNameSslStates = site.HostNameSslStates
+                var hostNames = site.HostNameSslStates
                                             .Where(x => !x.Name.EndsWith(".azurewebsites.net") && certificates.Any(xs => xs.Thumbprint == x.Thumbprint))
+                                            .Select(x => x.Name)
                                             .ToArray();
 
-                if (hostNameSslStates.Length == 0)
+                if (hostNames.Length == 0)
                 {
                     continue;
                 }
@@ -48,16 +49,16 @@ namespace AzureLetsEncrypt
                 log.LogInformation($"{site.Name}");
 
                 // 証明書の更新処理を開始
-                await context.CallSubOrchestratorAsync("RenewSiteCertificates", (site, hostNameSslStates));
+                await context.CallSubOrchestratorAsync("RenewSiteCertificates", (site, hostNames));
             }
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
         public static async Task RenewSiteCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
-            var (site, hostNameSslStates) = context.GetInput<(Site, HostNameSslState[])>();
+            var (site, hostNames) = context.GetInput<(Site, string[])>();
 
-            foreach (var hostNameSslState in hostNameSslStates)
+            foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(x.Name)))
             {
                 var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
 
@@ -72,7 +73,7 @@ namespace AzureLetsEncrypt
 
                 var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
 
-                await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, thumbprint, pfxBlob));
+                await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{hostNameSslState.Name}-{thumbprint}", pfxBlob));
 
                 hostNameSslState.Thumbprint = thumbprint;
                 hostNameSslState.ToUpdate = true;

@@ -49,7 +49,7 @@ namespace AzureLetsEncrypt
 
             var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
 
-            await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, thumbprint, pfxBlob));
+            await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{hostNameSslState.Name}-{thumbprint}", pfxBlob));
 
             hostNameSslState.Thumbprint = thumbprint;
             hostNameSslState.SslState = SslState.SniEnabled;
