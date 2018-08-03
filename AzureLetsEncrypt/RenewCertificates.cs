@@ -49,7 +49,7 @@ namespace AzureLetsEncrypt
                 log.LogInformation($"{site.Name}");
 
                 // 証明書の更新処理を開始
-                await context.CallSubOrchestratorAsync("RenewSiteCertificates", (site, hostNames));
+                await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, hostNames));
             }
         }
 
