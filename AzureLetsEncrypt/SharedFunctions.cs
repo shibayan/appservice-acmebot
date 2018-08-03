@@ -57,7 +57,7 @@ namespace AzureLetsEncrypt
 
             // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
             //var certificates = await websiteClient.Certificates.ListAsync();
-            var certificates = await websiteClient.Certificates.ListByResourceGroupAsync("Default-Web-JapanEast");
+            var certificates = await websiteClient.Certificates.ListByResourceGroupAsync(Settings.Default.ResourceGroupName);
 
             return certificates.Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
         }

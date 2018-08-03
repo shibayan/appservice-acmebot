@@ -11,13 +11,17 @@ namespace AzureLetsEncrypt
                           .AddEnvironmentVariables();
 
             _configuration = builder.Build();
+            _section = _configuration.GetSection("LetsEncrypt");
         }
 
         private readonly IConfiguration _configuration;
+        private readonly IConfiguration _section;
 
-        public string Contacts => _configuration[nameof(Contacts)];
+        public string Contacts => _section[nameof(Contacts)];
 
-        public string SubscriptionId => _configuration[nameof(SubscriptionId)];
+        public string SubscriptionId => _section[nameof(SubscriptionId)];
+
+        public string ResourceGroupName => _section[nameof(ResourceGroupName)];
 
         public static Settings Default { get; } = new Settings();
     }
