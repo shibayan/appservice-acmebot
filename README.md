@@ -13,9 +13,9 @@ Provide automation of Let's Encrypt for Azure App Service.
 ### 2. Add application settings key
 
 - LetsEncrypt:SubscriptionId
-  - Azure SubscriptionId
+  - Azure Subscription Id
 - LetsEncrypt:ResourceGroupName
-  - Target resource group name (temporary setting)
+  - Target resource group name (temporary setting, will remove)
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
@@ -36,6 +36,10 @@ curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST
 ```
 
 ### Renew certificates
+
+This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
+
+The default time is UTC 00: 00, so if necessary you can set any time zone with `WEBSITE_TIME_ZONE`.
 
 ## License
 
