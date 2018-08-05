@@ -59,7 +59,9 @@ namespace AzureLetsEncrypt
             //var certificates = await websiteClient.Certificates.ListAsync();
             var certificates = await websiteClient.Certificates.ListByResourceGroupAsync(Settings.Default.ResourceGroupName);
 
-            return certificates.Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
+            return certificates
+                   .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4")
+                   .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
         }
 
         [FunctionName(nameof(UpdateSettings))]
