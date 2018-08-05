@@ -36,14 +36,18 @@ namespace AzureLetsEncrypt
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
 
+            // 新しく ACME Order を作成する
             var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
 
+            // 複数の Authorizations には未対応
             var authzUrl = orderDetails.Payload.Authorizations.First();
 
+            // ACME Challenge のために Kudu API でファイルを作成
             await context.CallActivityAsync(nameof(SharedFunctions.Authorization), (site, authzUrl));
-
+            
             if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
             {
+                log.LogError($"Cannot generate certificate: {hostNameSslState.Name}");
                 return;
             }
 

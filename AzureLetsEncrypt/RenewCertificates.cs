@@ -41,12 +41,11 @@ namespace AzureLetsEncrypt
                                             .Select(x => x.Name)
                                             .ToArray();
 
+                // 対象となる証明書が存在しない場合はスキップ
                 if (hostNames.Length == 0)
                 {
                     continue;
                 }
-
-                log.LogInformation($"{site.Name}");
 
                 // 証明書の更新処理を開始
                 await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, hostNames));
@@ -58,6 +57,8 @@ namespace AzureLetsEncrypt
         {
             var (site, hostNames) = context.GetInput<(Site, string[])>();
 
+            log.LogInformation($"Site name: {site.Name}");
+
             foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(x.Name)))
             {
                 var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
@@ -68,6 +69,7 @@ namespace AzureLetsEncrypt
 
                 if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
                 {
+                    log.LogError($"Cannot generate certificate: {hostNameSslState.Name}");
                     continue;
                 }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -71,11 +71,13 @@ namespace AzureLetsEncrypt
 
             var config = await websiteClient.WebApps.GetConfigurationAsync(site.ResourceGroup, site.Name);
 
+            // 既に .well-known が仮想アプリケーションとして追加されているか確認
             if (config.VirtualApplications.Any(x => x.VirtualPath == "/.well-known"))
             {
                 return;
             }
 
+            // .well-known を仮想アプリケーションとして追加
             config.VirtualApplications.Add(new VirtualApplication
             {
                 VirtualPath = "/.well-known",
@@ -105,6 +107,7 @@ namespace AzureLetsEncrypt
 
             var authz = await acme.GetAuthorizationDetailsAsync(authzUrl);
 
+            // http-01 Challenge のみ対応
             var challenge = authz.Challenges.First(x => x.Type == "http-01");
 
             var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, acme.Signer);
@@ -113,11 +116,13 @@ namespace AzureLetsEncrypt
 
             var credentials = await websiteClient.WebApps.ListPublishingCredentialsAsync(site.ResourceGroup, site.Name);
 
+            // Kudu API を使い、Answer 用のファイルを作成
             var kuduClient = new KuduApiClient(site.Name, credentials.PublishingUserName, credentials.PublishingPassword);
 
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
+            // Answer の準備が出来たことを通知
             await acme.AnswerChallengeAsync(challenge.Url);
         }
 
@@ -130,6 +135,7 @@ namespace AzureLetsEncrypt
 
             for (int i = 0; i < 6; i++)
             {
+                // Order のステータスが ready になるまで 30 秒待機
                 orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
                 if (orderDetails.Payload.Status == "ready")
@@ -148,17 +154,21 @@ namespace AzureLetsEncrypt
         {
             var (hostNameSslState, orderDetails) = context.GetInput<(HostNameSslState, OrderDetails)>();
 
+            // ECC 256bit の証明書に固定
             var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             var csr = CryptoHelper.Ec.GenerateCsr(new[] { hostNameSslState.Name }, ec);
 
             var acme = await CreateAcmeClientAsync();
 
+            // Order の最終処理を実行し、証明書を作成
             var finalize = await acme.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
             var certificateData = await _httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
+            // 秘密鍵を含んだ形で X509Certificate2 を作成
             var certificate = new X509Certificate2(certificateData).CopyWithPrivateKey(ec);
 
+            // PFX 形式としてエクスポート
             return (certificate.Thumbprint, certificate.Export(X509ContentType.Pfx, "P@ssw0rd"));
         }
 
