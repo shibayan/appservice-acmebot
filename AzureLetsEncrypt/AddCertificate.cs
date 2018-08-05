@@ -64,7 +64,7 @@ namespace AzureLetsEncrypt
 
         [FunctionName("AddCertificate_HttpStart")]
         public static async Task<HttpResponseMessage> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestMessage req,
+            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
         {
