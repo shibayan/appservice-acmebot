@@ -1,5 +1,7 @@
 # azure-appservice-letsencrypt
 
+[![Build status](https://ci.appveyor.com/api/projects/status/bhbdscxn7f33ne1p?svg=true)](https://ci.appveyor.com/project/shibayan/azure-appservice-letsencrypt)
+
 Provide automation of Let's Encrypt for Azure App Service.
 
 ## Getting Started
