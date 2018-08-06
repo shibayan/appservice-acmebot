@@ -27,6 +27,8 @@ Provide automation of Let's Encrypt for Azure App Service.
 
 ### 3. Attach "Website Contributor" role to target resource group
 
+Use access control (IAM)
+
 ![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
 ## Usage
@@ -43,7 +45,7 @@ curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
 
-The default time is UTC 00: 00, so if necessary you can set any time zone with `WEBSITE_TIME_ZONE`.
+The default time is UTC 00:00, so if necessary you can set any time zone with `WEBSITE_TIME_ZONE`.
 
 ## License
 
