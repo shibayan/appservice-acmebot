@@ -59,7 +59,9 @@ Using `Access control (IAM)`, assign a role to Function App. Require "Website Co
 Run `AddCertificate_HttpStart` function with parameters.
 
 ```sh
-curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST -H 'Content-Type:application/json' -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***"}" 
+curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST \
+    -H 'Content-Type:application/json' \
+    -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***"}" 
 ```
 
 ### Renew certificates
