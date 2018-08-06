@@ -8,7 +8,13 @@ Provide automation of Let's Encrypt for Azure App Service.
 
 ### 1. Deploy to Azure Functions
 
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="http://azuredeploy.net/deploybutton.png" />
+</a>
 
+<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="http://armviz.io/visualizebutton.png" />
+</a>
 
 ### 2. Add application settings key
 
