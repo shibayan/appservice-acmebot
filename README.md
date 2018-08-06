@@ -25,10 +25,7 @@ Provide automation of Let's Encrypt for Azure App Service.
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
-### 3. Turn on Managed Service Identity
-
-
-### 4. Attach "Website Contributor" role to MSI app
+### 3. Attach "Website Contributor" role to MSI app
 
 
 ## Usage
