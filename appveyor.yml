@@ -18,3 +18,13 @@ test: off
 
 artifacts:
   - path: latest.zip
+
+deploy:
+  - provider: AzureBlob
+    storage_account_name:
+      secure: ce5QAXSDXBBksRBZWAm06g==
+    storage_access_key:
+      secure: B8HwCa5Hvbbgztfgiv1PRS05jp3h7X67QsWmwiFemXVp2AmdIEIrW6SF/ZNzDFEV90luZ7gavcPGrHPDBKhh70Yj+xJ+uAqGRwpgCQxiUVD+McXKQvAwtB4iP8XnsOpo
+    container: azure-appservice-letsencrypt
+    on:
+      appveyor_repo_tag: true
