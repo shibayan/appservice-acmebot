@@ -7,7 +7,7 @@ This functions provide automation of Let's Encrypt for Azure App Service. This p
 - Support multiple app services
 - Simple deployment and configuration
 - Robustness of implementation
-- Easier monitoring (App Insights)
+- Easy monitoring (App Insights)
 
 They can manage multiple App Service certificates with simple one Functions.
 
