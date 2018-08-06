@@ -9,7 +9,7 @@ Provide automation of Let's Encrypt for Azure App Service.
 ### 1. Deploy to Azure Functions
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="http://azuredeploy.net/deploybutton.png" />
+  <img src="https://azuredeploy.net/deploybutton.png" />
 </a>
 
 <a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
@@ -25,8 +25,9 @@ Provide automation of Let's Encrypt for Azure App Service.
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
-### 3. Attach "Website Contributor" role to MSI app
+### 3. Attach "Website Contributor" role to target resource group
 
+![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
 ## Usage
 
