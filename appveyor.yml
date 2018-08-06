@@ -26,5 +26,6 @@ deploy:
     storage_access_key:
       secure: B8HwCa5Hvbbgztfgiv1PRS05jp3h7X67QsWmwiFemXVp2AmdIEIrW6SF/ZNzDFEV90luZ7gavcPGrHPDBKhh70Yj+xJ+uAqGRwpgCQxiUVD+McXKQvAwtB4iP8XnsOpo
     container: azure-appservice-letsencrypt
+    set_content_type: true
     on:
       appveyor_repo_tag: true
