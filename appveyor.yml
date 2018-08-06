@@ -1,0 +1,17 @@
+version: '{build}'
+
+pull_requests:
+  do_not_increment_build_number: true
+
+skip_commits:
+  files:
+    - azuredeploy.json
+    - README.md
+
+image: Visual Studio 2017
+
+build_script:
+  - dotnet publish -c Release
+  - 7z a latest.zip %APPVEYOR_BUILD_FOLDER%\AzureLetsEncrypt\bin\Release\netcoreapp2.0\publish\*
+
+test: off
