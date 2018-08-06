@@ -1,8 +1,29 @@
-# azure-appservice-letsencrypt
+# Azure App Service Let's Encrypt
 
 [![Build status](https://ci.appveyor.com/api/projects/status/bhbdscxn7f33ne1p?svg=true)](https://ci.appveyor.com/project/shibayan/azure-appservice-letsencrypt)
 
-Provide automation of Let's Encrypt for Azure App Service.
+This functions provide automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
+
+- Support multiple app services
+- Simple deployment and configuration
+- Robustness of implementation
+- Easier monitoring (App Insights)
+
+They can manage multiple App Service certificates with simple one Functions.
+
+## Table Of Contents
+
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Thanks](#thanks)
+- [License](#license)
+
+## Requirements
+
+- Azure Subscription
+- App Service with added hostname
+- Email address (for Let's Encrypt account)
 
 ## Getting Started
 
@@ -25,9 +46,9 @@ Provide automation of Let's Encrypt for Azure App Service.
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
-### 3. Attach "Website Contributor" role to target resource group
+### 3. Assign "Website Contributor" role to target resource group
 
-Use access control (IAM)
+Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" role.
 
 ![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
@@ -45,8 +66,13 @@ curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
 
-The default time is UTC 00:00, so if necessary you can set any time zone with `WEBSITE_TIME_ZONE`.
+The default time is UTC 00:00, so if necessary they can set any time zone with `WEBSITE_TIME_ZONE`.
+
+## Thanks
+
+- [ACMESharp Core](https://github.com/PKISharp/ACMESharpCore) by @ebekker
+- [Durable Functions](https://github.com/Azure/azure-functions-durable-extension) by @cgillum and contributors
 
 ## License
 
-[Apache License 2.0](https://github.com/shibayan/azure-appservice-letsencrypt/blob/master/LICENSE)
+This project is licensed under the [Apache License 2.0](https://github.com/shibayan/azure-appservice-letsencrypt/blob/master/LICENSE)
