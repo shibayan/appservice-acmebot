@@ -15,3 +15,6 @@ build_script:
   - 7z a latest.zip %APPVEYOR_BUILD_FOLDER%\AzureLetsEncrypt\bin\Release\netcoreapp2.0\publish\*
 
 test: off
+
+artifacts:
+  - path: latest.zip
