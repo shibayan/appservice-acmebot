@@ -74,18 +74,23 @@ namespace AzureLetsEncrypt
             var config = await websiteClient.WebApps.GetConfigurationAsync(site.ResourceGroup, site.Name);
 
             // 既に .well-known が仮想アプリケーションとして追加されているか確認
-            if (config.VirtualApplications.Any(x => x.VirtualPath == "/.well-known"))
-            {
-                return;
-            }
+            var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-            // .well-known を仮想アプリケーションとして追加
-            config.VirtualApplications.Add(new VirtualApplication
+            if (virtualApplication == null)
             {
-                VirtualPath = "/.well-known",
-                PhysicalPath = "site\\wwwroot\\.well-known",
-                PreloadEnabled = false
-            });
+                // .well-known を仮想アプリケーションとして追加
+                config.VirtualApplications.Add(new VirtualApplication
+                {
+                    VirtualPath = "/.well-known",
+                    PhysicalPath = "site\\.well-known",
+                    PreloadEnabled = false
+                });
+            }
+            else
+            {
+                // 追加済みの場合は物理パスを変更しているので対処
+                virtualApplication.PhysicalPath = "site\\.well-known";
+            }
 
             await websiteClient.WebApps.UpdateConfigurationAsync(site.ResourceGroup, site.Name, config);
         }
@@ -122,7 +127,7 @@ namespace AzureLetsEncrypt
             var kuduClient = new KuduApiClient(site.Name, credentials.PublishingUserName, credentials.PublishingPassword);
 
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
-            await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
+            await kuduClient.WriteFileAsync($"wwwroot/{challengeValidationDetails.HttpResourcePath}", challengeValidationDetails.HttpResourceValue);
 
             // Answer の準備が出来たことを通知
             await acme.AnswerChallengeAsync(challenge.Url);

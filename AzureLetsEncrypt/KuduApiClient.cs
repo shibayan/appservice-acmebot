@@ -21,7 +21,7 @@ namespace AzureLetsEncrypt
 
         public Task WriteFileAsync(string filePath, string value)
         {
-            var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_siteName}.scm.azurewebsites.net/api/vfs/site/wwwroot/{filePath}");
+            var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_siteName}.scm.azurewebsites.net/api/vfs/site/{filePath}");
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
             request.Content = new StringContent(value, Encoding.UTF8);
