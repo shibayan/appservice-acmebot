@@ -42,8 +42,17 @@ namespace AzureLetsEncrypt
             // 複数の Authorizations には未対応
             var authzUrl = orderDetails.Payload.Authorizations.First();
 
-            // ACME Challenge のために Kudu API でファイルを作成
-            await context.CallActivityAsync(nameof(SharedFunctions.Authorization), (site, authzUrl));
+            // ACME Challenge を実行
+            if (hostNameSslState.Name.StartsWith("*"))
+            {
+                // ワイルドカードの場合は DNS-01 を利用する
+                await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (site, hostNameSslState.Name, authzUrl));
+            }
+            else
+            {
+                // それ以外は HTTP-01 を利用する
+                await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
+            }
 
             if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
             {

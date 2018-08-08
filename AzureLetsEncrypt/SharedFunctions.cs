@@ -12,6 +12,8 @@ using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using Microsoft.Azure.Management.Dns;
+using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.Services.AppAuthentication;
@@ -31,7 +33,7 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(GetSite))]
         public static async Task<Site> GetSite([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var (resourceGroupName, siteName) = context.GetInput<(string, string)>();
 
@@ -41,7 +43,7 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(GetSites))]
         public static async Task<IList<Site>> GetSites([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var sites = await websiteClient.WebApps.ListAsync();
 
@@ -53,7 +55,7 @@ namespace AzureLetsEncrypt
         {
             var currentDateTime = context.GetInput<DateTime>();
 
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
             //var certificates = await websiteClient.Certificates.ListAsync();
@@ -69,7 +71,7 @@ namespace AzureLetsEncrypt
         {
             var site = context.GetInput<Site>();
 
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var config = await websiteClient.WebApps.GetConfigurationAsync(site.ResourceGroup, site.Name);
 
@@ -105,8 +107,8 @@ namespace AzureLetsEncrypt
             return await acme.CreateOrderAsync(new[] { hostName });
         }
 
-        [FunctionName(nameof(Authorization))]
-        public static async Task Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        [FunctionName(nameof(Http01Authorization))]
+        public static async Task Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var (site, authzUrl) = context.GetInput<(Site, string)>();
 
@@ -114,12 +116,12 @@ namespace AzureLetsEncrypt
 
             var authz = await acme.GetAuthorizationDetailsAsync(authzUrl);
 
-            // http-01 Challenge のみ対応
+            // HTTP-01 Challenge の情報を拾う
             var challenge = authz.Challenges.First(x => x.Type == "http-01");
 
             var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, acme.Signer);
 
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var credentials = await websiteClient.WebApps.ListPublishingCredentialsAsync(site.ResourceGroup, site.Name);
 
@@ -133,6 +135,42 @@ namespace AzureLetsEncrypt
             await acme.AnswerChallengeAsync(challenge.Url);
         }
 
+        [FunctionName(nameof(Dns01Authorization))]
+        public static async Task Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var (site, hostName, authzUrl) = context.GetInput<(Site, string, string)>();
+
+            var acme = await CreateAcmeClientAsync();
+
+            var authz = await acme.GetAuthorizationDetailsAsync(authzUrl);
+
+            // DNS-01 Challenge の情報を拾う
+            var challenge = authz.Challenges.First(x => x.Type == "dns-01");
+
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, acme.Signer);
+
+            // Azure DNS の TXT レコードを書き換え
+            var dnsClient = await CreateDnsManagementClientAsync();
+
+            var zone = (await dnsClient.Zones.ListByResourceGroupAsync(site.ResourceGroup)).FirstOrDefault(x => hostName.EndsWith(x.Name));
+
+            if (zone == null)
+            {
+                throw new ArgumentException();
+            }
+
+            var recordSet = await dnsClient.RecordSets.GetAsync(site.ResourceGroup, zone.Name, challengeValidationDetails.DnsRecordName, RecordType.TXT) ?? new RecordSet();
+
+            recordSet.TTL = 60;
+            recordSet.TxtRecords.Clear();
+            recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
+
+            await dnsClient.RecordSets.CreateOrUpdateAsync(site.ResourceGroup, zone.Name, challengeValidationDetails.DnsRecordName, RecordType.TXT, recordSet);
+
+            // Answer の準備が出来たことを通知
+            await acme.AnswerChallengeAsync(challenge.Url);
+        }
+
         [FunctionName(nameof(WaitChallenge))]
         public static async Task<bool> WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
@@ -140,9 +178,9 @@ namespace AzureLetsEncrypt
 
             var acme = await CreateAcmeClientAsync();
 
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 12; i++)
             {
-                // Order のステータスが ready になるまで 30 秒待機
+                // Order のステータスが ready になるまで 60 秒待機
                 orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
                 if (orderDetails.Payload.Status == "ready")
@@ -182,7 +220,7 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(UpdateCertificate))]
         public static async Task UpdateCertificate([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var (site, certificateName, pfxBlob) = context.GetInput<(Site, string, byte[])>();
 
@@ -197,7 +235,7 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(UpdateSiteBinding))]
         public static async Task UpdateSiteBinding([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var websiteClient = await CreateManagementClientAsync();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var site = context.GetInput<Site>();
 
@@ -275,7 +313,7 @@ namespace AzureLetsEncrypt
             File.WriteAllText(fullPath, json);
         }
 
-        private static async Task<WebSiteManagementClient> CreateManagementClientAsync()
+        private static async Task<WebSiteManagementClient> CreateWebSiteManagementClientAsync()
         {
             var tokenProvider = new AzureServiceTokenProvider();
 
@@ -287,6 +325,20 @@ namespace AzureLetsEncrypt
             };
 
             return websiteClient;
+        }
+
+        private static async Task<DnsManagementClient> CreateDnsManagementClientAsync()
+        {
+            var tokenProvider = new AzureServiceTokenProvider();
+
+            var accessToken = await tokenProvider.GetAccessTokenAsync("https://management.azure.com/");
+
+            var dnsClient = new DnsManagementClient(new TokenCredentials(accessToken))
+            {
+                SubscriptionId = Settings.Default.SubscriptionId
+            };
+
+            return dnsClient;
         }
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
