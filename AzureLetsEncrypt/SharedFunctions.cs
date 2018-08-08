@@ -159,13 +159,16 @@ namespace AzureLetsEncrypt
                 throw new ArgumentException();
             }
 
-            var recordSet = await dnsClient.RecordSets.GetAsync(site.ResourceGroup, zone.Name, challengeValidationDetails.DnsRecordName, RecordType.TXT) ?? new RecordSet();
+            // Challenge の詳細から Azure DNS 向けにレコード名を作成
+            var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace(hostName, "");
+
+            var recordSet = await dnsClient.RecordSets.GetAsync(site.ResourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT) ?? new RecordSet();
 
             recordSet.TTL = 60;
             recordSet.TxtRecords.Clear();
             recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
 
-            await dnsClient.RecordSets.CreateOrUpdateAsync(site.ResourceGroup, zone.Name, challengeValidationDetails.DnsRecordName, RecordType.TXT, recordSet);
+            await dnsClient.RecordSets.CreateOrUpdateAsync(site.ResourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
             // Answer の準備が出来たことを通知
             await acme.AnswerChallengeAsync(challenge.Url);
