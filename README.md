@@ -2,7 +2,7 @@
 
 [![Build status](https://ci.appveyor.com/api/projects/status/bhbdscxn7f33ne1p?svg=true)](https://ci.appveyor.com/project/shibayan/azure-appservice-letsencrypt)
 
-This functions provide automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
+This function provide automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
 
 - Support multiple app services
 - Simple deployment and configuration
@@ -61,7 +61,7 @@ Run `AddCertificate_HttpStart` function with parameters.
 ```sh
 curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST \
     -H 'Content-Type:application/json' \
-    -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***"}" 
+    -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***","UseIpBasedSsl":(true/false)}"
 ```
 
 ### Renew certificates

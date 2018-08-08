@@ -44,7 +44,7 @@ namespace AzureLetsEncrypt
 
             // ACME Challenge のために Kudu API でファイルを作成
             await context.CallActivityAsync(nameof(SharedFunctions.Authorization), (site, authzUrl));
-            
+
             if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
             {
                 log.LogError($"Cannot generate certificate: {hostNameSslState.Name}");
@@ -56,7 +56,7 @@ namespace AzureLetsEncrypt
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{hostNameSslState.Name}-{thumbprint}", pfxBlob));
 
             hostNameSslState.Thumbprint = thumbprint;
-            hostNameSslState.SslState = SslState.SniEnabled;
+            hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
             hostNameSslState.ToUpdate = true;
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
@@ -99,5 +99,6 @@ namespace AzureLetsEncrypt
         public string ResourceGroupName { get; set; }
         public string SiteName { get; set; }
         public string Domain { get; set; }
+        public bool? UseIpBasedSsl { get; set; }
     }
 }
