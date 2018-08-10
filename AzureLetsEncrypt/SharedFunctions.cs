@@ -160,13 +160,16 @@ namespace AzureLetsEncrypt
             }
 
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
-            var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace(hostName, "");
+            var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
 
-            var recordSet = await dnsClient.RecordSets.GetAsync(site.ResourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT) ?? new RecordSet();
-
-            recordSet.TTL = 60;
-            recordSet.TxtRecords.Clear();
-            recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
+            var recordSet = new RecordSet
+            {
+                TTL = 60,
+                TxtRecords = new[]
+                {
+                    new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue })
+                }
+            };
 
             await dnsClient.RecordSets.CreateOrUpdateAsync(site.ResourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
