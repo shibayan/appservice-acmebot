@@ -52,6 +52,8 @@ Using `Access control (IAM)`, assign a role to Function App. Require "Website Co
 
 ![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
+If they need a Wildcard certificate, assign "DNS Zone Contributor" role.
+
 ## Usage
 
 ### Adding new certificate
