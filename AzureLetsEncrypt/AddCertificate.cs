@@ -41,9 +41,9 @@ namespace AzureLetsEncrypt
             var authzUrl = orderDetails.Payload.Authorizations.First();
 
             // ACME Challenge を実行
-            if (hostNameSslState.Name.StartsWith("*"))
+            if (hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux"))
             {
-                // ワイルドカードの場合は DNS-01 を利用する
+                // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
                 await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (site, hostNameSslState.Name, authzUrl));
             }
             else
