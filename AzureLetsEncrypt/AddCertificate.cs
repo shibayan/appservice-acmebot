@@ -34,8 +34,6 @@ namespace AzureLetsEncrypt
                 return;
             }
 
-            await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
-
             // 新しく ACME Order を作成する
             var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
 
@@ -43,14 +41,16 @@ namespace AzureLetsEncrypt
             var authzUrl = orderDetails.Payload.Authorizations.First();
 
             // ACME Challenge を実行
-            if (hostNameSslState.Name.StartsWith("*"))
+            if (hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux"))
             {
-                // ワイルドカードの場合は DNS-01 を利用する
+                // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
                 await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (site, hostNameSslState.Name, authzUrl));
             }
             else
             {
                 // それ以外は HTTP-01 を利用する
+                await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
+
                 await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
             }
 
