@@ -34,8 +34,6 @@ namespace AzureLetsEncrypt
                 return;
             }
 
-            await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
-
             // 新しく ACME Order を作成する
             var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
 
@@ -51,6 +49,8 @@ namespace AzureLetsEncrypt
             else
             {
                 // それ以外は HTTP-01 を利用する
+                await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
+
                 await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
             }
 
