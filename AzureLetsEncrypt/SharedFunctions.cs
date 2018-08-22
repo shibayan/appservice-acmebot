@@ -129,7 +129,7 @@ namespace AzureLetsEncrypt
             var kuduClient = new KuduApiClient(site.Name, credentials.PublishingUserName, credentials.PublishingPassword);
 
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
-            await kuduClient.WriteFileAsync($"wwwroot/{challengeValidationDetails.HttpResourcePath}", challengeValidationDetails.HttpResourceValue);
+            await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
             // Answer の準備が出来たことを通知
             await acme.AnswerChallengeAsync(challenge.Url);
