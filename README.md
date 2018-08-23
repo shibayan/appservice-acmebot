@@ -66,11 +66,24 @@ curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST
     -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***","UseIpBasedSsl":(true/false)}"
 ```
 
+- ResourceGroupName
+  - Resource group containing App Service
+- SiteName
+  - App Servicee name to issue certificate
+- Domain
+  - Host name to issue certificate (It needs to be added to App Service)
+- UseIpBasedSsl
+  - Use IP Based SSL binding
+
 ### Renew certificates
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
 
 The default time is UTC 00:00, so if necessary they can set any time zone with `WEBSITE_TIME_ZONE`.
+
+### Deploy new version
+
+This function use `Run From Package`. To deploy the latest version, just restart Azure Functions.
 
 ## Thanks
 
