@@ -61,7 +61,7 @@ If they need a Wildcard certificate, assign "DNS Zone Contributor" role.
 Run `AddCertificate_HttpStart` function with parameters.
 
 ```sh
-curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST \
+curl https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=YOUR-FUNCTION-SECRET -X POST \
     -H 'Content-Type:application/json' \
     -d '{"ResourceGroupName":"My-WebApp-RG","SiteName":"my-webapp","Domain":"example.com","UseIpBasedSsl":false}'
 ```
