@@ -63,17 +63,17 @@ Run `AddCertificate_HttpStart` function with parameters.
 ```sh
 curl https://***.azurewebsites.net/api/AddCertificate_HttpStart?code=*** -X POST \
     -H 'Content-Type:application/json' \
-    -d "{"ResourceGroupName":"***","SiteName":"***","Domain":"***","UseIpBasedSsl":(true/false)}"
+    -d '{"ResourceGroupName":"My-WebApp-RG","SiteName":"my-webapp","Domain":"example.com","UseIpBasedSsl":false}'
 ```
 
 - ResourceGroupName
-  - Resource group containing App Service
+  - Resource group containing App Service. (ex. My-WebApp-RG)
 - SiteName
-  - App Servicee name to issue certificate
+  - App Service name to issue certificate. (ex. my-webapp)
 - Domain
-  - Host name to issue certificate (It needs to be added to App Service)
+  - Hostname to issue certificate. It needs to be added to App Service. (ex. example.com)
 - UseIpBasedSsl
-  - Use IP Based SSL binding
+  - Use IP Based SSL binding. (boolean, optional)
 
 ### Renew certificates
 
