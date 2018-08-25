@@ -44,7 +44,7 @@ They can manage multiple App Service certificates with simple one Functions.
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
-### 3. Assign "Website Contributor" role to target resource group
+### 3. Assign roles to target resource group
 
 Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
 
