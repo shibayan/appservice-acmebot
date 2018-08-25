@@ -234,7 +234,8 @@ namespace AzureLetsEncrypt
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",
-                PfxBlob = pfxBlob
+                PfxBlob = pfxBlob,
+                ServerFarmId = site.ServerFarmId
             });
         }
 
