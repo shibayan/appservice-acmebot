@@ -10,6 +10,10 @@ skip_commits:
     - azuredeploy.json
     - README.md
 
+branches:
+  only:
+    - master
+
 image: Visual Studio 2017
 
 build_script:
