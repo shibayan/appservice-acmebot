@@ -79,11 +79,7 @@ namespace AzureLetsEncrypt
                     await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
                 }
 
-                if (!await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails))
-                {
-                    log.LogError($"Cannot generate certificate: {hostNameSslState.Name}");
-                    continue;
-                }
+                await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
 
                 var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
 

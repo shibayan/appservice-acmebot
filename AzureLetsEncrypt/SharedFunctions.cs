@@ -178,7 +178,7 @@ namespace AzureLetsEncrypt
         }
 
         [FunctionName(nameof(WaitChallenge))]
-        public static async Task<bool> WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var orderDetails = context.GetInput<OrderDetails>();
 
@@ -191,13 +191,13 @@ namespace AzureLetsEncrypt
 
                 if (orderDetails.Payload.Status == "ready")
                 {
-                    return true;
+                    return;
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
 
-            return false;
+            throw new InvalidOperationException();
         }
 
         [FunctionName(nameof(FinalizeOrder))]
