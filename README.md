@@ -41,14 +41,12 @@ They can manage multiple App Service certificates with simple one Functions.
 
 - LetsEncrypt:SubscriptionId
   - Azure Subscription Id
-- LetsEncrypt:ResourceGroupName
-  - Target resource group name (temporary setting, will remove)
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
 ### 3. Assign "Website Contributor" role to target resource group
 
-Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" role.
+Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
 
 ![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
@@ -56,7 +54,7 @@ If they need a Wildcard certificate, assign "DNS Zone Contributor" role.
 
 **Remarks**
 
-If the Web App refers to a Service Plan that resides in a different resource group, they must assign "Contributor" role to each resource group.
+If the Web App refers to a Service Plan in a different resource group, Please assign "Website Contributor" role for Resource Group with Web App and "Web Plan Contributor" role for Resource Group with Service Plan.
 
 ## Usage
 
