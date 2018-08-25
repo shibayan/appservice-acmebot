@@ -54,7 +54,7 @@ namespace AzureLetsEncrypt
                 await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
             }
 
-            await context.CallActivityAsync<bool>(nameof(SharedFunctions.WaitChallenge), orderDetails);
+            await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
 
             var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
 
