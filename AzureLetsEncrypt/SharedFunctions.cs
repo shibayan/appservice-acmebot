@@ -59,7 +59,7 @@ namespace AzureLetsEncrypt
 
             // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
             //var certificates = await websiteClient.Certificates.ListAsync();
-            var certificates = await websiteClient.Certificates.ListByResourceGroupAsync(Settings.Default.ResourceGroupName);
+            var certificates = await websiteClient.ListCertificatesAsync();
 
             return certificates
                    .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4")
