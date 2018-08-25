@@ -54,6 +54,10 @@ Using `Access control (IAM)`, assign a role to Function App. Require "Website Co
 
 If they need a Wildcard certificate, assign "DNS Zone Contributor" role.
 
+**Remarks**
+
+If the Web App refers to a Service Plan that resides in a different resource group, they must assign "Contributor" role to each resource group.
+
 ## Usage
 
 ### Adding new certificate
