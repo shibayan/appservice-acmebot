@@ -249,6 +249,18 @@ namespace AzureLetsEncrypt
             await websiteClient.WebApps.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site);
         }
 
+        [FunctionName(nameof(DeleteCertificate))]
+        public static async Task DeleteCertificate([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var websiteClient = await CreateWebSiteManagementClientAsync();
+
+            var certificate = context.GetInput<Certificate>();
+
+            var resourceId = ParseResourceId(certificate.Id);
+
+            await websiteClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
+        }
+
         private static async Task<AcmeProtocolClient> CreateAcmeClientAsync()
         {
             var account = default(AccountDetails);
@@ -346,6 +358,18 @@ namespace AzureLetsEncrypt
             };
 
             return dnsClient;
+        }
+
+        private static IDictionary<string, string> ParseResourceId(string resourceId)
+        {
+            var values = resourceId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            return new Dictionary<string, string>
+            {
+                { "subscriptions", values[1] },
+                { "resourceGroups", values[3] },
+                { "providers", values[5] }
+            };
         }
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
