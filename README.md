@@ -79,6 +79,8 @@ curl https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=
 - UseIpBasedSsl
   - Use IP Based SSL binding. (boolean, optional)
 
+If they need a Wildcard certificates, Azure DNS must be in the same resource group as App Service.
+
 ### Renew certificates
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
