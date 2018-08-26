@@ -32,6 +32,8 @@ namespace AzureLetsEncrypt
             // App Service を取得
             var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
 
+            var tasks = new List<Task>();
+
             // サイト単位で証明書の更新を行う
             foreach (var site in sites)
             {
@@ -48,8 +50,11 @@ namespace AzureLetsEncrypt
                 }
 
                 // 証明書の更新処理を開始
-                await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, hostNames));
+                tasks.Add(context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, hostNames)));
             }
+
+            // サブオーケストレーターの完了を待つ
+            await Task.WhenAll(tasks);
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
