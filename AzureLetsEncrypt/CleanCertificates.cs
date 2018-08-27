@@ -24,6 +24,8 @@ namespace AzureLetsEncrypt
             // 対象となる証明書がない場合は終わる
             if (certificates.Count == 0)
             {
+                log.LogInformation("Certificates is not found");
+
                 return;
             }
 
