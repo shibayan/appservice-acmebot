@@ -70,21 +70,32 @@ namespace AzureLetsEncrypt
             {
                 log.LogInformation($"Host name: {hostNameSslState.Name}");
 
-                var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
+                // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
+                var useDns01Auth = hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
-                var authzUrl = orderDetails.Payload.Authorizations.First();
-
-                // ACME Challenge を実行
-                if (hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux"))
+                // 前提条件をチェック
+                if (useDns01Auth)
                 {
-                    // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (site, hostNameSslState.Name, authzUrl));
+                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), hostNameSslState.Name);
                 }
                 else
                 {
-                    // それ以外は HTTP-01 を利用する
-                    await context.CallActivityAsync(nameof(SharedFunctions.UpdateSettings), site);
+                    await context.CallActivityAsync(nameof(SharedFunctions.Http01Precondition), site);
+                }
 
+                // 新しく ACME Order を作成する
+                var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
+
+                // 複数の Authorizations には未対応
+                var authzUrl = orderDetails.Payload.Authorizations.First();
+
+                // ACME Challenge を実行
+                if (useDns01Auth)
+                {
+                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (hostNameSslState.Name, authzUrl));
+                }
+                else
+                {
                     await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
                 }
 
