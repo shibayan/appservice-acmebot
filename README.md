@@ -48,11 +48,9 @@ They can manage multiple App Service certificates with simple one Functions.
 
 Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
 
-![Attach role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
+![Assign role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
-![Resource Group IAM](https://user-images.githubusercontent.com/1356444/44624857-e169c900-a934-11e8-982c-5ad8c163beff.png)
-
-If they need a Wildcard certificate, assign "DNS Zone Contributor" role.
+![IAM settings](https://user-images.githubusercontent.com/1356444/44624857-e169c900-a934-11e8-982c-5ad8c163beff.png)
 
 **Remarks**
 
@@ -79,8 +77,6 @@ curl https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=
 - UseIpBasedSsl
   - Use IP Based SSL binding. (boolean, optional)
 
-If they need a Wildcard certificates, Azure DNS must be in the same resource group as App Service.
-
 ### Renew certificates
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
@@ -90,6 +86,14 @@ The default time is UTC 00:00, so if necessary they can set any time zone with `
 ### Deploy new version
 
 This function use `Run From Package`. To deploy the latest version, just restart Azure Functions.
+
+### Wildcard and Linux Container support
+
+If they need a Wildcard certificate, additional assign "DNS Zone Contributor" role to Azure DNS or Resource group.
+
+![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
+
+Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
 
 ## Thanks
 
