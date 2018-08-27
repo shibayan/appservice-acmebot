@@ -7,17 +7,25 @@ This function provide automation of Let's Encrypt for Azure App Service. This pr
 - Support multiple app services
 - Simple deployment and configuration
 - Robustness of implementation
-- Easy monitoring (App Insights)
+- Easy monitoring (Application Insights)
 
 They can manage multiple App Service certificates with simple one Functions.
 
 ## Table Of Contents
 
+- [Feature Support](#feature-support)
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Thanks](#thanks)
 - [License](#license)
+
+## Feature Support
+
+- App Service (Windows) and Azure Functions
+- Wildcard certificates (required Azure DNS)
+- App Service (Linux) / Web App for Containers (required Azure DNS)
+- Multiple App Service with one Functions
 
 ## Requirements
 
