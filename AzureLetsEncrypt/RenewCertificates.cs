@@ -26,6 +26,8 @@ namespace AzureLetsEncrypt
             // 更新対象となる証明書がない場合は終わる
             if (certificates.Count == 0)
             {
+                log.LogInformation("Certificates is not found");
+
                 return;
             }
 
@@ -66,6 +68,8 @@ namespace AzureLetsEncrypt
 
             foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(x.Name)))
             {
+                log.LogInformation($"Host name: {hostNameSslState.Name}");
+
                 var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
 
                 var authzUrl = orderDetails.Payload.Authorizations.First();

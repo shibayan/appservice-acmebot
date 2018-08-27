@@ -156,7 +156,9 @@ namespace AzureLetsEncrypt
 
             if (zone == null)
             {
-                throw new ArgumentException();
+                log.LogError("Azure DNS zone is not found");
+
+                throw new InvalidOperationException();
             }
 
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
@@ -196,6 +198,8 @@ namespace AzureLetsEncrypt
 
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
+
+            log.LogError("Timeout ACME challenge status");
 
             throw new InvalidOperationException();
         }
