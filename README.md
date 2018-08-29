@@ -17,6 +17,7 @@ They can manage multiple App Service certificates with simple one Functions.
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
+- [Known Issues](#known-issues)
 - [Thanks](#thanks)
 - [License](#license)
 
@@ -102,6 +103,12 @@ If they need a Wildcard certificate, additional assign "DNS Zone Contributor" ro
 ![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
 
 Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
+
+## Known Issues
+
+**Causes Azure REST API error at GetSite or Dns01Precondition**
+
+Make sure that the required role is assign for the resource group. Azure IAM may take up to 30 minutes to be reflected.
 
 ## Thanks
 
