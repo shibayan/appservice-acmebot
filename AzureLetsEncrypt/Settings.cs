@@ -21,8 +21,6 @@ namespace AzureLetsEncrypt
 
         public string SubscriptionId => _section[nameof(SubscriptionId)];
 
-        public string ResourceGroupName => _section[nameof(ResourceGroupName)];
-
         public static Settings Default { get; } = new Settings();
     }
 }

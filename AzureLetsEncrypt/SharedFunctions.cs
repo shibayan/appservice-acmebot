@@ -59,15 +59,25 @@ namespace AzureLetsEncrypt
 
             // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
             //var certificates = await websiteClient.Certificates.ListAsync();
-            var certificates = await websiteClient.Certificates.ListByResourceGroupAsync(Settings.Default.ResourceGroupName);
+            var certificates = await websiteClient.ListCertificatesAsync();
 
             return certificates
                    .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4")
                    .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
         }
 
-        [FunctionName(nameof(UpdateSettings))]
-        public static async Task UpdateSettings([ActivityTrigger] DurableActivityContext context, ILogger log)
+        [FunctionName(nameof(Order))]
+        public static async Task<OrderDetails> Order([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var hostName = context.GetInput<string>();
+
+            var acme = await CreateAcmeClientAsync();
+
+            return await acme.CreateOrderAsync(new[] { hostName });
+        }
+
+        [FunctionName(nameof(Http01Precondition))]
+        public static async Task Http01Precondition([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var site = context.GetInput<Site>();
 
@@ -95,16 +105,6 @@ namespace AzureLetsEncrypt
             }
 
             await websiteClient.WebApps.UpdateConfigurationAsync(site.ResourceGroup, site.Name, config);
-        }
-
-        [FunctionName(nameof(Order))]
-        public static async Task<OrderDetails> Order([ActivityTrigger] DurableActivityContext context, ILogger log)
-        {
-            var hostName = context.GetInput<string>();
-
-            var acme = await CreateAcmeClientAsync();
-
-            return await acme.CreateOrderAsync(new[] { hostName });
         }
 
         [FunctionName(nameof(Http01Authorization))]
@@ -135,10 +135,28 @@ namespace AzureLetsEncrypt
             await acme.AnswerChallengeAsync(challenge.Url);
         }
 
+        [FunctionName(nameof(Dns01Precondition))]
+        public static async Task Dns01Precondition([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var hostName = context.GetInput<string>();
+
+            var dnsClient = await CreateDnsManagementClientAsync();
+
+            // Azure DNS が存在するか確認
+            var zone = (await dnsClient.Zones.ListAsync()).FirstOrDefault(x => hostName.EndsWith(x.Name));
+
+            if (zone == null)
+            {
+                log.LogError("Azure DNS zone is not found");
+
+                throw new InvalidOperationException();
+            }
+        }
+
         [FunctionName(nameof(Dns01Authorization))]
         public static async Task Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var (site, hostName, authzUrl) = context.GetInput<(Site, string, string)>();
+            var (hostName, authzUrl) = context.GetInput<(string, string)>();
 
             var acme = await CreateAcmeClientAsync();
 
@@ -152,12 +170,7 @@ namespace AzureLetsEncrypt
             // Azure DNS の TXT レコードを書き換え
             var dnsClient = await CreateDnsManagementClientAsync();
 
-            var zone = (await dnsClient.Zones.ListByResourceGroupAsync(site.ResourceGroup)).FirstOrDefault(x => hostName.EndsWith(x.Name));
-
-            if (zone == null)
-            {
-                throw new ArgumentException();
-            }
+            var zone = (await dnsClient.Zones.ListAsync()).First(x => hostName.EndsWith(x.Name));
 
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
@@ -171,14 +184,16 @@ namespace AzureLetsEncrypt
                 }
             };
 
-            await dnsClient.RecordSets.CreateOrUpdateAsync(site.ResourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
+            var resourceId = ParseResourceId(zone.Id);
+
+            await dnsClient.RecordSets.CreateOrUpdateAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
             // Answer の準備が出来たことを通知
             await acme.AnswerChallengeAsync(challenge.Url);
         }
 
         [FunctionName(nameof(WaitChallenge))]
-        public static async Task<bool> WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var orderDetails = context.GetInput<OrderDetails>();
 
@@ -191,13 +206,15 @@ namespace AzureLetsEncrypt
 
                 if (orderDetails.Payload.Status == "ready")
                 {
-                    return true;
+                    return;
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
 
-            return false;
+            log.LogError("Timeout ACME challenge status");
+
+            throw new InvalidOperationException();
         }
 
         [FunctionName(nameof(FinalizeOrder))]
@@ -234,7 +251,8 @@ namespace AzureLetsEncrypt
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",
-                PfxBlob = pfxBlob
+                PfxBlob = pfxBlob,
+                ServerFarmId = site.ServerFarmId
             });
         }
 
@@ -246,6 +264,18 @@ namespace AzureLetsEncrypt
             var site = context.GetInput<Site>();
 
             await websiteClient.WebApps.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site);
+        }
+
+        [FunctionName(nameof(DeleteCertificate))]
+        public static async Task DeleteCertificate([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var websiteClient = await CreateWebSiteManagementClientAsync();
+
+            var certificate = context.GetInput<Certificate>();
+
+            var resourceId = ParseResourceId(certificate.Id);
+
+            await websiteClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
         }
 
         private static async Task<AcmeProtocolClient> CreateAcmeClientAsync()
@@ -345,6 +375,18 @@ namespace AzureLetsEncrypt
             };
 
             return dnsClient;
+        }
+
+        private static IDictionary<string, string> ParseResourceId(string resourceId)
+        {
+            var values = resourceId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            return new Dictionary<string, string>
+            {
+                { "subscriptions", values[1] },
+                { "resourceGroups", values[3] },
+                { "providers", values[5] }
+            };
         }
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
