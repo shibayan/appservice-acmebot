@@ -94,12 +94,12 @@
               "value": "[toLower(variables('functionAppName'))]"
             },
             {
-              "name": "WEBSITE_RUN_FROM_ZIP",
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
               "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "beta"
+              "value": "~2"
             },
             {
               "name": "LetsEncrypt:SubscriptionId",
