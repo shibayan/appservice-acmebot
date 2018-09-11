@@ -69,11 +69,11 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(Order))]
         public static async Task<OrderDetails> Order([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var hostName = context.GetInput<string>();
+            var hostNames = context.GetInput<string[]>();
 
             var acme = await CreateAcmeClientAsync();
 
-            return await acme.CreateOrderAsync(new[] { hostName });
+            return await acme.CreateOrderAsync(hostNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -138,25 +138,28 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(Dns01Precondition))]
         public static async Task Dns01Precondition([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var hostName = context.GetInput<string>();
+            var hostNames = context.GetInput<string[]>();
 
             var dnsClient = await CreateDnsManagementClientAsync();
 
             // Azure DNS が存在するか確認
-            var zone = (await dnsClient.Zones.ListAsync()).FirstOrDefault(x => hostName.EndsWith(x.Name));
+            var zones = await dnsClient.Zones.ListAsync();
 
-            if (zone == null)
+            foreach (var hostName in hostNames)
             {
-                log.LogError("Azure DNS zone is not found");
+                if (!zones.Any(x => hostName.EndsWith(x.Name)))
+                {
+                    log.LogError($"Azure DNS zone \"{hostNames}\" is not found");
 
-                throw new InvalidOperationException();
+                    throw new InvalidOperationException();
+                }
             }
         }
 
         [FunctionName(nameof(Dns01Authorization))]
         public static async Task Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var (hostName, authzUrl) = context.GetInput<(string, string)>();
+            var authzUrl = context.GetInput<string>();
 
             var acme = await CreateAcmeClientAsync();
 
@@ -170,21 +173,46 @@ namespace AzureLetsEncrypt
             // Azure DNS の TXT レコードを書き換え
             var dnsClient = await CreateDnsManagementClientAsync();
 
-            var zone = (await dnsClient.Zones.ListAsync()).First(x => hostName.EndsWith(x.Name));
+            var zone = (await dnsClient.Zones.ListAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
+
+            var resourceId = ParseResourceId(zone.Id);
 
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
 
-            var recordSet = new RecordSet
-            {
-                TTL = 60,
-                TxtRecords = new[]
-                {
-                    new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue })
-                }
-            };
+            var recordSet = await dnsClient.RecordSets.GetAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT);
 
-            var resourceId = ParseResourceId(zone.Id);
+            if (recordSet != null)
+            {
+                if (recordSet.Metadata == null || !recordSet.Metadata.TryGetValue(nameof(context.InstanceId), out var instanceId) || instanceId != context.InstanceId)
+                {
+                    recordSet.Metadata = new Dictionary<string, string>
+                    {
+                        { nameof(context.InstanceId), context.InstanceId }
+                    };
+
+                    recordSet.TxtRecords.Clear();
+                }
+
+                // 既存の TXT レコードに値を追加する
+                recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
+            }
+            else
+            {
+                // 新しく TXT レコードを作成する
+                recordSet = new RecordSet
+                {
+                    TTL = 60,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { nameof(context.InstanceId), context.InstanceId }
+                    },
+                    TxtRecords = new[]
+                    {
+                        new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue })
+                    }
+                };
+            }
 
             await dnsClient.RecordSets.CreateOrUpdateAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
@@ -212,7 +240,12 @@ namespace AzureLetsEncrypt
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
 
-            log.LogError("Timeout ACME challenge status");
+            log.LogError($"Timeout ACME challenge status : {orderDetails.Payload.Status}");
+
+            if (orderDetails.Payload.Error != null)
+            {
+                log.LogError($"{orderDetails.Payload.Error.Type},{orderDetails.Payload.Error.Status},{orderDetails.Payload.Error.Detail}");
+            }
 
             throw new InvalidOperationException();
         }
@@ -220,11 +253,11 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(FinalizeOrder))]
         public static async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var (hostNameSslState, orderDetails) = context.GetInput<(HostNameSslState, OrderDetails)>();
+            var (hostNames, orderDetails) = context.GetInput<(string[], OrderDetails)>();
 
             // ECC 256bit の証明書に固定
             var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var csr = CryptoHelper.Ec.GenerateCsr(new[] { hostNameSslState.Name }, ec);
+            var csr = CryptoHelper.Ec.GenerateCsr(hostNames, ec);
 
             var acme = await CreateAcmeClientAsync();
 
