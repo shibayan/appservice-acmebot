@@ -1,8 +1,10 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
+using ACMESharp.Protocol.Resources;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -52,22 +54,24 @@ namespace AzureLetsEncrypt
             // 新しく ACME Order を作成する
             var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), request.Domains);
 
-            // 複数の Authorizations には未対応
+            // 複数の Authorizations を処理する
+            var challenges = new List<Challenge>();
+
             foreach (var authorization in orderDetails.Payload.Authorizations)
             {
                 // ACME Challenge を実行
                 if (useDns01Auth)
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), authorization);
+                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Dns01Authorization), authorization));
                 }
                 else
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authorization));
+                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
                 }
             }
 
             // Order status が ready になるまで待つ
-            await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
+            await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), (orderDetails, challenges));
 
             var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (request.Domains, orderDetails));
 

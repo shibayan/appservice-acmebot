@@ -33,10 +33,11 @@ namespace AzureLetsEncrypt
             var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
 
             // App Service にバインド済み証明書のサムプリントを取得
-            var bindedCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint)).ToArray();
+            var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
+                                         .ToArray();
 
             // バインドされていない証明書を削除
-            foreach (var certificate in certificates.Where(x => !bindedCertificates.Contains(x.Thumbprint)))
+            foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
             {
                 await context.CallActivityAsync(nameof(SharedFunctions.DeleteCertificate), certificate);
             }

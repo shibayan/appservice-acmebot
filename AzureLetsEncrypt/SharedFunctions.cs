@@ -108,7 +108,7 @@ namespace AzureLetsEncrypt
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public static async Task Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task<Challenge> Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var (site, authzUrl) = context.GetInput<(Site, string)>();
 
@@ -131,8 +131,7 @@ namespace AzureLetsEncrypt
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
-            // Answer の準備が出来たことを通知
-            await acme.AnswerChallengeAsync(challenge.Url);
+            return challenge;
         }
 
         [FunctionName(nameof(Dns01Precondition))]
@@ -157,7 +156,7 @@ namespace AzureLetsEncrypt
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public static async Task Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task<Challenge> Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var authzUrl = context.GetInput<string>();
 
@@ -180,7 +179,16 @@ namespace AzureLetsEncrypt
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
 
-            var recordSet = await dnsClient.RecordSets.GetAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT);
+            RecordSet recordSet;
+
+            try
+            {
+                recordSet = await dnsClient.RecordSets.GetAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT);
+            }
+            catch
+            {
+                recordSet = null;
+            }
 
             if (recordSet != null)
             {
@@ -216,20 +224,25 @@ namespace AzureLetsEncrypt
 
             await dnsClient.RecordSets.CreateOrUpdateAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
-            // Answer の準備が出来たことを通知
-            await acme.AnswerChallengeAsync(challenge.Url);
+            return challenge;
         }
 
-        [FunctionName(nameof(WaitChallenge))]
-        public static async Task WaitChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        [FunctionName(nameof(AnswerChallenges))]
+        public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var orderDetails = context.GetInput<OrderDetails>();
+            var (orderDetails, challenges) = context.GetInput<(OrderDetails, IList<Challenge>)>();
 
             var acme = await CreateAcmeClientAsync();
 
+            // Answer の準備が出来たことを通知
+            foreach (var challenge in challenges)
+            {
+                await acme.AnswerChallengeAsync(challenge.Url);
+            }
+
+            // Order のステータスが ready になるまで 60 秒待機
             for (int i = 0; i < 12; i++)
             {
-                // Order のステータスが ready になるまで 60 秒待機
                 orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
                 if (orderDetails.Payload.Status == "ready")

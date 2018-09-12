@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
+using ACMESharp.Protocol.Resources;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -40,19 +41,17 @@ namespace AzureLetsEncrypt
             foreach (var site in sites)
             {
                 // 期限切れが近い証明書がバインドされているか確認
-                var hostNames = site.HostNameSslStates
-                                            .Where(x => !x.Name.EndsWith(".azurewebsites.net") && certificates.Any(xs => xs.Thumbprint == x.Thumbprint))
-                                            .Select(x => x.Name)
-                                            .ToArray();
+                var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
+                                                    .ToArray();
 
                 // 対象となる証明書が存在しない場合はスキップ
-                if (hostNames.Length == 0)
+                if (boundCertificates.Length == 0)
                 {
                     continue;
                 }
 
                 // 証明書の更新処理を開始
-                tasks.Add(context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, hostNames)));
+                tasks.Add(context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates)));
             }
 
             // サブオーケストレーターの完了を待つ
@@ -62,21 +61,21 @@ namespace AzureLetsEncrypt
         [FunctionName(nameof(RenewSiteCertificates))]
         public static async Task RenewSiteCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
-            var (site, hostNames) = context.GetInput<(Site, string[])>();
+            var (site, certificates) = context.GetInput<(Site, Certificate[])>();
 
             log.LogInformation($"Site name: {site.Name}");
 
-            foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(x.Name)))
+            foreach (var certificate in certificates)
             {
-                log.LogInformation($"Host name: {hostNameSslState.Name}");
+                log.LogInformation($"Subject name: {certificate.SubjectName}");
 
                 // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                var useDns01Auth = hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux");
+                var useDns01Auth = certificate.HostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
                 // 前提条件をチェック
                 if (useDns01Auth)
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), hostNameSslState.Name);
+                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), certificate.HostNames);
                 }
                 else
                 {
@@ -84,29 +83,36 @@ namespace AzureLetsEncrypt
                 }
 
                 // 新しく ACME Order を作成する
-                var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
+                var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), certificate.HostNames);
 
-                // 複数の Authorizations には未対応
-                var authzUrl = orderDetails.Payload.Authorizations.First();
+                // 複数の Authorizations を処理する
+                var challenges = new List<Challenge>();
 
-                // ACME Challenge を実行
-                if (useDns01Auth)
+                foreach (var authorization in orderDetails.Payload.Authorizations)
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (hostNameSslState.Name, authzUrl));
+                    // ACME Challenge を実行
+                    if (useDns01Auth)
+                    {
+                        challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Dns01Authorization), authorization));
+                    }
+                    else
+                    {
+                        challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
+                    }
                 }
-                else
+
+                // Order status が ready になるまで待つ
+                await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), (orderDetails, challenges));
+
+                var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (certificate.HostNames, orderDetails));
+
+                await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
+
+                foreach (var hostNameSslState in site.HostNameSslStates.Where(x => certificate.HostNames.Contains(x.Name)))
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
+                    hostNameSslState.Thumbprint = thumbprint;
+                    hostNameSslState.ToUpdate = true;
                 }
-
-                await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
-
-                var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
-
-                await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{hostNameSslState.Name}-{thumbprint}", pfxBlob));
-
-                hostNameSslState.Thumbprint = thumbprint;
-                hostNameSslState.ToUpdate = true;
             }
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
