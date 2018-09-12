@@ -1,8 +1,10 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
+using ACMESharp.Protocol.Resources;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -26,21 +28,23 @@ namespace AzureLetsEncrypt
                 return;
             }
 
-            var hostNameSslState = site.HostNameSslStates.FirstOrDefault(x => x.Name == request.Domain);
+            var hostNameSslStates = site.HostNameSslStates
+                                        .Where(x => request.Domains.Contains(x.Name))
+                                        .ToArray();
 
-            if (hostNameSslState == null)
+            if (hostNameSslStates.Length != request.Domains.Length)
             {
-                log.LogInformation($"{request.Domain} is not found");
+                log.LogInformation($"{request.Domains} is not found");
                 return;
             }
 
             // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = hostNameSslState.Name.StartsWith("*") || site.Kind.Contains("container") || site.Kind.Contains("linux");
+            var useDns01Auth = request.Domains.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
             // 前提条件をチェック
             if (useDns01Auth)
             {
-                await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), hostNameSslState.Name);
+                await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), request.Domains);
             }
             else
             {
@@ -48,30 +52,37 @@ namespace AzureLetsEncrypt
             }
 
             // 新しく ACME Order を作成する
-            var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), hostNameSslState.Name);
+            var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), request.Domains);
 
-            // 複数の Authorizations には未対応
-            var authzUrl = orderDetails.Payload.Authorizations.First();
+            // 複数の Authorizations を処理する
+            var challenges = new List<Challenge>();
 
-            // ACME Challenge を実行
-            if (useDns01Auth)
+            foreach (var authorization in orderDetails.Payload.Authorizations)
             {
-                await context.CallActivityAsync(nameof(SharedFunctions.Dns01Authorization), (hostNameSslState.Name, authzUrl));
+                // ACME Challenge を実行
+                if (useDns01Auth)
+                {
+                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Dns01Authorization), authorization));
+                }
+                else
+                {
+                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
+                }
             }
-            else
+
+            // Order status が ready になるまで待つ
+            await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), (orderDetails, challenges));
+
+            var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (request.Domains, orderDetails));
+
+            await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
+
+            foreach (var hostNameSslState in hostNameSslStates)
             {
-                await context.CallActivityAsync(nameof(SharedFunctions.Http01Authorization), (site, authzUrl));
+                hostNameSslState.Thumbprint = thumbprint;
+                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
+                hostNameSslState.ToUpdate = true;
             }
-
-            await context.CallActivityAsync(nameof(SharedFunctions.WaitChallenge), orderDetails);
-
-            var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (hostNameSslState, orderDetails));
-
-            await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{hostNameSslState.Name}-{thumbprint}", pfxBlob));
-
-            hostNameSslState.Thumbprint = thumbprint;
-            hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
-            hostNameSslState.ToUpdate = true;
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
         }
@@ -94,9 +105,9 @@ namespace AzureLetsEncrypt
                 return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.SiteName)} is empty.");
             }
 
-            if (string.IsNullOrEmpty(request.Domain))
+            if (request.Domains == null || request.Domains.Length == 0)
             {
-                return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.Domain)} is empty.");
+                return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.Domains)} is empty.");
             }
 
             // Function input comes from the request content.
@@ -112,7 +123,7 @@ namespace AzureLetsEncrypt
     {
         public string ResourceGroupName { get; set; }
         public string SiteName { get; set; }
-        public string Domain { get; set; }
+        public string[] Domains { get; set; }
         public bool? UseIpBasedSsl { get; set; }
     }
 }
