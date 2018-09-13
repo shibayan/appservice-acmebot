@@ -2,7 +2,7 @@
 
 [![Build status](https://ci.appveyor.com/api/projects/status/bhbdscxn7f33ne1p?svg=true)](https://ci.appveyor.com/project/shibayan/azure-appservice-letsencrypt)
 
-This function provide automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
+This function provide easy automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
 
 - Support multiple app services
 - Simple deployment and configuration
@@ -24,14 +24,15 @@ They can manage multiple App Service certificates with simple one Functions.
 ## Feature Support
 
 - App Service (Windows) and Azure Functions
-- Wildcard certificates (required Azure DNS)
 - App Service (Linux) / Web App for Containers (required Azure DNS)
+- Subject Alternative Names certificates (multi domains)
+- Wildcard certificates (required Azure DNS)
 - Multiple App Service with one Functions
 
 ## Requirements
 
 - Azure Subscription
-- App Service with added hostname
+- App Service with added hostnames
 - Email address (for Let's Encrypt account)
 
 ## Getting Started
