@@ -23,8 +23,8 @@ They can manage multiple App Service certificates with simple one Functions.
 
 ## Feature Support
 
-- App Service (Windows) and Azure Functions
-- App Service (Linux) / Web App for Containers (required Azure DNS)
+- Azure Web Apps and Azure Functions (Windows)
+- Azure Web Apps (Linux) / Web App for Containers (required Azure DNS)
 - Subject Alternative Names certificates (multi domains)
 - Wildcard certificates (required Azure DNS)
 - Multiple App Service with one Functions
@@ -58,7 +58,7 @@ They can manage multiple App Service certificates with simple one Functions.
 
 Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
 
-![Assign role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
+![Assign a role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
 ![IAM settings](https://user-images.githubusercontent.com/1356444/44624857-e169c900-a934-11e8-982c-5ad8c163beff.png)
 
