@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 
-namespace AzureLetsEncrypt
+namespace AzureAppService.LetsEncrypt
 {
     internal class Settings
     {

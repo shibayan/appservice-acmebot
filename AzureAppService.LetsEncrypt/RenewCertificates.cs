@@ -9,7 +9,7 @@ using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
-namespace AzureLetsEncrypt
+namespace AzureAppService.LetsEncrypt
 {
     public static class RenewCertificates
     {
