@@ -23,7 +23,7 @@ using Microsoft.Rest;
 
 using Newtonsoft.Json;
 
-namespace AzureLetsEncrypt
+namespace AzureAppService.LetsEncrypt
 {
     public static class SharedFunctions
     {

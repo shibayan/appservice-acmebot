@@ -13,7 +13,7 @@ using Microsoft.Rest.Serialization;
 
 using Newtonsoft.Json;
 
-namespace AzureLetsEncrypt
+namespace AzureAppService.LetsEncrypt
 {
     // Workaround https://github.com/Azure/azure-rest-api-specs/issues/3526
     public static class AzureSdkExtension

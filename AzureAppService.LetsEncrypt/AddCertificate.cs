@@ -11,7 +11,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AzureLetsEncrypt
+namespace AzureAppService.LetsEncrypt
 {
     public static class AddCertificate
     {
