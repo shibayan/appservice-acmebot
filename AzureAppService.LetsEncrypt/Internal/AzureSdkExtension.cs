@@ -16,7 +16,7 @@ using Newtonsoft.Json;
 namespace AzureAppService.LetsEncrypt
 {
     // Workaround https://github.com/Azure/azure-rest-api-specs/issues/3526
-    public static class AzureSdkExtension
+    internal static class AzureSdkExtension
     {
         public static async Task<IPage<Certificate>> ListCertificatesAsync(this WebSiteManagementClient Client, CancellationToken cancellationToken = default(CancellationToken))
         {
