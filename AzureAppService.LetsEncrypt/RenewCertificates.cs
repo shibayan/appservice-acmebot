@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -27,7 +28,7 @@ namespace AzureAppService.LetsEncrypt
             // 更新対象となる証明書がない場合は終わる
             if (certificates.Count == 0)
             {
-                log.LogInformation("Certificates is not found");
+                log.LogInformation("Certificates are not found");
 
                 return;
             }
@@ -101,9 +102,13 @@ namespace AzureAppService.LetsEncrypt
                     }
                 }
 
-                // Order status が ready になるまで待つ
-                await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), (orderDetails, challenges));
+                // ACME Answer を実行
+                await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), challenges);
 
+                // Order のステータスが ready になるまで 60 秒待機
+                await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsReady), new RetryOptions(TimeSpan.FromSeconds(5), 12), orderDetails);
+
+                // Order の最終処理を実行し PFX を作成
                 var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (certificate.HostNames, orderDetails));
 
                 await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));

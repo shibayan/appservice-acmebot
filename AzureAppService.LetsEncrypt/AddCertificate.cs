@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -70,9 +72,13 @@ namespace AzureAppService.LetsEncrypt
                 }
             }
 
-            // Order status が ready になるまで待つ
-            await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), (orderDetails, challenges));
+            // ACME Answer を実行
+            await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), challenges);
 
+            // Order のステータスが ready になるまで 60 秒待機
+            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsReady), new RetryOptions(TimeSpan.FromSeconds(5), 12), orderDetails);
+
+            // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (request.Domains, orderDetails));
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
@@ -97,17 +103,17 @@ namespace AzureAppService.LetsEncrypt
 
             if (string.IsNullOrEmpty(request.ResourceGroupName))
             {
-                return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.ResourceGroupName)} is empty.");
+                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.ResourceGroupName)} is empty.");
             }
 
             if (string.IsNullOrEmpty(request.SiteName))
             {
-                return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.SiteName)} is empty.");
+                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.SiteName)} is empty.");
             }
 
             if (request.Domains == null || request.Domains.Length == 0)
             {
-                return req.CreateErrorResponse(System.Net.HttpStatusCode.BadRequest, $"{nameof(request.Domains)} is empty.");
+                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.Domains)} is empty.");
             }
 
             // Function input comes from the request content.
