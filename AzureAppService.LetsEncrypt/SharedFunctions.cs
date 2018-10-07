@@ -12,6 +12,8 @@ using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using AzureAppService.LetsEncrypt.Internal;
+
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
