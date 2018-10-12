@@ -24,7 +24,7 @@ namespace AzureAppService.LetsEncrypt
 
             if (site == null)
             {
-                log.LogInformation($"{request.SiteName} is not found");
+                log.LogError($"{request.SiteName} is not found");
                 return;
             }
 
@@ -34,7 +34,10 @@ namespace AzureAppService.LetsEncrypt
 
             if (hostNameSslStates.Length != request.Domains.Length)
             {
-                log.LogInformation($"{request.Domains} is not found");
+                foreach (var hostName in request.Domains.Except(hostNameSslStates.Select(x => x.Name)))
+                {
+                    log.LogError($"{hostName} is not found");
+                }
                 return;
             }
 
