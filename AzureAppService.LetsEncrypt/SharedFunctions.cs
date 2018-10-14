@@ -12,6 +12,8 @@ using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using AzureAppService.LetsEncrypt.Internal;
+
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
@@ -230,7 +232,7 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName(nameof(AnswerChallenges))]
         public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var (orderDetails, challenges) = context.GetInput<(OrderDetails, IList<Challenge>)>();
+            var challenges = context.GetInput<IList<Challenge>>();
 
             var acme = await CreateAcmeClientAsync();
 
@@ -239,28 +241,21 @@ namespace AzureAppService.LetsEncrypt
             {
                 await acme.AnswerChallengeAsync(challenge.Url);
             }
+        }
 
-            // Order のステータスが ready になるまで 60 秒待機
-            for (int i = 0; i < 12; i++)
+        [FunctionName(nameof(CheckIsReady))]
+        public static async Task CheckIsReady([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var orderDetails = context.GetInput<OrderDetails>();
+
+            var acme = await CreateAcmeClientAsync();
+
+            orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+
+            if (orderDetails.Payload.Status != "ready")
             {
-                orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
-
-                if (orderDetails.Payload.Status == "ready")
-                {
-                    return;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(5));
+                throw new InvalidOperationException($"Invalid order status is {orderDetails.Payload.Status}");
             }
-
-            log.LogError($"Timeout ACME challenge status : {orderDetails.Payload.Status}");
-
-            if (orderDetails.Payload.Error != null)
-            {
-                log.LogError($"{orderDetails.Payload.Error.Type},{orderDetails.Payload.Error.Status},{orderDetails.Payload.Error.Detail}");
-            }
-
-            throw new InvalidOperationException();
         }
 
         [FunctionName(nameof(FinalizeOrder))]

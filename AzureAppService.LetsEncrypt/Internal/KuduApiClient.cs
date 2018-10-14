@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AzureAppService.LetsEncrypt
+namespace AzureAppService.LetsEncrypt.Internal
 {
     internal class KuduApiClient
     {
