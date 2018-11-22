@@ -73,9 +73,12 @@ If the Web App refers to a Service Plan in a different resource group, Please as
 Run `AddCertificate_HttpStart` function with parameters.
 
 ```sh
-curl https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=YOUR-FUNCTION-SECRET -X POST \
-    -H 'Content-Type:application/json' \
-    -d '{"ResourceGroupName":"My-WebApp-RG","SiteName":"my-webapp","Domains":["example.com"],"UseIpBasedSsl":false}'
+curl -X POST https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=YOUR-FUNCTION-SECRET -H 'Content-Type:application/json' -d '{
+  "ResourceGroupName":"My-WebApp-RG",
+  "SiteName":"my-webapp",
+  "Domains":["example.com"],
+  "UseIpBasedSsl":false
+}'
 ```
 
 - ResourceGroupName
