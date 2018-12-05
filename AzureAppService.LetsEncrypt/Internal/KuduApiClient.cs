@@ -8,20 +8,20 @@ namespace AzureAppService.LetsEncrypt.Internal
 {
     internal class KuduApiClient
     {
-        public KuduApiClient(string siteName, string userName, string password)
+        public KuduApiClient(string scmUrl, string userName, string password)
         {
-            _siteName = siteName;
+            _scmUrl = scmUrl;
             _basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}"));
         }
 
-        private readonly string _siteName;
+        private readonly string _scmUrl;
         private readonly string _basicAuth;
 
         private static readonly HttpClient _httpClient = new HttpClient();
 
         public Task WriteFileAsync(string filePath, string value)
         {
-            var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_siteName}.scm.azurewebsites.net/api/vfs/site/{filePath}");
+            var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmUrl}/api/vfs/site/{filePath}");
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
             request.Content = new StringContent(value, Encoding.UTF8);

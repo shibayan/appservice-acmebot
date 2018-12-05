@@ -37,7 +37,12 @@ namespace AzureAppService.LetsEncrypt
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            var (resourceGroupName, siteName) = context.GetInput<(string, string)>();
+            var (resourceGroupName, siteName, slotName) = context.GetInput<(string, string, string)>();
+
+            if (!string.IsNullOrEmpty(slotName))
+            {
+                return await websiteClient.WebApps.GetSlotAsync(resourceGroupName, siteName, slotName);
+            }
 
             return await websiteClient.WebApps.GetAsync(resourceGroupName, siteName);
         }
@@ -85,7 +90,7 @@ namespace AzureAppService.LetsEncrypt
 
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            var config = await websiteClient.WebApps.GetConfigurationAsync(site.ResourceGroup, site.Name);
+            var config = await websiteClient.WebApps.GetConfigurationAsync(site);
 
             // 既に .well-known が仮想アプリケーションとして追加されているか確認
             var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
@@ -106,7 +111,7 @@ namespace AzureAppService.LetsEncrypt
                 virtualApplication.PhysicalPath = "site\\.well-known";
             }
 
-            await websiteClient.WebApps.UpdateConfigurationAsync(site.ResourceGroup, site.Name, config);
+            await websiteClient.WebApps.UpdateConfigurationAsync(site, config);
         }
 
         [FunctionName(nameof(Http01Authorization))]
@@ -125,10 +130,10 @@ namespace AzureAppService.LetsEncrypt
 
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            var credentials = await websiteClient.WebApps.ListPublishingCredentialsAsync(site.ResourceGroup, site.Name);
+            var credentials = await websiteClient.WebApps.ListPublishingCredentialsAsync(site);
 
             // Kudu API を使い、Answer 用のファイルを作成
-            var kuduClient = new KuduApiClient(site.Name, credentials.PublishingUserName, credentials.PublishingPassword);
+            var kuduClient = new KuduApiClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
@@ -304,7 +309,7 @@ namespace AzureAppService.LetsEncrypt
 
             var site = context.GetInput<Site>();
 
-            await websiteClient.WebApps.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site);
+            await websiteClient.WebApps.CreateOrUpdateAsync(site);
         }
 
         [FunctionName(nameof(DeleteCertificate))]
