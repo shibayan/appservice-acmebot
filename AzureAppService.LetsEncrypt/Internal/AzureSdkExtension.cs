@@ -32,6 +32,7 @@ namespace AzureAppService.LetsEncrypt.Internal
             {
                 throw new ValidationException(ValidationRules.CannotBeNull, "this.Client.SubscriptionId");
             }
+
             string apiVersion = "2016-03-01";
             // Tracing
             bool _shouldTrace = ServiceClientTracing.IsEnabled;
@@ -44,6 +45,7 @@ namespace AzureAppService.LetsEncrypt.Internal
                 tracingParameters.Add("cancellationToken", cancellationToken);
                 ServiceClientTracing.Enter(_invocationId, Client, "List", tracingParameters);
             }
+
             // Construct URL
             var _baseUrl = Client.BaseUri.AbsoluteUri;
             var _url = new System.Uri(new System.Uri(_baseUrl + (_baseUrl.EndsWith("/") ? "" : "/")), "subscriptions/{subscriptionId}/providers/Microsoft.Web/certificates").ToString();
@@ -53,10 +55,12 @@ namespace AzureAppService.LetsEncrypt.Internal
             {
                 _queryParameters.Add(string.Format("api-version={0}", System.Uri.EscapeDataString(apiVersion)));
             }
+
             if (_queryParameters.Count > 0)
             {
                 _url += (_url.Contains("?") ? "&" : "?") + string.Join("&", _queryParameters);
             }
+
             // Create HTTP transport objects
             var _httpRequest = new HttpRequestMessage();
             HttpResponseMessage _httpResponse = null;
@@ -67,12 +71,14 @@ namespace AzureAppService.LetsEncrypt.Internal
             {
                 _httpRequest.Headers.TryAddWithoutValidation("x-ms-client-request-id", System.Guid.NewGuid().ToString());
             }
+
             if (Client.AcceptLanguage != null)
             {
                 if (_httpRequest.Headers.Contains("accept-language"))
                 {
                     _httpRequest.Headers.Remove("accept-language");
                 }
+
                 _httpRequest.Headers.TryAddWithoutValidation("accept-language", Client.AcceptLanguage);
             }
 
@@ -85,6 +91,7 @@ namespace AzureAppService.LetsEncrypt.Internal
                     {
                         _httpRequest.Headers.Remove(_header.Key);
                     }
+
                     _httpRequest.Headers.TryAddWithoutValidation(_header.Key, _header.Value);
                 }
             }
@@ -97,17 +104,20 @@ namespace AzureAppService.LetsEncrypt.Internal
                 cancellationToken.ThrowIfCancellationRequested();
                 await Client.Credentials.ProcessHttpRequestAsync(_httpRequest, cancellationToken).ConfigureAwait(false);
             }
+
             // Send Request
             if (_shouldTrace)
             {
                 ServiceClientTracing.SendRequest(_invocationId, _httpRequest);
             }
+
             cancellationToken.ThrowIfCancellationRequested();
             _httpResponse = await Client.HttpClient.SendAsync(_httpRequest, cancellationToken).ConfigureAwait(false);
             if (_shouldTrace)
             {
                 ServiceClientTracing.ReceiveResponse(_invocationId, _httpResponse);
             }
+
             HttpStatusCode _statusCode = _httpResponse.StatusCode;
             cancellationToken.ThrowIfCancellationRequested();
             string _responseContent = null;
@@ -128,23 +138,28 @@ namespace AzureAppService.LetsEncrypt.Internal
                 {
                     // Ignore the exception
                 }
+
                 ex.Request = new HttpRequestMessageWrapper(_httpRequest, _requestContent);
                 ex.Response = new HttpResponseMessageWrapper(_httpResponse, _responseContent);
                 if (_httpResponse.Headers.Contains("x-ms-request-id"))
                 {
                     ex.RequestId = _httpResponse.Headers.GetValues("x-ms-request-id").FirstOrDefault();
                 }
+
                 if (_shouldTrace)
                 {
                     ServiceClientTracing.Error(_invocationId, ex);
                 }
+
                 _httpRequest.Dispose();
                 if (_httpResponse != null)
                 {
                     _httpResponse.Dispose();
                 }
+
                 throw ex;
             }
+
             // Create Result
             var _result = new AzureOperationResponse<IPage<Certificate>>();
             _result.Request = _httpRequest;
@@ -153,6 +168,7 @@ namespace AzureAppService.LetsEncrypt.Internal
             {
                 _result.RequestId = _httpResponse.Headers.GetValues("x-ms-request-id").FirstOrDefault();
             }
+
             // Deserialize Response
             if ((int)_statusCode == 200)
             {
@@ -161,6 +177,7 @@ namespace AzureAppService.LetsEncrypt.Internal
                 {
                     _responseContent = "{\"value\":" + _responseContent + "}";
                 }
+
                 try
                 {
                     _result.Body = SafeJsonConvert.DeserializeObject<Page<Certificate>>(_responseContent, Client.DeserializationSettings);
@@ -172,14 +189,65 @@ namespace AzureAppService.LetsEncrypt.Internal
                     {
                         _httpResponse.Dispose();
                     }
+
                     throw new SerializationException("Unable to deserialize the response.", _responseContent, ex);
                 }
             }
+
             if (_shouldTrace)
             {
                 ServiceClientTracing.Exit(_invocationId, _result);
             }
+
             return _result;
+        }
+
+        public static Task<SiteConfigResource> GetConfigurationAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (site.IsSlot())
+            {
+                var (siteName, slotName) = site.SplitName();
+
+                return operations.GetConfigurationSlotAsync(site.ResourceGroup, siteName, slotName, cancellationToken);
+            }
+
+            return operations.GetConfigurationAsync(site.ResourceGroup, site.Name, cancellationToken);
+        }
+
+        public static Task<SiteConfigResource> UpdateConfigurationAsync(this IWebAppsOperations operations, Site site, SiteConfigResource siteConfig, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (site.IsSlot())
+            {
+                var (siteName, slotName) = site.SplitName();
+
+                return operations.UpdateConfigurationSlotAsync(site.ResourceGroup, siteName, siteConfig, slotName, cancellationToken);
+            }
+
+            return operations.UpdateConfigurationAsync(site.ResourceGroup, site.Name, siteConfig, cancellationToken);
+        }
+
+        public static Task<User> ListPublishingCredentialsAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (site.IsSlot())
+            {
+                var (siteName, slotName) = site.SplitName();
+
+                return operations.ListPublishingCredentialsSlotAsync(site.ResourceGroup, siteName, slotName, cancellationToken);
+            }
+
+            return operations.ListPublishingCredentialsAsync(site.ResourceGroup, site.Name, cancellationToken);
+        }
+
+        public static Task<Site> CreateOrUpdateAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (site.IsSlot())
+            {
+                var (siteName, slotName) = site.SplitName();
+
+                return operations.CreateOrUpdateSlotAsync(site.ResourceGroup, siteName, site, slotName, cancellationToken);
+            }
+
+            return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);
         }
     }
 }

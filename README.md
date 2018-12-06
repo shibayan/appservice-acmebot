@@ -76,6 +76,7 @@ Run `AddCertificate_HttpStart` function with parameters.
 curl -X POST https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=YOUR-FUNCTION-SECRET -H 'Content-Type:application/json' -d '{
   "ResourceGroupName":"My-WebApp-RG",
   "SiteName":"my-webapp",
+  "SlotName":"stage",
   "Domains":["example.com"],
   "UseIpBasedSsl":false
 }'
@@ -85,6 +86,8 @@ curl -X POST https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpSta
   - Resource group containing App Service. (ex. My-WebApp-RG)
 - SiteName
   - App Service name to issue certificate. (ex. my-webapp)
+- SlotName
+  - App Service slot name to issue certificate. (ex. stage, optional)
 - Domains
   - Hostnames to issue certificate. It needs to be added to App Service. (ex. example.com)
 - UseIpBasedSsl

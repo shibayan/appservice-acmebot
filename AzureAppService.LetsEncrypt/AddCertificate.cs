@@ -22,7 +22,7 @@ namespace AzureAppService.LetsEncrypt
         {
             var request = context.GetInput<AddCertificateRequest>();
 
-            var site = await context.CallActivityAsync<Site>(nameof(SharedFunctions.GetSite), (request.ResourceGroupName, request.SiteName));
+            var site = await context.CallActivityAsync<Site>(nameof(SharedFunctions.GetSite), (request.ResourceGroupName, request.SiteName, request.SlotName));
 
             if (site == null)
             {
@@ -132,6 +132,7 @@ namespace AzureAppService.LetsEncrypt
     {
         public string ResourceGroupName { get; set; }
         public string SiteName { get; set; }
+        public string SlotName { get; set; }
         public string[] Domains { get; set; }
         public bool? UseIpBasedSsl { get; set; }
     }
