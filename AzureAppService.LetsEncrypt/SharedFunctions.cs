@@ -52,9 +52,19 @@ namespace AzureAppService.LetsEncrypt
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
+            var list = new List<Site>();
+
             var sites = await websiteClient.WebApps.ListAsync();
 
-            return sites.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net"))).ToArray();
+            foreach (var site in sites)
+            {
+                var slots = await websiteClient.WebApps.ListSlotsAsync(site.ResourceGroup, site.Name);
+
+                list.Add(site);
+                list.AddRange(slots);
+            }
+
+            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net"))).ToArray();
         }
 
         [FunctionName(nameof(GetCertificates))]
@@ -69,7 +79,7 @@ namespace AzureAppService.LetsEncrypt
             var certificates = await websiteClient.ListCertificatesAsync();
 
             return certificates
-                   .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4")
+                   .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
                    .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
         }
 
