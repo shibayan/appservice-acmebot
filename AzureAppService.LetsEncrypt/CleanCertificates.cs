@@ -36,11 +36,16 @@ namespace AzureAppService.LetsEncrypt
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
                                          .ToArray();
 
+            var tasks = new List<Task>();
+
             // バインドされていない証明書を削除
             foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
             {
-                await context.CallActivityAsync(nameof(SharedFunctions.DeleteCertificate), certificate);
+                tasks.Add(context.CallActivityAsync(nameof(SharedFunctions.DeleteCertificate), certificate));
             }
+
+            // アクティビティの完了を待つ
+            await Task.WhenAll(tasks);
         }
 
         [FunctionName("CleanCertificates_Timer")]
