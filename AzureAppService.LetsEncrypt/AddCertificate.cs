@@ -101,10 +101,9 @@ namespace AzureAppService.LetsEncrypt
         public static async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
-            ClaimsPrincipal principal,
             ILogger log)
         {
-            if (!principal.Identity.IsAuthenticated)
+            if (!req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID"))
             {
                 return req.CreateErrorResponse(HttpStatusCode.Unauthorized, $"Need to activate EasyAuth.");
             }
