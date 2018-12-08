@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
@@ -100,8 +101,14 @@ namespace AzureAppService.LetsEncrypt
         public static async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
+            ClaimsPrincipal principal,
             ILogger log)
         {
+            if (!principal.Identity.IsAuthenticated)
+            {
+                return req.CreateErrorResponse(HttpStatusCode.Unauthorized, $"Need to activate EasyAuth.");
+            }
+
             var request = await req.Content.ReadAsAsync<AddCertificateRequest>();
 
             if (string.IsNullOrEmpty(request.ResourceGroupName))
