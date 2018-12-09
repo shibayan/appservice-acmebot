@@ -56,7 +56,11 @@ They can manage multiple App Service certificates with simple one Functions.
 
 ### 3. Enable App Service Authentication (EasyAuth) with AAD
 
+Open `Authentication / Authorization` from Azure Portal and turn on App Service Authentication. Then select `Log in with Azure Active Directory` as an action when not logging in.
+
 ![Enable App Service Authentication with AAD](https://user-images.githubusercontent.com/1356444/49693401-ecc7c400-fbb4-11e8-9ae1-5d376a4d8a05.png)
+
+Set up Azure Active Directory provider by selecting `Express`.
 
 ![Create New Azure AD App](https://user-images.githubusercontent.com/1356444/49693412-6f508380-fbb5-11e8-81fb-6bbcbe47654e.png)
 
@@ -76,9 +80,11 @@ If the Web App refers to a Service Plan in a different resource group, Please as
 
 ### Adding new certificate
 
-Access to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate` page.
+Go to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate`. Since the Web UI is displayed, if you select the target App Service and domain and execute it, a certificate will be issued.
 
 ![Add certificate](https://user-images.githubusercontent.com/1356444/49693421-b3dc1f00-fbb5-11e8-8ac1-37092a2be711.png)
+
+If nothing is displayed in the dropdown, the IAM setting is incorrect.
 
 ### Renew certificates
 
