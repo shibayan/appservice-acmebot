@@ -54,7 +54,17 @@ They can manage multiple App Service certificates with simple one Functions.
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
 
-### 3. Assign roles to target resource group
+### 3. Enable App Service Authentication (EasyAuth) with AAD
+
+Open `Authentication / Authorization` from Azure Portal and turn on App Service Authentication. Then select `Log in with Azure Active Directory` as an action when not logging in.
+
+![Enable App Service Authentication with AAD](https://user-images.githubusercontent.com/1356444/49693401-ecc7c400-fbb4-11e8-9ae1-5d376a4d8a05.png)
+
+Set up Azure Active Directory provider by selecting `Express`.
+
+![Create New Azure AD App](https://user-images.githubusercontent.com/1356444/49693412-6f508380-fbb5-11e8-81fb-6bbcbe47654e.png)
+
+### 4. Assign roles to target resource group
 
 Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
 
@@ -70,28 +80,11 @@ If the Web App refers to a Service Plan in a different resource group, Please as
 
 ### Adding new certificate
 
-Run `AddCertificate_HttpStart` function with parameters.
+Go to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate`. Since the Web UI is displayed, if you select the target App Service and domain and execute it, a certificate will be issued.
 
-```sh
-curl -X POST https://YOUR-FUNCTIONS.azurewebsites.net/api/AddCertificate_HttpStart?code=YOUR-FUNCTION-SECRET -H 'Content-Type:application/json' -d '{
-  "ResourceGroupName":"My-WebApp-RG",
-  "SiteName":"my-webapp",
-  "SlotName":"stage",
-  "Domains":["example.com"],
-  "UseIpBasedSsl":false
-}'
-```
+![Add certificate](https://user-images.githubusercontent.com/1356444/49693421-b3dc1f00-fbb5-11e8-8ac1-37092a2be711.png)
 
-- ResourceGroupName
-  - Resource group containing App Service. (ex. My-WebApp-RG)
-- SiteName
-  - App Service name to issue certificate. (ex. my-webapp)
-- SlotName
-  - App Service slot name to issue certificate. (ex. stage, optional)
-- Domains
-  - Hostnames to issue certificate. It needs to be added to App Service. (ex. example.com)
-- UseIpBasedSsl
-  - Use IP Based SSL binding. (boolean, optional)
+If nothing is displayed in the dropdown, the IAM setting is incorrect.
 
 ### Renew certificates
 

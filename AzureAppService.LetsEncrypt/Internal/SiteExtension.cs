@@ -15,6 +15,11 @@ namespace AzureAppService.LetsEncrypt.Internal
         {
             var index = site.Name.IndexOf('/');
 
+            if (index == -1)
+            {
+                return (site.Name, null);
+            }
+
             return (site.Name.Substring(0, index), site.Name.Substring(index + 1));
         }
 
