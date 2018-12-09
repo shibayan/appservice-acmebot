@@ -55,13 +55,22 @@ namespace AzureAppService.LetsEncrypt
                                           .ToArray()
                         };
 
-                        siteInformation.Slots.Add(slotInformation);
+                        if (slotInformation.Domains.Count != 0)
+                        {
+                            siteInformation.Slots.Add(slotInformation);
+                        }
                     }
 
-                    resourceGroup.Sites.Add(siteInformation);
+                    if (siteInformation.Slots.Count != 0)
+                    {
+                        resourceGroup.Sites.Add(siteInformation);
+                    }
                 }
 
-                result.Add(resourceGroup);
+                if (resourceGroup.Sites.Count != 0)
+                {
+                    result.Add(resourceGroup);
+                }
             }
             
             return result;
@@ -111,6 +120,6 @@ namespace AzureAppService.LetsEncrypt
         public string Name { get; set; }
 
         [JsonProperty("domains")]
-        public string[] Domains{ get; set; }
+        public IList<string> Domains{ get; set; }
     }
 }

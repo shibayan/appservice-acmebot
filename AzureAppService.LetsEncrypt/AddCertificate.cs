@@ -130,7 +130,7 @@ namespace AzureAppService.LetsEncrypt
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return starter.CreateCheckStatusResponse(req, instanceId);
+            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(60));
         }
     }
 
