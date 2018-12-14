@@ -17,7 +17,7 @@ They can manage multiple App Service certificates with simple one Functions.
 - [Requirements](#requirements)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
-- [Known Issues](#known-issues)
+- [Troubleshooting](#troubleshooting)
 - [Thanks](#thanks)
 - [License](#license)
 
@@ -105,7 +105,7 @@ If they need a Wildcard certificate, additional assign "DNS Zone Contributor" ro
 
 Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
 
-## Known Issues
+## Troubleshooting
 
 **Causes Azure REST API error at GetSite or Dns01Precondition**
 
