@@ -115,6 +115,7 @@ Make sure that the required role is assign for the resource group. Azure IAM may
 
 - [ACMESharp Core](https://github.com/PKISharp/ACMESharpCore) by @ebekker
 - [Durable Functions](https://github.com/Azure/azure-functions-durable-extension) by @cgillum and contributors
+- [DnsClient.NET](https://github.com/MichaCo/DnsClient.NET) by @MichaCo
 
 ## License
 

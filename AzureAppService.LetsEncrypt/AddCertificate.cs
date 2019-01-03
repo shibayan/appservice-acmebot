@@ -61,18 +61,23 @@ namespace AzureAppService.LetsEncrypt
             var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), request.Domains);
 
             // 複数の Authorizations を処理する
-            var challenges = new List<Challenge>();
+            var challenges = new List<ChallengeResult>();
 
             foreach (var authorization in orderDetails.Payload.Authorizations)
             {
                 // ACME Challenge を実行
                 if (useDns01Auth)
                 {
-                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Dns01Authorization), authorization));
+                    var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Dns01Authorization), authorization);
+
+                    // Azure DNS で正しくレコードが引けるか確認
+                    await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsDnsRecord), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
+
+                    challenges.Add(result);
                 }
                 else
                 {
-                    challenges.Add(await context.CallActivityAsync<Challenge>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
+                    challenges.Add(await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
                 }
             }
 
