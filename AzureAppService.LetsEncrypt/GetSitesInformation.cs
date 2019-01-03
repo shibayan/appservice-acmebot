@@ -34,7 +34,7 @@ namespace AzureAppService.LetsEncrypt
                     Sites = new List<SiteInformation>()
                 };
 
-                foreach (var site in item.ToLookup(x => x.SplitName().Item1))
+                foreach (var site in item.ToLookup(x => x.SiteName()))
                 {
                     var siteInformation = new SiteInformation
                     {
@@ -44,11 +44,9 @@ namespace AzureAppService.LetsEncrypt
 
                     foreach (var slot in site)
                     {
-                        var (_, slotName) = slot.SplitName();
-
                         var slotInformation = new SlotInformation
                         {
-                            Name = slotName ?? "production",
+                            Name = slot.SlotName() ?? "production",
                             Domains = slot.HostNameSslStates
                                           .Where(x => x.SslState == SslState.Disabled && !x.Name.EndsWith(".azurewebsites.net"))
                                           .Select(x => x.Name)
@@ -72,7 +70,7 @@ namespace AzureAppService.LetsEncrypt
                     result.Add(resourceGroup);
                 }
             }
-            
+
             return result;
         }
 
@@ -120,6 +118,6 @@ namespace AzureAppService.LetsEncrypt
         public string Name { get; set; }
 
         [JsonProperty("domains")]
-        public IList<string> Domains{ get; set; }
+        public IList<string> Domains { get; set; }
     }
 }

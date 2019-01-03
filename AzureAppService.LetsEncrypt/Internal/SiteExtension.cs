@@ -11,6 +11,16 @@ namespace AzureAppService.LetsEncrypt.Internal
             return site.Name.Contains('/');
         }
 
+        public static string SiteName(this Site site)
+        {
+            return site.SplitName().Item1;
+        }
+
+        public static string SlotName(this Site site)
+        {
+            return site.SplitName().Item2;
+        }
+
         public static (string, string) SplitName(this Site site)
         {
             var index = site.Name.IndexOf('/');

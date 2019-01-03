@@ -16,6 +16,9 @@ namespace AzureAppService.LetsEncrypt.Internal
         [JsonProperty("siteName")]
         public string SiteName { get; set; }
 
+        [JsonProperty("slotName")]
+        public string SlotName { get; set; }
+
         [JsonProperty("hostNames")]
         public string[] HostNames { get; set; }
     }

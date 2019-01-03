@@ -388,8 +388,8 @@ namespace AzureAppService.LetsEncrypt
             await websiteClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
         }
 
-        [FunctionName(nameof(RaiseWebhookEvent))]
-        public static async Task RaiseWebhookEvent([ActivityTrigger] DurableActivityContext context, ILogger log)
+        [FunctionName(nameof(RaiseEventWebhook))]
+        public static async Task RaiseEventWebhook([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             if (string.IsNullOrEmpty(Settings.Default.Webhook))
             {
