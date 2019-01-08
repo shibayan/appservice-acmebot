@@ -14,6 +14,8 @@ using ACMESharp.Protocol.Resources;
 
 using AzureAppService.LetsEncrypt.Internal;
 
+using DnsClient;
+
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
@@ -31,6 +33,8 @@ namespace AzureAppService.LetsEncrypt
     {
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly HttpClient _acmeHttpClient = new HttpClient { BaseAddress = new Uri("https://acme-v02.api.letsencrypt.org/") };
+
+        private static readonly LookupClient _lookupClient = new LookupClient { UseCache = false };
 
         [FunctionName(nameof(GetSite))]
         public static async Task<Site> GetSite([ActivityTrigger] DurableActivityContext context, ILogger log)
@@ -125,7 +129,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public static async Task<Challenge> Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task<ChallengeResult> Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var (site, authzUrl) = context.GetInput<(Site, string)>();
 
@@ -148,7 +152,10 @@ namespace AzureAppService.LetsEncrypt
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
-            return challenge;
+            return new ChallengeResult
+            {
+                Url = challenge.Url
+            };
         }
 
         [FunctionName(nameof(Dns01Precondition))]
@@ -165,15 +172,13 @@ namespace AzureAppService.LetsEncrypt
             {
                 if (!zones.Any(x => hostName.EndsWith(x.Name)))
                 {
-                    log.LogError($"Azure DNS zone \"{hostName}\" is not found");
-
-                    throw new InvalidOperationException();
+                    throw new InvalidOperationException($"Azure DNS zone \"{hostName}\" is not found");
                 }
             }
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public static async Task<Challenge> Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public static async Task<ChallengeResult> Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var authzUrl = context.GetInput<string>();
 
@@ -241,13 +246,43 @@ namespace AzureAppService.LetsEncrypt
 
             await dnsClient.RecordSets.CreateOrUpdateAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
-            return challenge;
+            return new ChallengeResult
+            {
+                Url = challenge.Url,
+                DnsRecordName = challengeValidationDetails.DnsRecordName,
+                DnsRecordValue = challengeValidationDetails.DnsRecordValue
+            };
+        }
+
+        [FunctionName(nameof(CheckIsDnsRecord))]
+        public static async Task CheckIsDnsRecord([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var challenge = context.GetInput<ChallengeResult>();
+
+            // 実際に ACME の TXT レコードを引いて確認する
+            var queryResult = await _lookupClient.QueryAsync(challenge.DnsRecordName, QueryType.TXT);
+
+            var txtRecord = queryResult.Answers
+                                       .OfType<DnsClient.Protocol.TxtRecord>()
+                                       .FirstOrDefault();
+
+            // レコードが存在しなかった場合はエラー
+            if (txtRecord == null)
+            {
+                throw new InvalidOperationException($"{challenge.DnsRecordName} did not resolve.");
+            }
+
+            // レコードに今回のチャレンジが含まれていない場合もエラー
+            if (!txtRecord.Text.Contains(challenge.DnsRecordValue))
+            {
+                throw new InvalidOperationException($"{challenge.DnsRecordName} value is not correct.");
+            }
         }
 
         [FunctionName(nameof(AnswerChallenges))]
         public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
-            var challenges = context.GetInput<IList<Challenge>>();
+            var challenges = context.GetInput<IList<ChallengeResult>>();
 
             var acme = await CreateAcmeClientAsync();
 
@@ -267,9 +302,28 @@ namespace AzureAppService.LetsEncrypt
 
             orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
-            if (orderDetails.Payload.Status != "ready")
+            if (orderDetails.Payload.Status == "pending")
             {
-                throw new InvalidOperationException($"Invalid order status is {orderDetails.Payload.Status}");
+                // pending の場合は何もしない
+                throw new InvalidOperationException("ACME domain validation is pending.");
+            }
+
+            if (orderDetails.Payload.Status == "invalid")
+            {
+                // エラーログ用に Authorization を取得
+                foreach (var authzUrl in orderDetails.Payload.Authorizations)
+                {
+                    var authorization = await acme.GetAuthorizationDetailsAsync(authzUrl);
+
+                    var challenge = authorization.Challenges.FirstOrDefault(x => x.Error != null);
+
+                    if (challenge != null)
+                    {
+                        log.LogError(JsonConvert.SerializeObject(challenge.Error));
+                    }
+                }
+
+                throw new InvalidOperationException("Invalid order status. Required retry at first.");
             }
         }
 
@@ -447,5 +501,12 @@ namespace AzureAppService.LetsEncrypt
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
         private static readonly string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
+    }
+
+    public class ChallengeResult
+    {
+        public string Url { get; set; }
+        public string DnsRecordName { get; set; }
+        public string DnsRecordValue { get; set; }
     }
 }
