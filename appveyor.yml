@@ -14,7 +14,7 @@ image: Visual Studio 2017
 
 build_script:
   - dotnet publish -c Release
-  - 7z a latest.zip %APPVEYOR_BUILD_FOLDER%\AzureAppService.LetsEncrypt\bin\Release\netcoreapp2.1\publish\*
+  - 7z a latest.zip %APPVEYOR_BUILD_FOLDER%\AzureAppService.LetsEncrypt\bin\Release\netcoreapp2.2\publish\*
 
 test: off
 
