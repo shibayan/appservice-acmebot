@@ -388,6 +388,21 @@ namespace AzureAppService.LetsEncrypt
             await websiteClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
         }
 
+        [FunctionName(nameof(RaiseWebhookEvent))]
+        public static async Task RaiseWebhookEvent([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            if (string.IsNullOrEmpty(Settings.Default.Webhook))
+            {
+                return;
+            }
+
+            var payload = context.GetInput<WebhookPayload>();
+
+            var response = await _httpClient.PostAsJsonAsync(Settings.Default.Webhook, payload);
+
+            response.EnsureSuccessStatusCode();
+        }
+
         private static async Task<AcmeProtocolClient> CreateAcmeClientAsync()
         {
             var account = default(AccountDetails);

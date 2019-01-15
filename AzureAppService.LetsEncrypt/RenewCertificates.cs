@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using AzureAppService.LetsEncrypt.Internal;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
@@ -126,6 +128,16 @@ namespace AzureAppService.LetsEncrypt
             }
 
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
+
+            // Webhook を実行
+            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.RaiseWebhookEvent), new RetryOptions(TimeSpan.FromSeconds(10), 5), new WebhookPayload
+            {
+                IsSuccess = true,
+                Action = nameof(AddCertificate),
+                ResourceGroup = site.ResourceGroup,
+                SiteName = site.Name,
+                HostNames = certificates.SelectMany(x => x.HostNames).ToArray()
+            });
         }
 
         [FunctionName("RenewCertificates_Timer")]
