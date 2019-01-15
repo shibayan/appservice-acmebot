@@ -1,6 +1,8 @@
 # Azure App Service Let's Encrypt
 
 [![Build status](https://ci.appveyor.com/api/projects/status/bhbdscxn7f33ne1p?svg=true)](https://ci.appveyor.com/project/shibayan/azure-appservice-letsencrypt)
+[![Release](https://img.shields.io/github/release/shibayan/azure-appservice-letsencrypt.svg)](https://github.com/shibayan/azure-appservice-letsencrypt/releases/latest)
+[![License](https://img.shields.io/github/license/shibayan/azure-appservice-letsencrypt.svg)](https://github.com/shibayan/azure-appservice-letsencrypt/blob/master/LICENSE)
 
 This function provide easy automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
 
