@@ -130,12 +130,13 @@ namespace AzureAppService.LetsEncrypt
             await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
 
             // Webhook を実行
-            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.RaiseWebhookEvent), new RetryOptions(TimeSpan.FromSeconds(10), 5), new WebhookPayload
+            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.RaiseEventWebhook), new RetryOptions(TimeSpan.FromSeconds(10), 5), new WebhookPayload
             {
                 IsSuccess = true,
-                Action = nameof(AddCertificate),
+                Action = nameof(RenewCertificates),
                 ResourceGroup = site.ResourceGroup,
-                SiteName = site.Name,
+                SiteName = site.SiteName(),
+                SlotName = site.SlotName(),
                 HostNames = certificates.SelectMany(x => x.HostNames).ToArray()
             });
         }
