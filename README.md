@@ -87,6 +87,14 @@ Go to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate`. Since the Web 
 
 If nothing is displayed in the dropdown, the IAM setting is incorrect.
 
+### Adding wildcard certificate or Linux Container support
+
+If they need a Wildcard certificate, additional assign "DNS Zone Contributor" role to Azure DNS or Resource group.
+
+![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
+
+Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
+
 ### Renew certificates
 
 This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
@@ -96,14 +104,6 @@ The default time is UTC 00:00, so if necessary they can set any time zone with `
 ### Deploy new version
 
 This function use `Run From Package`. To deploy the latest version, just restart Azure Functions.
-
-### Wildcard and Linux Container support
-
-If they need a Wildcard certificate, additional assign "DNS Zone Contributor" role to Azure DNS or Resource group.
-
-![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
-
-Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
 
 ## Troubleshooting
 
