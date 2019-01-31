@@ -68,7 +68,7 @@ namespace AzureAppService.LetsEncrypt
                 list.AddRange(slots);
             }
 
-            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net"))).ToArray();
+            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net"))).ToArray();
         }
 
         [FunctionName(nameof(GetCertificates))]
