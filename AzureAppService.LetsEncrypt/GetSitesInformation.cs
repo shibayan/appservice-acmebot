@@ -18,6 +18,11 @@ namespace AzureAppService.LetsEncrypt
 {
     public static class GetSitesInformation
     {
+        static GetSitesInformation()
+        {
+            DurableTaskEventListener.Start();
+        }
+
         [FunctionName("GetSitesInformation")]
         public static async Task<IList<ResourceGroupInformation>> RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context)
         {
@@ -72,7 +77,7 @@ namespace AzureAppService.LetsEncrypt
                     result.Add(resourceGroup);
                 }
             }
-            
+
             return result;
         }
 
@@ -120,6 +125,6 @@ namespace AzureAppService.LetsEncrypt
         public string Name { get; set; }
 
         [JsonProperty("domains")]
-        public IList<string> Domains{ get; set; }
+        public IList<string> Domains { get; set; }
     }
 }

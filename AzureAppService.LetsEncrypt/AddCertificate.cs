@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Security.Claims;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
-using ACMESharp.Protocol.Resources;
+
+using AzureAppService.LetsEncrypt.Internal;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -18,6 +18,11 @@ namespace AzureAppService.LetsEncrypt
 {
     public static class AddCertificate
     {
+        static AddCertificate()
+        {
+            DurableTaskEventListener.Start();
+        }
+
         [FunctionName("AddCertificate")]
         public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {

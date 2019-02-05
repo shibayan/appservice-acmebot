@@ -4,7 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
-using ACMESharp.Protocol.Resources;
+
+using AzureAppService.LetsEncrypt.Internal;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -14,6 +15,11 @@ namespace AzureAppService.LetsEncrypt
 {
     public static class RenewCertificates
     {
+        static RenewCertificates()
+        {
+            DurableTaskEventListener.Start();
+        }
+
         [FunctionName("RenewCertificates")]
         public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {

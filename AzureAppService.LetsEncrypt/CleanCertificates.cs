@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 
+using AzureAppService.LetsEncrypt.Internal;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
@@ -10,6 +12,11 @@ namespace AzureAppService.LetsEncrypt
 {
     public static class CleanCertificates
     {
+        static CleanCertificates()
+        {
+            DurableTaskEventListener.Start();
+        }
+
         [FunctionName("CleanCertificates")]
         public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
