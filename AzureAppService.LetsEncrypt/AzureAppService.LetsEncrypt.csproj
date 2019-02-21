@@ -4,8 +4,8 @@
     <AzureFunctionsVersion>v2</AzureFunctionsVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ACMESharpCore" Version="2.0.0.49-beta1" />
-    <PackageReference Include="ACMESharpCore.Crypto" Version="2.0.0.41-beta1" />
+    <PackageReference Include="ACMESharpCore" Version="2.0.1.105" />
+    <PackageReference Include="ACMESharpCore.Crypto" Version="2.0.1.105" />
     <PackageReference Include="DnsClient" Version="1.2.0" />
     <PackageReference Include="Microsoft.Azure.Management.Dns" Version="3.0.1" />
     <PackageReference Include="Microsoft.Azure.Management.WebSites" Version="2.0.1" />
