@@ -154,8 +154,34 @@ namespace AzureAppService.LetsEncrypt
 
             return new ChallengeResult
             {
-                Url = challenge.Url
+                Url = challenge.Url,
+                HttpResourceUrl = challengeValidationDetails.HttpResourceUrl,
+                HttpResourceValue = challengeValidationDetails.HttpResourceValue
             };
+        }
+
+        [FunctionName(nameof(CheckHttpChallenge))]
+        public static async Task CheckHttpChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var challenge = context.GetInput<ChallengeResult>();
+
+            // 実際に HTTP でアクセスして確認する
+            var httpResponse = await _httpClient.GetAsync(challenge.HttpResourceUrl);
+
+            // ファイルにアクセスできない場合はエラー
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                // リトライする
+                throw new RetriableActivityException($"{challenge.HttpResourceUrl} is {httpResponse.StatusCode} status code.");
+            }
+
+            var fileContent = await httpResponse.Content.ReadAsStringAsync();
+
+            // ファイルに今回のチャレンジが含まれていない場合もエラー
+            if (fileContent != challenge.HttpResourceValue)
+            {
+                throw new InvalidOperationException($"{challenge.HttpResourceValue} value is not correct.");
+            }
         }
 
         [FunctionName(nameof(Dns01Precondition))]
@@ -254,8 +280,8 @@ namespace AzureAppService.LetsEncrypt
             };
         }
 
-        [FunctionName(nameof(CheckIsDnsRecord))]
-        public static async Task CheckIsDnsRecord([ActivityTrigger] DurableActivityContext context, ILogger log)
+        [FunctionName(nameof(CheckDnsChallenge))]
+        public static async Task CheckDnsChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
             var challenge = context.GetInput<ChallengeResult>();
 
@@ -269,27 +295,13 @@ namespace AzureAppService.LetsEncrypt
             // レコードが存在しなかった場合はエラー
             if (txtRecords.Length == 0)
             {
-                throw new InvalidOperationException($"{challenge.DnsRecordName} did not resolve.");
+                throw new RetriableActivityException($"{challenge.DnsRecordName} did not resolve.");
             }
 
             // レコードに今回のチャレンジが含まれていない場合もエラー
             if (!txtRecords.Any(x => x.Text.Contains(challenge.DnsRecordValue)))
             {
-                throw new InvalidOperationException($"{challenge.DnsRecordName} value is not correct.");
-            }
-        }
-
-        [FunctionName(nameof(AnswerChallenges))]
-        public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
-        {
-            var challenges = context.GetInput<IList<ChallengeResult>>();
-
-            var acme = await CreateAcmeClientAsync();
-
-            // Answer の準備が出来たことを通知
-            foreach (var challenge in challenges)
-            {
-                await acme.AnswerChallengeAsync(challenge.Url);
+                throw new RetriableActivityException($"{challenge.DnsRecordName} value is not correct.");
             }
         }
 
@@ -304,8 +316,8 @@ namespace AzureAppService.LetsEncrypt
 
             if (orderDetails.Payload.Status == "pending")
             {
-                // pending の場合は何もしない
-                throw new InvalidOperationException("ACME domain validation is pending.");
+                // pending の場合はリトライする
+                throw new RetriableActivityException("ACME domain validation is pending.");
             }
 
             if (orderDetails.Payload.Status == "invalid")
@@ -323,7 +335,22 @@ namespace AzureAppService.LetsEncrypt
                     }
                 }
 
+                // invalid の場合は最初から実行が必要なので失敗させる
                 throw new InvalidOperationException("Invalid order status. Required retry at first.");
+            }
+        }
+
+        [FunctionName(nameof(AnswerChallenges))]
+        public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var challenges = context.GetInput<IList<ChallengeResult>>();
+
+            var acme = await CreateAcmeClientAsync();
+
+            // Answer の準備が出来たことを通知
+            foreach (var challenge in challenges)
+            {
+                await acme.AnswerChallengeAsync(challenge.Url);
             }
         }
 
@@ -506,6 +533,8 @@ namespace AzureAppService.LetsEncrypt
     public class ChallengeResult
     {
         public string Url { get; set; }
+        public string HttpResourceUrl { get; set; }
+        public string HttpResourceValue { get; set; }
         public string DnsRecordName { get; set; }
         public string DnsRecordValue { get; set; }
     }
