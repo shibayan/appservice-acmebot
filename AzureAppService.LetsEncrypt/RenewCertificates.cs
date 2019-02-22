@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
-using ACMESharp.Protocol.Resources;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -97,13 +96,18 @@ namespace AzureAppService.LetsEncrypt
                         var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Dns01Authorization), authorization);
 
                         // Azure DNS で正しくレコードが引けるか確認
-                        await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsDnsRecord), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
+                        await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckDnsChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
 
                         challenges.Add(result);
                     }
                     else
                     {
-                        challenges.Add(await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Http01Authorization), (site, authorization)));
+                        var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Http01Authorization), (site, authorization));
+
+                        // HTTP で正しくアクセスできるか確認
+                        await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckHttpChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
+
+                        challenges.Add(result);
                     }
                 }
 
