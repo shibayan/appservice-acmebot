@@ -32,6 +32,7 @@ namespace AzureAppService.LetsEncrypt
     public static class SharedFunctions
     {
         private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _insecureHttpClient = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
         private static readonly HttpClient _acmeHttpClient = new HttpClient { BaseAddress = new Uri("https://acme-v02.api.letsencrypt.org/") };
 
         private static readonly LookupClient _lookupClient = new LookupClient { UseCache = false };
@@ -166,7 +167,7 @@ namespace AzureAppService.LetsEncrypt
             var challenge = context.GetInput<ChallengeResult>();
 
             // 実際に HTTP でアクセスして確認する
-            var httpResponse = await _httpClient.GetAsync(challenge.HttpResourceUrl);
+            var httpResponse = await _insecureHttpClient.GetAsync(challenge.HttpResourceUrl);
 
             // ファイルにアクセスできない場合はエラー
             if (!httpResponse.IsSuccessStatusCode)
