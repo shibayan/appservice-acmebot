@@ -57,6 +57,8 @@ They can manage multiple App Service certificates with simple one Functions.
   - Azure Subscription Id
 - LetsEncrypt:Contacts
   - Email address for Let's Encrypt account
+- LetsEncrypt:Webhook
+  - Webhook destination URL (optional, Slack recommend)
 
 ### 3. Enable App Service Authentication (EasyAuth) with AAD
 
