@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
 
+using AzureAppService.LetsEncrypt.Internal;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -70,7 +72,7 @@ namespace AzureAppService.LetsEncrypt
                     var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Dns01Authorization), authorization);
 
                     // Azure DNS で正しくレコードが引けるか確認
-                    await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckDnsChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
+                    await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckDnsChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6) { Handle = HandleRetriableException }, result);
 
                     challenges.Add(result);
                 }
@@ -80,7 +82,7 @@ namespace AzureAppService.LetsEncrypt
                     var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Http01Authorization), (site, authorization));
 
                     // HTTP で正しくアクセスできるか確認
-                    await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckHttpChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6), result);
+                    await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckHttpChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6) { Handle = HandleRetriableException }, result);
 
                     challenges.Add(result);
                 }
@@ -90,7 +92,7 @@ namespace AzureAppService.LetsEncrypt
             await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), challenges);
 
             // Order のステータスが ready になるまで 60 秒待機
-            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsReady), new RetryOptions(TimeSpan.FromSeconds(5), 12), orderDetails);
+            await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsReady), new RetryOptions(TimeSpan.FromSeconds(5), 12) { Handle = HandleRetriableException }, orderDetails);
 
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (request.Domains, orderDetails));
@@ -141,6 +143,11 @@ namespace AzureAppService.LetsEncrypt
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
             return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(5));
+        }
+
+        private static bool HandleRetriableException(Exception exception)
+        {
+            return exception.InnerException is RetriableActivityException;
         }
     }
 
