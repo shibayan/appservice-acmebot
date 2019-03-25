@@ -21,6 +21,8 @@ namespace AzureAppService.LetsEncrypt.Internal
 
         public string SubscriptionId => _section[nameof(SubscriptionId)];
 
+        public string Webhook => _section[nameof(Webhook)];
+
         public static Settings Default { get; } = new Settings();
     }
 }
