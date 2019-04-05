@@ -88,6 +88,18 @@ namespace AzureAppService.LetsEncrypt
                    .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
         }
 
+        [FunctionName(nameof(GetAllCertificates))]
+        public static async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] DurableActivityContext context, ILogger log)
+        {
+            var websiteClient = await CreateWebSiteManagementClientAsync();
+
+            // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
+            //var certificates = await websiteClient.Certificates.ListAsync();
+            var certificates = await websiteClient.ListCertificatesAsync();
+
+            return certificates.ToArray();
+        }
+
         [FunctionName(nameof(Order))]
         public static async Task<OrderDetails> Order([ActivityTrigger] DurableActivityContext context, ILogger log)
         {
