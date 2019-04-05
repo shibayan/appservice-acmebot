@@ -23,6 +23,7 @@ namespace AzureAppService.LetsEncrypt
         {
             // App Service を取得
             var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
+            var certificates = await context.CallActivityAsync<IList<Certificate>>(nameof(SharedFunctions.GetAllCertificates), null);
 
             var result = new List<ResourceGroupInformation>();
 
@@ -46,13 +47,17 @@ namespace AzureAppService.LetsEncrypt
                     {
                         var (_, slotName) = slot.SplitName();
 
+                        var hostNameSslStates = slot.HostNameSslStates
+                                                    .Where(x => !x.Name.EndsWith(".azurewebsites.net"));
+
                         var slotInformation = new SlotInformation
                         {
                             Name = slotName ?? "production",
-                            Domains = slot.HostNameSslStates
-                                          .Where(x => x.SslState == SslState.Disabled && !x.Name.EndsWith(".azurewebsites.net"))
-                                          .Select(x => x.Name)
-                                          .ToArray()
+                            Domains = hostNameSslStates.Select(x => new DomainInformation
+                            {
+                                Name = x.Name,
+                                Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
+                            }).ToArray()
                         };
 
                         if (slotInformation.Domains.Count != 0)
@@ -120,6 +125,15 @@ namespace AzureAppService.LetsEncrypt
         public string Name { get; set; }
 
         [JsonProperty("domains")]
-        public IList<string> Domains { get; set; }
+        public IList<DomainInformation> Domains { get; set; }
+    }
+
+    public class DomainInformation
+    {
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("issuer")]
+        public string Issuer { get; set; }
     }
 }
