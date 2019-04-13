@@ -72,7 +72,7 @@ Set up Azure Active Directory provider by selecting `Express`.
 
 ### 4. Assign roles to target resource group
 
-Using `Access control (IAM)`, assign a role to Function App. Require "Website Contributor" and "Web Plan Contributor" role.
+Using `Access control (IAM)`, assign a role to Function App. Require `Website Contributor` and `Web Plan Contributor` roles.
 
 ![Assign a role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
@@ -80,7 +80,7 @@ Using `Access control (IAM)`, assign a role to Function App. Require "Website Co
 
 **Remarks**
 
-If the Web App refers to a Service Plan in a different resource group, Please assign "Website Contributor" role for Resource Group with Web App and "Web Plan Contributor" role for Resource Group with Service Plan.
+If the Web App refers to a Service Plan in a different resource group, Please assign `Website Contributor` role for Resource Group with Web App and `Web Plan Contributor` role for Resource Group with Service Plan.
 
 ## Usage
 
@@ -94,7 +94,7 @@ If nothing is displayed in the dropdown, the IAM setting is incorrect.
 
 ### Adding wildcard certificate or Linux Container support
 
-If they need a Wildcard certificate, additional assign "DNS Zone Contributor" role to Azure DNS or Resource group.
+If they need a Wildcard certificate, additional assign `DNS Zone Contributor` role to Azure DNS or Resource group.
 
 ![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
 
@@ -102,7 +102,7 @@ Certificates for "App Service on Linux" and "Web App for Container" is required 
 
 ### Renew certificates
 
-This function will check the expiration date once a day for the certificate issuer is "Let's Encrypt Authority X3" or "Let's Encrypt Authority X4".
+This function will check the expiration date once a day for the certificate issuer is `Let's Encrypt Authority X3` or `Let's Encrypt Authority X4`.
 
 The default time is UTC 00:00, so if necessary they can set any time zone with `WEBSITE_TIME_ZONE`.
 
