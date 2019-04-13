@@ -28,10 +28,10 @@ They can manage multiple App Service certificates with simple one Functions.
 - Azure Web Apps and Azure Functions (Windows)
 - Azure Web Apps (Linux) / Web App for Containers (required Azure DNS)
 - Azure App Service Environment (Windows / Linux)
-- Certificate issued to Deployment slot
-- Subject Alternative Names certificates (multi domains)
+- Certificate issued to any deployment slot
+- Subject Alternative Names certificates (multi-domains support)
 - Wildcard certificates (required Azure DNS)
-- Multiple App Service with one Functions
+- Multiple App Services support with single Function App
 
 ## Requirements
 
