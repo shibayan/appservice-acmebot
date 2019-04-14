@@ -11,7 +11,7 @@ This function provide easy automation of Let's Encrypt for Azure App Service. Th
 - Robustness of implementation
 - Easy monitoring (Application Insights, Webhook)
 
-They can manage multiple App Service certificates with simple one Functions.
+They can manage multiple App Service certificates with single Function App.
 
 ## Table Of Contents
 
