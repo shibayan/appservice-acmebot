@@ -79,9 +79,7 @@ namespace AzureAppService.LetsEncrypt
 
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
-            //var certificates = await websiteClient.Certificates.ListAsync();
-            var certificates = await websiteClient.ListCertificatesAsync();
+            var certificates = await websiteClient.Certificates.ListAsync();
 
             return certificates
                    .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
@@ -93,9 +91,7 @@ namespace AzureAppService.LetsEncrypt
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            // TODO: https://github.com/Azure/azure-rest-api-specs/issues/3526
-            //var certificates = await websiteClient.Certificates.ListAsync();
-            var certificates = await websiteClient.ListCertificatesAsync();
+            var certificates = await websiteClient.Certificates.ListAsync();
 
             return certificates.ToArray();
         }
