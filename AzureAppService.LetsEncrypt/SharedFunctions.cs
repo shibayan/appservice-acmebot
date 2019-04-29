@@ -380,10 +380,14 @@ namespace AzureAppService.LetsEncrypt
             var certificateData = await _httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
-            var certificate = new X509Certificate2(certificateData).CopyWithPrivateKey(ec);
+            var (certificate, chainCertificate) = X509Certificate2Extension.LoadFromPem(certificateData);
+
+            var certificateWithPrivateKey = certificate.CopyWithPrivateKey(ec);
+
+            var x509Certificates = new X509Certificate2Collection(new[] { certificateWithPrivateKey, chainCertificate });
 
             // PFX 形式としてエクスポート
-            return (certificate.Thumbprint, certificate.Export(X509ContentType.Pfx, "P@ssw0rd"));
+            return (certificateWithPrivateKey.Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
         }
 
         [FunctionName(nameof(UpdateCertificate))]
