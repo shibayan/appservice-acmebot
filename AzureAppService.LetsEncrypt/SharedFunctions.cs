@@ -259,6 +259,8 @@ namespace AzureAppService.LetsEncrypt
                     recordSet.TxtRecords.Clear();
                 }
 
+                recordSet.TTL = 60;
+
                 // 既存の TXT レコードに値を追加する
                 recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
             }
