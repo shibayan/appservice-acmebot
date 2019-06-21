@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
@@ -13,8 +12,10 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName("CleanCertificates")]
         public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
+            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await context.CallActivityAsync<IList<Certificate>>(nameof(SharedFunctions.GetCertificates), context.CurrentUtcDateTime);
+            var certificates = await proxy.GetCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -30,7 +31,7 @@ namespace AzureAppService.LetsEncrypt
             }
 
             // App Service を取得
-            var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
+            var sites = await proxy.GetSites(null);
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
@@ -41,7 +42,7 @@ namespace AzureAppService.LetsEncrypt
             // バインドされていない証明書を削除
             foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
             {
-                tasks.Add(context.CallActivityAsync(nameof(SharedFunctions.DeleteCertificate), certificate));
+                tasks.Add(proxy.DeleteCertificate(certificate));
             }
 
             // アクティビティの完了を待つ
