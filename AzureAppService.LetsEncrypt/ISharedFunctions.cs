@@ -31,8 +31,8 @@ namespace AzureAppService.LetsEncrypt
         Task Dns01Precondition(IList<string> hostNames);
 
         Task<ChallengeResult> Dns01Authorization((string, string) context);
-        [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
 
+        [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
         Task CheckDnsChallenge(ChallengeResult challenge);
 
         [RetryOptions("00:00:05", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
