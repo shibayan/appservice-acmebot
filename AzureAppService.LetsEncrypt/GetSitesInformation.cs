@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 using AzureAppService.LetsEncrypt.Internal;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;

@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
-using AzureAppService.LetsEncrypt.Internal;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -143,11 +140,6 @@ namespace AzureAppService.LetsEncrypt
             var instanceId = await starter.StartNewAsync("RenewCertificates", null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
-        }
-
-        private static bool HandleRetriableException(Exception exception)
-        {
-            return exception.InnerException is RetriableActivityException;
         }
     }
 }

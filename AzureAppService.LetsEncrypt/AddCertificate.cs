@@ -5,8 +5,6 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-using AzureAppService.LetsEncrypt.Internal;
-
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -143,11 +141,6 @@ namespace AzureAppService.LetsEncrypt
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
             return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(5));
-        }
-
-        private static bool HandleRetriableException(Exception exception)
-        {
-            return exception.InnerException is RetriableActivityException;
         }
     }
 
