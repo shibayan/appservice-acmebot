@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 using AzureAppService.LetsEncrypt.Internal;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
@@ -21,9 +20,11 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName("GetSitesInformation")]
         public static async Task<IList<ResourceGroupInformation>> RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context)
         {
+            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+
             // App Service を取得
-            var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
-            var certificates = await context.CallActivityAsync<IList<Certificate>>(nameof(SharedFunctions.GetAllCertificates), null);
+            var sites = await proxy.GetSites(null);
+            var certificates = await proxy.GetAllCertificates(null);
 
             var result = new List<ResourceGroupInformation>();
 

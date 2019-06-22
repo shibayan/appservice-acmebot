@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
-using ACMESharp.Protocol;
-
-using AzureAppService.LetsEncrypt.Internal;
 
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -18,8 +13,10 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName("RenewCertificates")]
         public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
+            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await context.CallActivityAsync<IList<Certificate>>(nameof(SharedFunctions.GetCertificates), context.CurrentUtcDateTime);
+            var certificates = await proxy.GetCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -35,7 +32,7 @@ namespace AzureAppService.LetsEncrypt
             }
 
             // App Service を取得
-            var sites = await context.CallActivityAsync<IList<Site>>(nameof(SharedFunctions.GetSites), null);
+            var sites = await proxy.GetSites(null);
 
             var tasks = new List<Task>();
 
@@ -65,6 +62,8 @@ namespace AzureAppService.LetsEncrypt
         {
             var (site, certificates) = context.GetInput<(Site, Certificate[])>();
 
+            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+
             log.LogInformation($"Site name: {site.Name}");
 
             foreach (var certificate in certificates)
@@ -77,15 +76,15 @@ namespace AzureAppService.LetsEncrypt
                 // 前提条件をチェック
                 if (useDns01Auth)
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Dns01Precondition), certificate.HostNames);
+                    await proxy.Dns01Precondition(certificate.HostNames);
                 }
                 else
                 {
-                    await context.CallActivityAsync(nameof(SharedFunctions.Http01Precondition), site);
+                    await proxy.Http01Precondition(site);
                 }
 
                 // 新しく ACME Order を作成する
-                var orderDetails = await context.CallActivityAsync<OrderDetails>(nameof(SharedFunctions.Order), certificate.HostNames);
+                var orderDetails = await proxy.Order(certificate.HostNames);
 
                 // 複数の Authorizations を処理する
                 var challenges = new List<ChallengeResult>();
@@ -95,34 +94,34 @@ namespace AzureAppService.LetsEncrypt
                     // ACME Challenge を実行
                     if (useDns01Auth)
                     {
-                        var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Dns01Authorization), authorization);
+                        var result = await proxy.Dns01Authorization((authorization, context.InstanceId));
 
                         // Azure DNS で正しくレコードが引けるか確認
-                        await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckDnsChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6) { Handle = HandleRetriableException }, result);
+                        await proxy.CheckDnsChallenge(result);
 
                         challenges.Add(result);
                     }
                     else
                     {
-                        var result = await context.CallActivityAsync<ChallengeResult>(nameof(SharedFunctions.Http01Authorization), (site, authorization));
+                        var result = await proxy.Http01Authorization((site, authorization));
 
                         // HTTP で正しくアクセスできるか確認
-                        await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckHttpChallenge), new RetryOptions(TimeSpan.FromSeconds(10), 6) { Handle = HandleRetriableException }, result);
+                        await proxy.CheckHttpChallenge(result);
 
                         challenges.Add(result);
                     }
                 }
 
                 // ACME Answer を実行
-                await context.CallActivityAsync(nameof(SharedFunctions.AnswerChallenges), challenges);
+                await proxy.AnswerChallenges(challenges);
 
                 // Order のステータスが ready になるまで 60 秒待機
-                await context.CallActivityWithRetryAsync(nameof(SharedFunctions.CheckIsReady), new RetryOptions(TimeSpan.FromSeconds(5), 12) { Handle = HandleRetriableException }, orderDetails);
+                await proxy.CheckIsReady(orderDetails);
 
                 // Order の最終処理を実行し PFX を作成
-                var (thumbprint, pfxBlob) = await context.CallActivityAsync<(string, byte[])>(nameof(SharedFunctions.FinalizeOrder), (certificate.HostNames, orderDetails));
+                var (thumbprint, pfxBlob) = await proxy.FinalizeOrder((certificate.HostNames, orderDetails));
 
-                await context.CallActivityAsync(nameof(SharedFunctions.UpdateCertificate), (site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
+                await proxy.UpdateCertificate((site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
 
                 foreach (var hostNameSslState in site.HostNameSslStates.Where(x => certificate.HostNames.Contains(x.Name)))
                 {
@@ -131,7 +130,7 @@ namespace AzureAppService.LetsEncrypt
                 }
             }
 
-            await context.CallActivityAsync(nameof(SharedFunctions.UpdateSiteBinding), site);
+            await proxy.UpdateSiteBinding(site);
         }
 
         [FunctionName("RenewCertificates_Timer")]
@@ -141,11 +140,6 @@ namespace AzureAppService.LetsEncrypt
             var instanceId = await starter.StartNewAsync("RenewCertificates", null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
-        }
-
-        private static bool HandleRetriableException(Exception exception)
-        {
-            return exception.InnerException is RetriableActivityException;
         }
     }
 }

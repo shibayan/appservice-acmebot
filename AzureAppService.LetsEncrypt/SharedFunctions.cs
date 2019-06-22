@@ -22,15 +22,16 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.Services.AppAuthentication;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Extensions.Logging;
 using Microsoft.Rest;
 
 using Newtonsoft.Json;
 
 namespace AzureAppService.LetsEncrypt
 {
-    public static class SharedFunctions
+    public class SharedFunctions : ISharedFunctions
     {
+        private const string InstanceIdKey = "InstanceId";
+
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly HttpClient _insecureHttpClient = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
         private static readonly HttpClient _acmeHttpClient = new HttpClient { BaseAddress = new Uri("https://acme-v02.api.letsencrypt.org/") };
@@ -38,11 +39,11 @@ namespace AzureAppService.LetsEncrypt
         private static readonly LookupClient _lookupClient = new LookupClient { UseCache = false };
 
         [FunctionName(nameof(GetSite))]
-        public static async Task<Site> GetSite([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
-            var websiteClient = await CreateWebSiteManagementClientAsync();
+            var (resourceGroupName, siteName, slotName) = input;
 
-            var (resourceGroupName, siteName, slotName) = context.GetInput<(string, string, string)>();
+            var websiteClient = await CreateWebSiteManagementClientAsync();
 
             if (!string.IsNullOrEmpty(slotName))
             {
@@ -53,7 +54,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(GetSites))]
-        public static async Task<IList<Site>> GetSites([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<IList<Site>> GetSites([ActivityTrigger] object input)
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
@@ -73,10 +74,8 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(GetCertificates))]
-        public static async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DateTime currentDateTime)
         {
-            var currentDateTime = context.GetInput<DateTime>();
-
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var certificates = await websiteClient.Certificates.ListAsync();
@@ -87,7 +86,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(GetAllCertificates))]
-        public static async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
@@ -97,20 +96,16 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Order))]
-        public static async Task<OrderDetails> Order([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
         {
-            var hostNames = context.GetInput<string[]>();
-
             var acme = await CreateAcmeClientAsync();
 
             return await acme.CreateOrderAsync(hostNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
-        public static async Task Http01Precondition([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task Http01Precondition([ActivityTrigger] Site site)
         {
-            var site = context.GetInput<Site>();
-
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
             var config = await websiteClient.WebApps.GetConfigurationAsync(site);
@@ -138,9 +133,9 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public static async Task<ChallengeResult> Http01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<ChallengeResult> Http01Authorization([ActivityTrigger] (Site, string) input)
         {
-            var (site, authzUrl) = context.GetInput<(Site, string)>();
+            var (site, authzUrl) = input;
 
             var acme = await CreateAcmeClientAsync();
 
@@ -170,10 +165,8 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(CheckHttpChallenge))]
-        public static async Task CheckHttpChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task CheckHttpChallenge([ActivityTrigger] ChallengeResult challenge)
         {
-            var challenge = context.GetInput<ChallengeResult>();
-
             // 実際に HTTP でアクセスして確認する
             var httpResponse = await _insecureHttpClient.GetAsync(challenge.HttpResourceUrl);
 
@@ -194,10 +187,8 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Dns01Precondition))]
-        public static async Task Dns01Precondition([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task Dns01Precondition([ActivityTrigger] IList<string> hostNames)
         {
-            var hostNames = context.GetInput<string[]>();
-
             var dnsClient = await CreateDnsManagementClientAsync();
 
             // Azure DNS が存在するか確認
@@ -213,9 +204,9 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public static async Task<ChallengeResult> Dns01Authorization([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<ChallengeResult> Dns01Authorization([ActivityTrigger] (string, string) input)
         {
-            var authzUrl = context.GetInput<string>();
+            var (authzUrl, instanceId) = input;
 
             var acme = await CreateAcmeClientAsync();
 
@@ -249,11 +240,11 @@ namespace AzureAppService.LetsEncrypt
 
             if (recordSet != null)
             {
-                if (recordSet.Metadata == null || !recordSet.Metadata.TryGetValue(nameof(context.InstanceId), out var instanceId) || instanceId != context.InstanceId)
+                if (recordSet.Metadata == null || !recordSet.Metadata.TryGetValue(InstanceIdKey, out var dnsInstanceId) || dnsInstanceId != instanceId)
                 {
                     recordSet.Metadata = new Dictionary<string, string>
                     {
-                        { nameof(context.InstanceId), context.InstanceId }
+                        { InstanceIdKey, instanceId }
                     };
 
                     recordSet.TxtRecords.Clear();
@@ -272,7 +263,7 @@ namespace AzureAppService.LetsEncrypt
                     TTL = 60,
                     Metadata = new Dictionary<string, string>
                     {
-                        { nameof(context.InstanceId), context.InstanceId }
+                        { InstanceIdKey, instanceId }
                     },
                     TxtRecords = new[]
                     {
@@ -292,10 +283,8 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(CheckDnsChallenge))]
-        public static async Task CheckDnsChallenge([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task CheckDnsChallenge([ActivityTrigger] ChallengeResult challenge)
         {
-            var challenge = context.GetInput<ChallengeResult>();
-
             // 実際に ACME の TXT レコードを引いて確認する
             var queryResult = await _lookupClient.QueryAsync(challenge.DnsRecordName, QueryType.TXT);
 
@@ -317,10 +306,8 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(CheckIsReady))]
-        public static async Task CheckIsReady([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task CheckIsReady([ActivityTrigger] OrderDetails orderDetails)
         {
-            var orderDetails = context.GetInput<OrderDetails>();
-
             var acme = await CreateAcmeClientAsync();
 
             orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
@@ -333,29 +320,14 @@ namespace AzureAppService.LetsEncrypt
 
             if (orderDetails.Payload.Status == "invalid")
             {
-                // エラーログ用に Authorization を取得
-                foreach (var authzUrl in orderDetails.Payload.Authorizations)
-                {
-                    var authorization = await acme.GetAuthorizationDetailsAsync(authzUrl);
-
-                    var challenge = authorization.Challenges.FirstOrDefault(x => x.Error != null);
-
-                    if (challenge != null)
-                    {
-                        log.LogError(JsonConvert.SerializeObject(challenge.Error));
-                    }
-                }
-
                 // invalid の場合は最初から実行が必要なので失敗させる
                 throw new InvalidOperationException("Invalid order status. Required retry at first.");
             }
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public static async Task AnswerChallenges([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
         {
-            var challenges = context.GetInput<IList<ChallengeResult>>();
-
             var acme = await CreateAcmeClientAsync();
 
             // Answer の準備が出来たことを通知
@@ -366,9 +338,9 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(FinalizeOrder))]
-        public static async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IList<string>, OrderDetails) input)
         {
-            var (hostNames, orderDetails) = context.GetInput<(string[], OrderDetails)>();
+            var (hostNames, orderDetails) = input;
 
             // ECC 256bit の証明書に固定
             var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -393,11 +365,11 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(UpdateCertificate))]
-        public static async Task UpdateCertificate([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
 
-            var (site, certificateName, pfxBlob) = context.GetInput<(Site, string, byte[])>();
+            var (site, certificateName, pfxBlob) = input;
 
             await websiteClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
@@ -409,21 +381,17 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(UpdateSiteBinding))]
-        public static async Task UpdateSiteBinding([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task UpdateSiteBinding([ActivityTrigger] Site site)
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
-
-            var site = context.GetInput<Site>();
 
             await websiteClient.WebApps.CreateOrUpdateAsync(site);
         }
 
         [FunctionName(nameof(DeleteCertificate))]
-        public static async Task DeleteCertificate([ActivityTrigger] DurableActivityContext context, ILogger log)
+        public async Task DeleteCertificate([ActivityTrigger] Certificate certificate)
         {
             var websiteClient = await CreateWebSiteManagementClientAsync();
-
-            var certificate = context.GetInput<Certificate>();
 
             var resourceId = ParseResourceId(certificate.Id);
 
