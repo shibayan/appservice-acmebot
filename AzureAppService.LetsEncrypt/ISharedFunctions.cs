@@ -13,11 +13,11 @@ namespace AzureAppService.LetsEncrypt
     {
         Task<Site> GetSite((string, string, string) input);
 
-        Task<IList<Site>> GetSites(object input);
+        Task<IList<Site>> GetSites(object input = null);
 
         Task<IList<Certificate>> GetCertificates(DateTime currentDateTime);
 
-        Task<IList<Certificate>> GetAllCertificates(object input);
+        Task<IList<Certificate>> GetAllCertificates(object input = null);
 
         Task<OrderDetails> Order(IList<string> hostNames);
 

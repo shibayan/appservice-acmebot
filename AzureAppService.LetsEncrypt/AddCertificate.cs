@@ -12,10 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureAppService.LetsEncrypt
 {
-    public static class AddCertificate
+    public class AddCertificate
     {
         [FunctionName("AddCertificate")]
-        public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var request = context.GetInput<AddCertificateRequest>();
 
@@ -108,7 +108,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("AddCertificate_HttpStart")]
-        public static async Task<HttpResponseMessage> HttpStart(
+        public async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)

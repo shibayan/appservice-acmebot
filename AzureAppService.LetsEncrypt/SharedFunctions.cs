@@ -30,13 +30,18 @@ namespace AzureAppService.LetsEncrypt
 {
     public class SharedFunctions : ISharedFunctions
     {
+        public SharedFunctions(LookupClient lookupClient)
+        {
+            _lookupClient = lookupClient;
+        }
+
         private const string InstanceIdKey = "InstanceId";
 
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly HttpClient _insecureHttpClient = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
         private static readonly HttpClient _acmeHttpClient = new HttpClient { BaseAddress = new Uri("https://acme-v02.api.letsencrypt.org/") };
 
-        private static readonly LookupClient _lookupClient = new LookupClient { UseCache = false };
+        private readonly LookupClient _lookupClient;
 
         [FunctionName(nameof(GetSite))]
         public async Task<Site> GetSite([ActivityTrigger] (string, string, string) input)

@@ -15,16 +15,16 @@ using Newtonsoft.Json;
 
 namespace AzureAppService.LetsEncrypt
 {
-    public static class GetSitesInformation
+    public class GetSitesInformation
     {
         [FunctionName("GetSitesInformation")]
-        public static async Task<IList<ResourceGroupInformation>> RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context)
+        public async Task<IList<ResourceGroupInformation>> RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
             // App Service を取得
-            var sites = await proxy.GetSites(null);
-            var certificates = await proxy.GetAllCertificates(null);
+            var sites = await proxy.GetSites();
+            var certificates = await proxy.GetAllCertificates();
 
             var result = new List<ResourceGroupInformation>();
 
@@ -83,7 +83,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("GetSitesInformation_HttpStart")]
-        public static async Task<HttpResponseMessage> HttpStart(
+        public async Task<HttpResponseMessage> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)

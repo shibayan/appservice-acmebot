@@ -8,10 +8,10 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureAppService.LetsEncrypt
 {
-    public static class RenewCertificates
+    public class RenewCertificates
     {
         [FunctionName("RenewCertificates")]
-        public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -32,7 +32,7 @@ namespace AzureAppService.LetsEncrypt
             }
 
             // App Service を取得
-            var sites = await proxy.GetSites(null);
+            var sites = await proxy.GetSites();
 
             var tasks = new List<Task>();
 
@@ -58,7 +58,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
-        public static async Task RenewSiteCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RenewSiteCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var (site, certificates) = context.GetInput<(Site, Certificate[])>();
 
@@ -134,7 +134,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("RenewCertificates_Timer")]
-        public static async Task TimerStart([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
+        public async Task TimerStart([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync("RenewCertificates", null);
