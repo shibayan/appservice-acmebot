@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -10,7 +9,6 @@ using System.Threading.Tasks;
 using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
-using ACMESharp.Protocol.Resources;
 
 using AzureAppService.LetsEncrypt.Internal;
 
@@ -22,15 +20,14 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 
-using Newtonsoft.Json;
-
 namespace AzureAppService.LetsEncrypt
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(LookupClient lookupClient, WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
+        public SharedFunctions(LookupClient lookupClient, AcmeProtocolClient acmeProtocolClient, WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
         {
             _lookupClient = lookupClient;
+            _acmeProtocolClient = acmeProtocolClient;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
         }
@@ -39,9 +36,9 @@ namespace AzureAppService.LetsEncrypt
 
         private static readonly HttpClient _httpClient = new HttpClient();
         private static readonly HttpClient _insecureHttpClient = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
-        private static readonly HttpClient _acmeHttpClient = new HttpClient { BaseAddress = new Uri("https://acme-v02.api.letsencrypt.org/") };
 
         private readonly LookupClient _lookupClient;
+        private readonly AcmeProtocolClient _acmeProtocolClient;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
 
@@ -97,9 +94,7 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName(nameof(Order))]
         public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
         {
-            var acme = await CreateAcmeClientAsync();
-
-            return await acme.CreateOrderAsync(hostNames);
+            return await _acmeProtocolClient.CreateOrderAsync(hostNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -134,14 +129,12 @@ namespace AzureAppService.LetsEncrypt
         {
             var (site, authzUrl) = input;
 
-            var acme = await CreateAcmeClientAsync();
-
-            var authz = await acme.GetAuthorizationDetailsAsync(authzUrl);
+            var authz = await _acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
 
             // HTTP-01 Challenge の情報を拾う
             var challenge = authz.Challenges.First(x => x.Type == "http-01");
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, acme.Signer);
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, _acmeProtocolClient.Signer);
 
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
@@ -201,14 +194,12 @@ namespace AzureAppService.LetsEncrypt
         {
             var (authzUrl, instanceId) = input;
 
-            var acme = await CreateAcmeClientAsync();
-
-            var authz = await acme.GetAuthorizationDetailsAsync(authzUrl);
+            var authz = await _acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
 
             // DNS-01 Challenge の情報を拾う
             var challenge = authz.Challenges.First(x => x.Type == "dns-01");
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, acme.Signer);
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, _acmeProtocolClient.Signer);
 
             // Azure DNS の TXT レコードを書き換え
             var zone = (await _dnsManagementClient.Zones.ListAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
@@ -299,9 +290,7 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName(nameof(CheckIsReady))]
         public async Task CheckIsReady([ActivityTrigger] OrderDetails orderDetails)
         {
-            var acme = await CreateAcmeClientAsync();
-
-            orderDetails = await acme.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+            orderDetails = await _acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
             if (orderDetails.Payload.Status == "pending")
             {
@@ -319,12 +308,10 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName(nameof(AnswerChallenges))]
         public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
         {
-            var acme = await CreateAcmeClientAsync();
-
             // Answer の準備が出来たことを通知
             foreach (var challenge in challenges)
             {
-                await acme.AnswerChallengeAsync(challenge.Url);
+                await _acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
             }
         }
 
@@ -337,10 +324,8 @@ namespace AzureAppService.LetsEncrypt
             var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             var csr = CryptoHelper.Ec.GenerateCsr(hostNames, ec);
 
-            var acme = await CreateAcmeClientAsync();
-
             // Order の最終処理を実行し、証明書を作成
-            var finalize = await acme.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
+            var finalize = await _acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
             var certificateData = await _httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
@@ -381,77 +366,6 @@ namespace AzureAppService.LetsEncrypt
             var resourceId = ParseResourceId(certificate.Id);
 
             await _webSiteManagementClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
-        }
-
-        private static async Task<AcmeProtocolClient> CreateAcmeClientAsync()
-        {
-            var account = default(AccountDetails);
-            var accountKey = default(AccountKey);
-            var acmeDir = default(ServiceDirectory);
-
-            LoadState(ref account, "account.json");
-            LoadState(ref accountKey, "account_key.json");
-            LoadState(ref acmeDir, "directory.json");
-
-            var acme = new AcmeProtocolClient(_acmeHttpClient, acmeDir, account, accountKey?.GenerateSigner());
-
-            if (acmeDir == null)
-            {
-                acmeDir = await acme.GetDirectoryAsync();
-
-                SaveState(acmeDir, "directory.json");
-
-                acme.Directory = acmeDir;
-            }
-
-            await acme.GetNonceAsync();
-
-            if (account == null || accountKey == null)
-            {
-                account = await acme.CreateAccountAsync(new[] { "mailto:" + Settings.Default.Contacts }, true);
-
-                accountKey = new AccountKey
-                {
-                    KeyType = acme.Signer.JwsAlg,
-                    KeyExport = acme.Signer.Export()
-                };
-
-                SaveState(account, "account.json");
-                SaveState(accountKey, "account_key.json");
-
-                acme.Account = account;
-            }
-
-            return acme;
-        }
-
-        private static void LoadState<T>(ref T value, string path)
-        {
-            var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
-
-            if (!File.Exists(fullPath))
-            {
-                return;
-            }
-
-            var json = File.ReadAllText(fullPath);
-
-            value = JsonConvert.DeserializeObject<T>(json);
-        }
-
-        private static void SaveState<T>(T value, string path)
-        {
-            var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
-            var directoryPath = Path.GetDirectoryName(fullPath);
-
-            if (!Directory.Exists(directoryPath))
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-
-            var json = JsonConvert.SerializeObject(value, Formatting.Indented);
-
-            File.WriteAllText(fullPath, json);
         }
 
         private static IDictionary<string, string> ParseResourceId(string resourceId)
