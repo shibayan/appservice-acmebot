@@ -24,8 +24,10 @@ namespace AzureAppService.LetsEncrypt
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(LookupClient lookupClient, AcmeProtocolClient acmeProtocolClient, WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
+        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient, AcmeProtocolClient acmeProtocolClient,
+                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
         {
+            _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
             _acmeProtocolClient = acmeProtocolClient;
             _webSiteManagementClient = webSiteManagementClient;
@@ -34,9 +36,7 @@ namespace AzureAppService.LetsEncrypt
 
         private const string InstanceIdKey = "InstanceId";
 
-        private static readonly HttpClient _httpClient = new HttpClient();
-        private static readonly HttpClient _insecureHttpClient = new HttpClient(new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
-
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly LookupClient _lookupClient;
         private readonly AcmeProtocolClient _acmeProtocolClient;
         private readonly WebSiteManagementClient _webSiteManagementClient;
@@ -156,7 +156,9 @@ namespace AzureAppService.LetsEncrypt
         public async Task CheckHttpChallenge([ActivityTrigger] ChallengeResult challenge)
         {
             // 実際に HTTP でアクセスして確認する
-            var httpResponse = await _insecureHttpClient.GetAsync(challenge.HttpResourceUrl);
+            var insecureHttpClient = _httpClientFactory.CreateClient("InSecure");
+
+            var httpResponse = await insecureHttpClient.GetAsync(challenge.HttpResourceUrl);
 
             // ファイルにアクセスできない場合はエラー
             if (!httpResponse.IsSuccessStatusCode)
@@ -327,7 +329,9 @@ namespace AzureAppService.LetsEncrypt
             // Order の最終処理を実行し、証明書を作成
             var finalize = await _acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
-            var certificateData = await _httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
+            var httpClient = _httpClientFactory.CreateClient();
+
+            var certificateData = await httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
             var (certificate, chainCertificate) = X509Certificate2Extension.LoadFromPem(certificateData);

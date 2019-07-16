@@ -1,4 +1,6 @@
-﻿using AzureAppService.LetsEncrypt.Internal;
+﻿using System.Net.Http;
+
+using AzureAppService.LetsEncrypt.Internal;
 
 using DnsClient;
 
@@ -16,6 +18,10 @@ namespace AzureAppService.LetsEncrypt
     {
         public override void Configure(IFunctionsHostBuilder builder)
         {
+            builder.Services.AddHttpClient();
+            builder.Services.AddHttpClient("InSecure")
+                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
+
             builder.Services.AddSingleton(new LookupClient { UseCache = false });
 
             builder.Services.AddSingleton(provider => new WebSiteManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
