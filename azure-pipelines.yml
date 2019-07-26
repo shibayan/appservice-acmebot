@@ -1,23 +1,32 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - master
 
 variables:
   buildConfiguration: Release
 
-pool:
-  vmImage: 'windows-2019'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        arguments: '-c $(buildConfiguration) -o $(System.DefaultWorkingDirectory)/publish'
 
-steps:
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'publish'
-    publishWebProjects: false
-    arguments: '-c $(buildConfiguration) -o $(System.DefaultWorkingDirectory)/publish'
+    - publish: publish
+      artifact: function
 
-- publish: publish
-  artifact: function
+- stage: Deploy
+  dependsOn:
+  - Build
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: 'windows-2019'
+    steps:
+      - checkout: none
+      - download: current
