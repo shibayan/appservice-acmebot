@@ -3,6 +3,7 @@ trigger:
 
 variables:
   buildConfiguration: Release
+  isGitHubTag: $[startsWith(variables['Build.SourceBranch'], 'refs/tags/')]
 
 stages:
 - stage: Build
@@ -15,14 +16,15 @@ stages:
       inputs:
         command: 'publish'
         publishWebProjects: false
-        arguments: '-c $(buildConfiguration) -o $(System.DefaultWorkingDirectory)/publish'
+        arguments: '-c $(buildConfiguration) -o $(System.DefaultWorkingDirectory)/latest'
 
-    - publish: publish
+    - publish: latest
       artifact: function
 
 - stage: Deploy
   dependsOn:
   - Build
+  condition: and(succeeded(), eq(variables['isGitHubTag'], true))
   jobs:
   - job: Deploy
     pool:
@@ -30,3 +32,11 @@ stages:
     steps:
       - checkout: none
       - download: current
+
+      - task: AzureFileCopy@3
+        inputs:
+          SourcePath: '$(Pipeline.Workspace)/function/latest.zip'
+          azureSubscription: 'Visual Studio Enterprise'
+          Destination: 'AzureBlob'
+          storage: 'shibayan'
+          ContainerName: 'azure-appservice-letsencrypt'
