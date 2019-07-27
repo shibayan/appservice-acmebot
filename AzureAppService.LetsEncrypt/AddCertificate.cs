@@ -67,7 +67,7 @@ namespace AzureAppService.LetsEncrypt
                 if (useDns01Auth)
                 {
                     // DNS-01 を使う
-                    var result = await proxy.Dns01Authorization((authorization, context.InstanceId));
+                    var result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                     // Azure DNS で正しくレコードが引けるか確認
                     await proxy.CheckDnsChallenge(result);

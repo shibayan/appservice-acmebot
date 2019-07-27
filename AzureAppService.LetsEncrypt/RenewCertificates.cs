@@ -94,7 +94,7 @@ namespace AzureAppService.LetsEncrypt
                     // ACME Challenge を実行
                     if (useDns01Auth)
                     {
-                        var result = await proxy.Dns01Authorization((authorization, context.InstanceId));
+                        var result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                         // Azure DNS で正しくレコードが引けるか確認
                         await proxy.CheckDnsChallenge(result);
