@@ -36,7 +36,7 @@ namespace AzureAppService.LetsEncrypt
                     Sites = new List<SiteInformation>()
                 };
 
-                foreach (var site in item.ToLookup(x => x.SplitName().Item1))
+                foreach (var site in item.ToLookup(x => x.SplitName().siteName))
                 {
                     var siteInformation = new SiteInformation
                     {

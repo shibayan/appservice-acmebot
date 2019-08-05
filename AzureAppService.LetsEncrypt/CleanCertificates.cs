@@ -25,7 +25,7 @@ namespace AzureAppService.LetsEncrypt
             // 対象となる証明書がない場合は終わる
             if (certificates.Count == 0)
             {
-                log.LogInformation("Certificates is not found");
+                log.LogInformation("Certificates are not found");
 
                 return;
             }
@@ -50,7 +50,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("CleanCertificates_Timer")]
-        public async Task TimerStart([TimerTrigger("0 0 6 * * *")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
+        public async Task TimerStart([TimerTrigger("0 0 6 * * 0")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync("CleanCertificates", null);

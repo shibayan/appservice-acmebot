@@ -6,7 +6,7 @@ using Microsoft.Azure.Management.WebSites.Models;
 
 namespace AzureAppService.LetsEncrypt.Internal
 {
-    internal static class AzureSdkExtension
+    internal static class AzureSdkExtensions
     {
         public static Task<SiteConfigResource> GetConfigurationAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
         {

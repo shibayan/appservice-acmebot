@@ -3,7 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace AzureAppService.LetsEncrypt.Internal
 {
-    internal static class X509Certificate2Extension
+    internal static class X509Certificate2Helper
     {
         private static ReadOnlySpan<byte> Separator => new byte[] { 0x0A, 0x0A };
 

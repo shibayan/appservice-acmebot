@@ -91,25 +91,25 @@ namespace AzureAppService.LetsEncrypt
 
                 foreach (var authorization in orderDetails.Payload.Authorizations)
                 {
+                    ChallengeResult result;
+
                     // ACME Challenge を実行
                     if (useDns01Auth)
                     {
-                        var result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
+                        result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                         // Azure DNS で正しくレコードが引けるか確認
                         await proxy.CheckDnsChallenge(result);
-
-                        challenges.Add(result);
                     }
                     else
                     {
-                        var result = await proxy.Http01Authorization((site, authorization));
+                        result = await proxy.Http01Authorization((site, authorization));
 
                         // HTTP で正しくアクセスできるか確認
                         await proxy.CheckHttpChallenge(result);
-
-                        challenges.Add(result);
                     }
+
+                    challenges.Add(result);
                 }
 
                 // ACME Answer を実行
@@ -134,7 +134,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("RenewCertificates_Timer")]
-        public async Task TimerStart([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
+        public async Task TimerStart([TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync("RenewCertificates", null);

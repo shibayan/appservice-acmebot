@@ -63,27 +63,27 @@ namespace AzureAppService.LetsEncrypt
 
             foreach (var authorization in orderDetails.Payload.Authorizations)
             {
+                ChallengeResult result;
+
                 // ACME Challenge を実行
                 if (useDns01Auth)
                 {
                     // DNS-01 を使う
-                    var result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
+                    result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                     // Azure DNS で正しくレコードが引けるか確認
                     await proxy.CheckDnsChallenge(result);
-
-                    challenges.Add(result);
                 }
                 else
                 {
                     // HTTP-01 を使う
-                    var result = await proxy.Http01Authorization((site, authorization));
+                    result = await proxy.Http01Authorization((site, authorization));
 
                     // HTTP で正しくアクセスできるか確認
                     await proxy.CheckHttpChallenge(result);
-
-                    challenges.Add(result);
                 }
+
+                challenges.Add(result);
             }
 
             // ACME Answer を実行

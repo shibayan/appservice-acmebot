@@ -92,9 +92,9 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Order))]
-        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
+        public Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
         {
-            return await _acmeProtocolClient.CreateOrderAsync(hostNames);
+            return _acmeProtocolClient.CreateOrderAsync(hostNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -215,7 +215,7 @@ namespace AzureAppService.LetsEncrypt
 
             try
             {
-                recordSet = await _dnsManagementClient.RecordSets.GetAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT);
+                recordSet = await _dnsManagementClient.RecordSets.GetAsync(resourceId.resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
             }
             catch
             {
@@ -256,7 +256,7 @@ namespace AzureAppService.LetsEncrypt
                 };
             }
 
-            await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceId["resourceGroups"], zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
+            await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceId.resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
             return new ChallengeResult
             {
@@ -308,13 +308,10 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
+        public Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
         {
             // Answer の準備が出来たことを通知
-            foreach (var challenge in challenges)
-            {
-                await _acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
-            }
+            return Task.WhenAll(challenges.Select(x => _acmeProtocolClient.AnswerChallengeAsync(x.Url)));
         }
 
         [FunctionName(nameof(FinalizeOrder))]
@@ -334,7 +331,7 @@ namespace AzureAppService.LetsEncrypt
             var certificateData = await httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
-            var (certificate, chainCertificate) = X509Certificate2Extension.LoadFromPem(certificateData);
+            var (certificate, chainCertificate) = X509Certificate2Helper.LoadFromPem(certificateData);
 
             var certificateWithPrivateKey = certificate.CopyWithPrivateKey(ec);
 
@@ -345,11 +342,11 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(UpdateCertificate))]
-        public async Task UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
+        public Task UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
         {
             var (site, certificateName, pfxBlob) = input;
 
-            await _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
+            return _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",
@@ -359,29 +356,24 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(UpdateSiteBinding))]
-        public async Task UpdateSiteBinding([ActivityTrigger] Site site)
+        public Task UpdateSiteBinding([ActivityTrigger] Site site)
         {
-            await _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
+            return _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
         }
 
         [FunctionName(nameof(DeleteCertificate))]
-        public async Task DeleteCertificate([ActivityTrigger] Certificate certificate)
+        public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
         {
             var resourceId = ParseResourceId(certificate.Id);
 
-            await _webSiteManagementClient.Certificates.DeleteAsync(resourceId["resourceGroups"], certificate.Name);
+            return _webSiteManagementClient.Certificates.DeleteAsync(resourceId.resourceGroup, certificate.Name);
         }
 
-        private static IDictionary<string, string> ParseResourceId(string resourceId)
+        private static (string subscription, string resourceGroup, string provider) ParseResourceId(string resourceId)
         {
             var values = resourceId.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-            return new Dictionary<string, string>
-            {
-                { "subscriptions", values[1] },
-                { "resourceGroups", values[3] },
-                { "providers", values[5] }
-            };
+            return (values[1], values[3], values[5]);
         }
 
         private static readonly string DefaultWebConfigPath = ".well-known/web.config";
