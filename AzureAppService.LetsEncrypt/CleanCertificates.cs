@@ -7,10 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureAppService.LetsEncrypt
 {
-    public static class CleanCertificates
+    public class CleanCertificates
     {
         [FunctionName("CleanCertificates")]
-        public static async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -25,13 +25,13 @@ namespace AzureAppService.LetsEncrypt
             // 対象となる証明書がない場合は終わる
             if (certificates.Count == 0)
             {
-                log.LogInformation("Certificates is not found");
+                log.LogInformation("Certificates are not found");
 
                 return;
             }
 
             // App Service を取得
-            var sites = await proxy.GetSites(null);
+            var sites = await proxy.GetSites();
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
@@ -50,7 +50,7 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName("CleanCertificates_Timer")]
-        public static async Task TimerStart([TimerTrigger("0 0 6 * * *")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
+        public async Task TimerStart([TimerTrigger("0 0 6 * * 0")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync("CleanCertificates", null);

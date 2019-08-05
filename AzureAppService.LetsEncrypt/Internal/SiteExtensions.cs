@@ -4,14 +4,14 @@ using Microsoft.Azure.Management.WebSites.Models;
 
 namespace AzureAppService.LetsEncrypt.Internal
 {
-    internal static class SiteExtension
+    internal static class SiteExtensions
     {
         public static bool IsSlot(this Site site)
         {
             return site.Name.Contains('/');
         }
 
-        public static (string, string) SplitName(this Site site)
+        public static (string siteName, string slotName) SplitName(this Site site)
         {
             var index = site.Name.IndexOf('/');
 
