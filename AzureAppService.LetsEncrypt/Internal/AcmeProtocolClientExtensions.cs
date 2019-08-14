@@ -28,7 +28,7 @@ namespace AzureAppService.LetsEncrypt.Internal
 
         internal static async Task EnsureInitializedAsync(this AcmeProtocolClient acmeProtocolClient)
         {
-            if (acmeProtocolClient.Directory == null)
+            if (acmeProtocolClient.Directory.NewNonce == null)
             {
                 var directory = await acmeProtocolClient.GetDirectoryAsync();
 
