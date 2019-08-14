@@ -28,14 +28,14 @@ namespace AzureAppService.LetsEncrypt.Internal
 
         internal static async Task EnsureInitializedAsync(this AcmeProtocolClient acmeProtocolClient)
         {
-            await acmeProtocolClient.GetNonceAsync();
-
             if (acmeProtocolClient.Directory == null)
             {
                 var directory = await acmeProtocolClient.GetDirectoryAsync();
 
                 acmeProtocolClient.Directory = directory;
             }
+
+            await acmeProtocolClient.GetNonceAsync();
 
             if (acmeProtocolClient.Account == null)
             {
