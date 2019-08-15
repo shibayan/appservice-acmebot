@@ -10,6 +10,8 @@ variables:
   buildConfiguration: Release
   dotnetSdkVersion: '2.2.x'
   isGitHubTag: $[startsWith(variables['Build.SourceBranch'], 'refs/tags/v')]
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_XMLDOC_MODE: skip
 
 stages:
 - stage: Build
