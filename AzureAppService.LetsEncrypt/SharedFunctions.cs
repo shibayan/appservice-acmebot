@@ -24,12 +24,12 @@ namespace AzureAppService.LetsEncrypt
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient, AcmeProtocolClient acmeProtocolClient,
+        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient, IAcmeProtocolClientFactory acmeProtocolClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
         {
             _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
-            _acmeProtocolClient = acmeProtocolClient;
+            _acmeProtocolClientFactory = acmeProtocolClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
         }
@@ -38,7 +38,7 @@ namespace AzureAppService.LetsEncrypt
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly LookupClient _lookupClient;
-        private readonly AcmeProtocolClient _acmeProtocolClient;
+        private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
 
@@ -92,9 +92,11 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(Order))]
-        public Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
+        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
         {
-            return _acmeProtocolClient.CreateOrderAsync(hostNames);
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            return await acmeProtocolClient.CreateOrderAsync(hostNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -129,12 +131,14 @@ namespace AzureAppService.LetsEncrypt
         {
             var (site, authzUrl) = input;
 
-            var authz = await _acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            var authz = await acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
 
             // HTTP-01 Challenge の情報を拾う
             var challenge = authz.Challenges.First(x => x.Type == "http-01");
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, _acmeProtocolClient.Signer);
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, acmeProtocolClient.Signer);
 
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
@@ -196,12 +200,14 @@ namespace AzureAppService.LetsEncrypt
         {
             var (authzUrl, instanceId) = input;
 
-            var authz = await _acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            var authz = await acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
 
             // DNS-01 Challenge の情報を拾う
             var challenge = authz.Challenges.First(x => x.Type == "dns-01");
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, _acmeProtocolClient.Signer);
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, acmeProtocolClient.Signer);
 
             // Azure DNS の TXT レコードを書き換え
             var zone = (await _dnsManagementClient.Zones.ListAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
@@ -292,7 +298,9 @@ namespace AzureAppService.LetsEncrypt
         [FunctionName(nameof(CheckIsReady))]
         public async Task CheckIsReady([ActivityTrigger] OrderDetails orderDetails)
         {
-            orderDetails = await _acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
             if (orderDetails.Payload.Status == "pending")
             {
@@ -308,10 +316,15 @@ namespace AzureAppService.LetsEncrypt
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
+        public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
         {
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
             // Answer の準備が出来たことを通知
-            return Task.WhenAll(challenges.Select(x => _acmeProtocolClient.AnswerChallengeAsync(x.Url)));
+            foreach (var challenge in challenges)
+            {
+                await acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
+            }
         }
 
         [FunctionName(nameof(FinalizeOrder))]
@@ -324,7 +337,9 @@ namespace AzureAppService.LetsEncrypt
             var csr = CryptoHelper.Ec.GenerateCsr(hostNames, ec);
 
             // Order の最終処理を実行し、証明書を作成
-            var finalize = await _acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
             var httpClient = _httpClientFactory.CreateClient();
 

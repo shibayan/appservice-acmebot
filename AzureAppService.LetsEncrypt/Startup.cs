@@ -34,7 +34,7 @@ namespace AzureAppService.LetsEncrypt
                 SubscriptionId = Settings.Default.SubscriptionId
             });
 
-            builder.Services.AddScoped(provider => AcmeProtocolClientExtensions.CreateAcmeProtocolClient());
+            builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
         }
     }
 }
