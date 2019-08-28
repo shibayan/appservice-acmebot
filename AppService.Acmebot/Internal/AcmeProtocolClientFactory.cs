@@ -7,7 +7,7 @@ using ACMESharp.Protocol.Resources;
 
 using Newtonsoft.Json;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     public interface IAcmeProtocolClientFactory
     {

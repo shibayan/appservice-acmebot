@@ -10,7 +10,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public class AddCertificate
     {

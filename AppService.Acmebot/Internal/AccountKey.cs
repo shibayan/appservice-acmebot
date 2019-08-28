@@ -2,7 +2,7 @@ using System;
 
 using ACMESharp.Crypto.JOSE;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal class AccountKey
     {

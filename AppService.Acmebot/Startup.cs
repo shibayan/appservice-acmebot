@@ -1,6 +1,7 @@
 ﻿using System.Net.Http;
 
-using AzureAppService.LetsEncrypt.Internal;
+using AppService.Acmebot;
+using AppService.Acmebot.Internal;
 
 using DnsClient;
 
@@ -10,9 +11,9 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Rest;
 
-[assembly: FunctionsStartup(typeof(AzureAppService.LetsEncrypt.Startup))]
+[assembly: FunctionsStartup(typeof(Startup))]
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public class Startup : FunctionsStartup
     {

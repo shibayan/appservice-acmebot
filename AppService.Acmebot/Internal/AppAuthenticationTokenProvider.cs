@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Services.AppAuthentication;
 using Microsoft.Rest;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal class AppAuthenticationTokenProvider : ITokenProvider
     {

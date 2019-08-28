@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal class Settings
     {

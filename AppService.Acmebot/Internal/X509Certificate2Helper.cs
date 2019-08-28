@@ -1,7 +1,7 @@
 using System;
 using System.Security.Cryptography.X509Certificates;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal static class X509Certificate2Helper
     {

@@ -1,8 +1,8 @@
-# Azure App Service Let's Encrypt
+# App Service Acmebot
 
-[![Build Status](https://dev.azure.com/shibayan/azure-letsencrypt/_apis/build/status/Build%20azure-appservice-letsencrypt?branchName=master)](https://dev.azure.com/shibayan/azure-letsencrypt/_build/latest?definitionId=28&branchName=master)
-[![Release](https://img.shields.io/github/release/shibayan/azure-appservice-letsencrypt.svg)](https://github.com/shibayan/azure-appservice-letsencrypt/releases/latest)
-[![License](https://img.shields.io/github/license/shibayan/azure-appservice-letsencrypt.svg)](https://github.com/shibayan/azure-appservice-letsencrypt/blob/master/LICENSE)
+[![Build Status](https://dev.azure.com/shibayan/azure-acmebot/_apis/build/status/Build%20appservice-acmebot?branchName=master)](https://dev.azure.com/shibayan/azure-acmebot/_build/latest?definitionId=28&branchName=master)
+[![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
+[![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
 This function provide easy automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
 
@@ -43,11 +43,11 @@ They can manage multiple App Service certificates with single Function App.
 
 ### 1. Deploy to Azure Functions
 
-<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
+<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
   <img src="https://azuredeploy.net/deploybutton.png" />
 </a>
 
-<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fazure-appservice-letsencrypt%2Fmaster%2Fazuredeploy.json" target="_blank">
+<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
   <img src="http://armviz.io/visualizebutton.png" />
 </a>
 
@@ -124,4 +124,4 @@ Make sure that the required role is assign for the resource group. Azure IAM may
 
 ## License
 
-This project is licensed under the [Apache License 2.0](https://github.com/shibayan/azure-appservice-letsencrypt/blob/master/LICENSE)
+This project is licensed under the [Apache License 2.0](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
