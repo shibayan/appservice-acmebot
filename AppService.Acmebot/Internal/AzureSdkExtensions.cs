@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal static class AzureSdkExtensions
     {

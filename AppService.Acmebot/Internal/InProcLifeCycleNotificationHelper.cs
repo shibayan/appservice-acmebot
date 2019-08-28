@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
-namespace AzureAppService.LetsEncrypt.Internal
+namespace AppService.Acmebot.Internal
 {
     internal class InProcLifeCycleNotificationHelper : ILifeCycleNotificationHelper
     {

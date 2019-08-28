@@ -1,8 +1,8 @@
 ﻿using System;
 
-using AzureAppService.LetsEncrypt.Internal;
+using AppService.Acmebot.Internal;
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public static class RetryStrategy
     {

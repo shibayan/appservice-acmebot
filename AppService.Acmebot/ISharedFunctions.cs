@@ -7,7 +7,7 @@ using ACMESharp.Protocol;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public interface ISharedFunctions
     {

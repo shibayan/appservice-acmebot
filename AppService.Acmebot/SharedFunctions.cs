@@ -10,7 +10,7 @@ using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 
-using AzureAppService.LetsEncrypt.Internal;
+using AppService.Acmebot.Internal;
 
 using DnsClient;
 
@@ -20,7 +20,7 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public class SharedFunctions : ISharedFunctions
     {

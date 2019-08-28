@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
-namespace AzureAppService.LetsEncrypt
+namespace AppService.Acmebot
 {
     public class CleanCertificates
     {
