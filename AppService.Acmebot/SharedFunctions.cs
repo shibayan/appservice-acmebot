@@ -73,14 +73,19 @@ namespace AppService.Acmebot
             return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net"))).ToArray();
         }
 
-        [FunctionName(nameof(GetCertificates))]
-        public async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DateTime currentDateTime)
+        [FunctionName(nameof(GetExpiringCertificates))]
+        public async Task<IList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAsync();
+            int days;
+            if (!int.TryParse(Environment.GetEnvironmentVariable("RenewDays"), out days))
+            {
+                days = 30;
+            }
 
             return certificates
                    .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
-                   .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
+                   .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < days).ToArray();
         }
 
         [FunctionName(nameof(GetAllCertificates))]
