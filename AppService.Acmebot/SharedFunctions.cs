@@ -60,7 +60,7 @@ namespace AppService.Acmebot
         {
             var list = new List<Site>();
 
-            var sites = await _webSiteManagementClient.WebApps.ListAsync();
+            var sites = await _webSiteManagementClient.WebApps.ListAllAsync();
 
             foreach (var site in sites)
             {
@@ -76,7 +76,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(GetCertificates))]
         public async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DateTime currentDateTime)
         {
-            var certificates = await _webSiteManagementClient.Certificates.ListAsync();
+            var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
             return certificates
                    .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
@@ -86,7 +86,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(GetAllCertificates))]
         public async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
         {
-            var certificates = await _webSiteManagementClient.Certificates.ListAsync();
+            var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
             return certificates.ToArray();
         }
@@ -184,7 +184,7 @@ namespace AppService.Acmebot
         public async Task Dns01Precondition([ActivityTrigger] IList<string> hostNames)
         {
             // Azure DNS が存在するか確認
-            var zones = await _dnsManagementClient.Zones.ListAsync();
+            var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
             foreach (var hostName in hostNames)
             {
@@ -210,7 +210,7 @@ namespace AppService.Acmebot
             var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, acmeProtocolClient.Signer);
 
             // Azure DNS の TXT レコードを書き換え
-            var zone = (await _dnsManagementClient.Zones.ListAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
+            var zone = (await _dnsManagementClient.Zones.ListAllAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
 
             var resourceId = ParseResourceId(zone.Id);
 
