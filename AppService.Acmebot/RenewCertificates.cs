@@ -119,6 +119,7 @@ namespace AppService.Acmebot
                 if (!site.HostNameSslStates.Any(x => string.Equals(x.Thumbprint, certificate.Thumbprint, StringComparison.OrdinalIgnoreCase)))
                 {
                     log.LogInformation($"Skipping site since no hostname is binded with given cert: {site.Name}");
+                    continue;
                 }
 
                 log.LogInformation($"Processing site: {site.Name}");
