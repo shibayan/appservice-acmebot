@@ -13,6 +13,14 @@ This function provide easy automation of Let's Encrypt for Azure App Service. Th
 
 They can manage multiple App Service certificates with single Function App.
 
+### Attention
+
+If you need fine-grained certificate management, I strongly recommend using Key Vault version.
+
+https://github.com/shibayan/keyvault-acmebot
+
+The Key Vault version is available for services that support Key Vault certificates such as App Service / App Gateway / CDN / Front Door.
+
 ## Table Of Contents
 
 - [Feature Support](#feature-support)
