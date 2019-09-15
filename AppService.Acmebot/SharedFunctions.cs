@@ -10,7 +10,9 @@ using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 
+using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
+using AppService.Acmebot.Models;
 
 using DnsClient;
 
@@ -391,16 +393,7 @@ namespace AppService.Acmebot
             return (values[1], values[3], values[5]);
         }
 
-        private static readonly string DefaultWebConfigPath = ".well-known/web.config";
-        private static readonly string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n    <rewrite>\r\n      <rules>\r\n        <clear />\r\n      </rules>\r\n    </rewrite>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
-    }
-
-    public class ChallengeResult
-    {
-        public string Url { get; set; }
-        public string HttpResourceUrl { get; set; }
-        public string HttpResourceValue { get; set; }
-        public string DnsRecordName { get; set; }
-        public string DnsRecordValue { get; set; }
+        private const string DefaultWebConfigPath = ".well-known/web.config";
+        private const string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n    <rewrite>\r\n      <rules>\r\n        <clear />\r\n      </rules>\r\n    </rewrite>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
     }
 }

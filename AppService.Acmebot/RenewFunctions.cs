@@ -2,16 +2,19 @@
 using System.Linq;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Contracts;
+using AppService.Acmebot.Models;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class RenewCertificates
+    public class RenewFunctions
     {
-        [FunctionName("RenewCertificates")]
-        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(RenewCertificates))]
+        public async Task RenewCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -62,7 +65,7 @@ namespace AppService.Acmebot
         {
             var (site, certificates) = context.GetInput<(Site, Certificate[])>();
 
-            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             log.LogInformation($"Site name: {site.Name}");
 
@@ -76,15 +79,15 @@ namespace AppService.Acmebot
                 // 前提条件をチェック
                 if (useDns01Auth)
                 {
-                    await proxy.Dns01Precondition(certificate.HostNames);
+                    await activity.Dns01Precondition(certificate.HostNames);
                 }
                 else
                 {
-                    await proxy.Http01Precondition(site);
+                    await activity.Http01Precondition(site);
                 }
 
                 // 新しく ACME Order を作成する
-                var orderDetails = await proxy.Order(certificate.HostNames);
+                var orderDetails = await activity.Order(certificate.HostNames);
 
                 // 複数の Authorizations を処理する
                 var challenges = new List<ChallengeResult>();
@@ -96,32 +99,32 @@ namespace AppService.Acmebot
                     // ACME Challenge を実行
                     if (useDns01Auth)
                     {
-                        result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
+                        result = await activity.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                         // Azure DNS で正しくレコードが引けるか確認
-                        await proxy.CheckDnsChallenge(result);
+                        await activity.CheckDnsChallenge(result);
                     }
                     else
                     {
-                        result = await proxy.Http01Authorization((site, authorization));
+                        result = await activity.Http01Authorization((site, authorization));
 
                         // HTTP で正しくアクセスできるか確認
-                        await proxy.CheckHttpChallenge(result);
+                        await activity.CheckHttpChallenge(result);
                     }
 
                     challenges.Add(result);
                 }
 
                 // ACME Answer を実行
-                await proxy.AnswerChallenges(challenges);
+                await activity.AnswerChallenges(challenges);
 
                 // Order のステータスが ready になるまで 60 秒待機
-                await proxy.CheckIsReady(orderDetails);
+                await activity.CheckIsReady(orderDetails);
 
                 // Order の最終処理を実行し PFX を作成
-                var (thumbprint, pfxBlob) = await proxy.FinalizeOrder((certificate.HostNames, orderDetails));
+                var (thumbprint, pfxBlob) = await activity.FinalizeOrder((certificate.HostNames, orderDetails));
 
-                await proxy.UpdateCertificate((site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
+                await activity.UpdateCertificate((site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
 
                 foreach (var hostNameSslState in site.HostNameSslStates.Where(x => certificate.HostNames.Contains(x.Name)))
                 {
@@ -130,14 +133,14 @@ namespace AppService.Acmebot
                 }
             }
 
-            await proxy.UpdateSiteBinding(site);
+            await activity.UpdateSiteBinding(site);
         }
 
         [FunctionName("RenewCertificates_Timer")]
         public async Task TimerStart([TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("RenewCertificates", null);
+            var instanceId = await starter.StartNewAsync(nameof(RenewCertificates), null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }

@@ -21,7 +21,10 @@ namespace AppService.Acmebot
         {
             builder.Services.AddHttpClient();
             builder.Services.AddHttpClient("InSecure")
-                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
+                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                   {
+                       ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                   });
 
             builder.Services.AddSingleton(new LookupClient { UseCache = false });
 

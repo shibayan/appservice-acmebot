@@ -5,6 +5,9 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Contracts;
+using AppService.Acmebot.Models;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -12,16 +15,16 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class AddCertificate
+    public class AddFunctions
     {
-        [FunctionName("AddCertificate")]
-        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(AddCertificate))]
+        public async Task AddCertificate([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var request = context.GetInput<AddCertificateRequest>();
 
-            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            var site = await proxy.GetSite((request.ResourceGroupName, request.SiteName, request.SlotName));
+            var site = await activity.GetSite((request.ResourceGroupName, request.SiteName, request.SlotName));
 
             if (site == null)
             {
@@ -48,15 +51,15 @@ namespace AppService.Acmebot
             // 前提条件をチェック
             if (useDns01Auth)
             {
-                await proxy.Dns01Precondition(request.Domains);
+                await activity.Dns01Precondition(request.Domains);
             }
             else
             {
-                await proxy.Http01Precondition(site);
+                await activity.Http01Precondition(site);
             }
 
             // 新しく ACME Order を作成する
-            var orderDetails = await proxy.Order(request.Domains);
+            var orderDetails = await activity.Order(request.Domains);
 
             // 複数の Authorizations を処理する
             var challenges = new List<ChallengeResult>();
@@ -69,33 +72,33 @@ namespace AppService.Acmebot
                 if (useDns01Auth)
                 {
                     // DNS-01 を使う
-                    result = await proxy.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
+                    result = await activity.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
 
                     // Azure DNS で正しくレコードが引けるか確認
-                    await proxy.CheckDnsChallenge(result);
+                    await activity.CheckDnsChallenge(result);
                 }
                 else
                 {
                     // HTTP-01 を使う
-                    result = await proxy.Http01Authorization((site, authorization));
+                    result = await activity.Http01Authorization((site, authorization));
 
                     // HTTP で正しくアクセスできるか確認
-                    await proxy.CheckHttpChallenge(result);
+                    await activity.CheckHttpChallenge(result);
                 }
 
                 challenges.Add(result);
             }
 
             // ACME Answer を実行
-            await proxy.AnswerChallenges(challenges);
+            await activity.AnswerChallenges(challenges);
 
             // Order のステータスが ready になるまで 60 秒待機
-            await proxy.CheckIsReady(orderDetails);
+            await activity.CheckIsReady(orderDetails);
 
             // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await proxy.FinalizeOrder((request.Domains, orderDetails));
+            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((request.Domains, orderDetails));
 
-            await proxy.UpdateCertificate((site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
+            await activity.UpdateCertificate((site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
 
             foreach (var hostNameSslState in hostNameSslStates)
             {
@@ -104,7 +107,7 @@ namespace AppService.Acmebot
                 hostNameSslState.ToUpdate = true;
             }
 
-            await proxy.UpdateSiteBinding(site);
+            await activity.UpdateSiteBinding(site);
         }
 
         [FunctionName("AddCertificate_HttpStart")]
@@ -136,20 +139,11 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("AddCertificate", request);
+            var instanceId = await starter.StartNewAsync(nameof(AddCertificate), request);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
             return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(5));
         }
-    }
-
-    public class AddCertificateRequest
-    {
-        public string ResourceGroupName { get; set; }
-        public string SiteName { get; set; }
-        public string SlotName { get; set; }
-        public string[] Domains { get; set; }
-        public bool? UseIpBasedSsl { get; set; }
     }
 }

@@ -2,7 +2,7 @@
 
 using AppService.Acmebot.Internal;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Contracts
 {
     public static class RetryStrategy
     {

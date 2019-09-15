@@ -2,15 +2,17 @@
 using System.Linq;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Contracts;
+
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class CleanCertificates
+    public class CleanFunctions
     {
-        [FunctionName("CleanCertificates")]
-        public async Task RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(CleanCertificates))]
+        public async Task CleanCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -53,7 +55,7 @@ namespace AppService.Acmebot
         public async Task TimerStart([TimerTrigger("0 0 6 * * 0")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("CleanCertificates", null);
+            var instanceId = await starter.StartNewAsync(nameof(CleanCertificates), null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }
