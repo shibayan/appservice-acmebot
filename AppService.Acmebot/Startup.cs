@@ -61,6 +61,7 @@ namespace AppService.Acmebot
             });
 
             builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
+            builder.Services.AddSingleton<IKuduApiClientFactory, KuduApiClientFactory>();
 
             builder.Services.Configure<LetsEncryptOptions>(Configuration.GetSection("LetsEncrypt"));
         }

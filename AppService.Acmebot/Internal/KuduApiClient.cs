@@ -6,18 +6,18 @@ using System.Threading.Tasks;
 
 namespace AppService.Acmebot.Internal
 {
-    internal class KuduApiClient
+    public class KuduApiClient
     {
-        public KuduApiClient(string scmUrl, string userName, string password)
+        public KuduApiClient(HttpClient httpClient, string scmUrl, string userName, string password)
         {
+            _httpClient = httpClient;
             _scmUrl = scmUrl;
             _basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}"));
         }
 
+        private readonly HttpClient _httpClient;
         private readonly string _scmUrl;
         private readonly string _basicAuth;
-
-        private static readonly HttpClient _httpClient = new HttpClient();
 
         public Task WriteFileAsync(string filePath, string value)
         {

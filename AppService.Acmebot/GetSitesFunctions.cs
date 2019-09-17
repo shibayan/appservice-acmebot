@@ -82,8 +82,8 @@ namespace AppService.Acmebot
             return result;
         }
 
-        [FunctionName("GetSitesInformation_HttpStart")]
-        public async Task<HttpResponseMessage> HttpStart(
+        [FunctionName(nameof(GetSitesInformation_HttpStart))]
+        public async Task<HttpResponseMessage> GetSitesInformation_HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
