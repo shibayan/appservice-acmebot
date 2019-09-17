@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class CleanFunctions
+    public class CleanCertificatesFunctions
     {
         [FunctionName(nameof(CleanCertificates))]
         public async Task CleanCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
@@ -51,8 +51,11 @@ namespace AppService.Acmebot
             await Task.WhenAll(tasks);
         }
 
-        [FunctionName("CleanCertificates_Timer")]
-        public async Task TimerStart([TimerTrigger("0 0 6 * * 0")] TimerInfo timer, [OrchestrationClient] DurableOrchestrationClient starter, ILogger log)
+        [FunctionName(nameof(CleanCertificates_Timer))]
+        public async Task CleanCertificates_Timer(
+            [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
+            [OrchestrationClient] DurableOrchestrationClient starter,
+            ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync(nameof(CleanCertificates), null);

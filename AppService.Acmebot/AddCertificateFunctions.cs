@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class AddFunctions
+    public class AddCertificateFunctions
     {
         [FunctionName(nameof(AddCertificate))]
         public async Task AddCertificate([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
@@ -110,8 +110,8 @@ namespace AppService.Acmebot
             await activity.UpdateSiteBinding(site);
         }
 
-        [FunctionName("AddCertificate_HttpStart")]
-        public async Task<HttpResponseMessage> HttpStart(
+        [FunctionName(nameof(AddCertificate_HttpStart))]
+        public async Task<HttpResponseMessage> AddCertificate_HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
