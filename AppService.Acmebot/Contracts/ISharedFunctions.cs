@@ -4,10 +4,12 @@ using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
 
+using AppService.Acmebot.Models;
+
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Contracts
 {
     public interface ISharedFunctions
     {

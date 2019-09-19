@@ -8,7 +8,9 @@ using DnsClient;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.WebSites;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Rest;
 
 [assembly: FunctionsStartup(typeof(Startup))]
@@ -17,25 +19,51 @@ namespace AppService.Acmebot
 {
     public class Startup : FunctionsStartup
     {
+        public Startup()
+        {
+            var config = new ConfigurationBuilder()
+                .AddEnvironmentVariables();
+
+            Configuration = config.Build();
+        }
+
+        public IConfiguration Configuration { get; }
+
         public override void Configure(IFunctionsHostBuilder builder)
         {
             builder.Services.AddHttpClient();
             builder.Services.AddHttpClient("InSecure")
-                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { ServerCertificateCustomValidationCallback = (_, __, ___, ____) => true });
+                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                   {
+                       ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                   });
 
             builder.Services.AddSingleton(new LookupClient { UseCache = false });
 
-            builder.Services.AddSingleton(provider => new WebSiteManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+            builder.Services.AddSingleton(provider =>
             {
-                SubscriptionId = Settings.Default.SubscriptionId
+                var options = provider.GetRequiredService<IOptions<LetsEncryptOptions>>();
+
+                return new WebSiteManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+                {
+                    SubscriptionId = options.Value.SubscriptionId
+                };
             });
 
-            builder.Services.AddSingleton(provider => new DnsManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+            builder.Services.AddSingleton(provider =>
             {
-                SubscriptionId = Settings.Default.SubscriptionId
+                var options = provider.GetRequiredService<IOptions<LetsEncryptOptions>>();
+
+                return new DnsManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+                {
+                    SubscriptionId = options.Value.SubscriptionId
+                };
             });
 
             builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
+            builder.Services.AddSingleton<IKuduApiClientFactory, KuduApiClientFactory>();
+
+            builder.Services.Configure<LetsEncryptOptions>(Configuration.GetSection("LetsEncrypt"));
         }
     }
 }

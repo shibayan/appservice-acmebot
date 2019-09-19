@@ -5,20 +5,20 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
+using AppService.Acmebot.Models;
 
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-using Newtonsoft.Json;
-
 namespace AppService.Acmebot
 {
-    public class GetSitesInformation
+    public class GetSitesFunctions
     {
-        [FunctionName("GetSitesInformation")]
-        public async Task<IList<ResourceGroupInformation>> RunOrchestrator([OrchestrationTrigger] DurableOrchestrationContext context)
+        [FunctionName(nameof(GetSitesInformation))]
+        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] DurableOrchestrationContext context)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -82,8 +82,8 @@ namespace AppService.Acmebot
             return result;
         }
 
-        [FunctionName("GetSitesInformation_HttpStart")]
-        public async Task<HttpResponseMessage> HttpStart(
+        [FunctionName(nameof(GetSitesInformation_HttpStart))]
+        public async Task<HttpResponseMessage> GetSitesInformation_HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequestMessage req,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
@@ -94,47 +94,11 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync("GetSitesInformation", null);
+            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
             return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(30));
         }
-    }
-
-    public class ResourceGroupInformation
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("sites")]
-        public IList<SiteInformation> Sites { get; set; }
-    }
-
-    public class SiteInformation
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("slots")]
-        public IList<SlotInformation> Slots { get; set; }
-    }
-
-    public class SlotInformation
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("domains")]
-        public IList<DomainInformation> Domains { get; set; }
-    }
-
-    public class DomainInformation
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
-
-        [JsonProperty("issuer")]
-        public string Issuer { get; set; }
     }
 }

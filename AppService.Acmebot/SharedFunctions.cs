@@ -10,7 +10,9 @@ using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 
+using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
+using AppService.Acmebot.Models;
 
 using DnsClient;
 
@@ -24,12 +26,14 @@ namespace AppService.Acmebot
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient, IAcmeProtocolClientFactory acmeProtocolClientFactory,
+        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
+                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduApiClientFactory kuduApiClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
         {
             _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
             _acmeProtocolClientFactory = acmeProtocolClientFactory;
+            _kuduApiClientFactory = kuduApiClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
         }
@@ -39,20 +43,21 @@ namespace AppService.Acmebot
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly LookupClient _lookupClient;
         private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
+        private readonly IKuduApiClientFactory _kuduApiClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
 
         [FunctionName(nameof(GetSite))]
-        public async Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
+        public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
             var (resourceGroupName, siteName, slotName) = input;
 
             if (!string.IsNullOrEmpty(slotName))
             {
-                return await _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, siteName, slotName);
+                return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, siteName, slotName);
             }
 
-            return await _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, siteName);
+            return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, siteName);
         }
 
         [FunctionName(nameof(GetSites))]
@@ -143,7 +148,7 @@ namespace AppService.Acmebot
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
             // Kudu API を使い、Answer 用のファイルを作成
-            var kuduClient = new KuduApiClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+            var kuduClient = _kuduApiClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
@@ -212,7 +217,7 @@ namespace AppService.Acmebot
             // Azure DNS の TXT レコードを書き換え
             var zone = (await _dnsManagementClient.Zones.ListAllAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
 
-            var resourceId = ParseResourceId(zone.Id);
+            var resourceGroup = ExtractResourceGroup(zone.Id);
 
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
@@ -221,7 +226,7 @@ namespace AppService.Acmebot
 
             try
             {
-                recordSet = await _dnsManagementClient.RecordSets.GetAsync(resourceId.resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
+                recordSet = await _dnsManagementClient.RecordSets.GetAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
             }
             catch
             {
@@ -262,7 +267,7 @@ namespace AppService.Acmebot
                 };
             }
 
-            await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceId.resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
+            await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
             return new ChallengeResult
             {
@@ -379,28 +384,19 @@ namespace AppService.Acmebot
         [FunctionName(nameof(DeleteCertificate))]
         public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
         {
-            var resourceId = ParseResourceId(certificate.Id);
+            var resourceGroup = ExtractResourceGroup(certificate.Id);
 
-            return _webSiteManagementClient.Certificates.DeleteAsync(resourceId.resourceGroup, certificate.Name);
+            return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
         }
 
-        private static (string subscription, string resourceGroup, string provider) ParseResourceId(string resourceId)
+        private static string ExtractResourceGroup(string resourceId)
         {
             var values = resourceId.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-            return (values[1], values[3], values[5]);
+            return values[3];
         }
 
-        private static readonly string DefaultWebConfigPath = ".well-known/web.config";
-        private static readonly string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n    <rewrite>\r\n      <rules>\r\n        <clear />\r\n      </rules>\r\n    </rewrite>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
-    }
-
-    public class ChallengeResult
-    {
-        public string Url { get; set; }
-        public string HttpResourceUrl { get; set; }
-        public string HttpResourceValue { get; set; }
-        public string DnsRecordName { get; set; }
-        public string DnsRecordValue { get; set; }
+        private const string DefaultWebConfigPath = ".well-known/web.config";
+        private const string DefaultWebConfig = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<configuration>\r\n  <system.webServer>\r\n    <handlers>\r\n      <clear />\r\n      <add name=\"StaticFile\" path=\"*\" verb=\"*\" modules=\"StaticFileModule\" resourceType=\"Either\" requireAccess=\"Read\" />\r\n    </handlers>\r\n    <staticContent>\r\n      <remove fileExtension=\".\" />\r\n      <mimeMap fileExtension=\".\" mimeType=\"text/plain\" />\r\n    </staticContent>\r\n    <rewrite>\r\n      <rules>\r\n        <clear />\r\n      </rules>\r\n    </rewrite>\r\n  </system.webServer>\r\n  <system.web>\r\n    <authorization>\r\n      <allow users=\"*\"/>\r\n    </authorization>\r\n  </system.web>\r\n</configuration>";
     }
 }

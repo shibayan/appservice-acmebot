@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System;
+
+using Microsoft.Extensions.Configuration;
 
 namespace AppService.Acmebot.Internal
 {
+    [Obsolete]
     internal class Settings
     {
         public Settings()
@@ -15,10 +18,6 @@ namespace AppService.Acmebot.Internal
         }
 
         private readonly IConfiguration _section;
-
-        public string Contacts => _section[nameof(Contacts)];
-
-        public string SubscriptionId => _section[nameof(SubscriptionId)];
 
         public string Webhook => _section[nameof(Webhook)];
 
