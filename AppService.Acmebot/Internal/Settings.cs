@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System;
+
+using Microsoft.Extensions.Configuration;
 
 namespace AppService.Acmebot.Internal
 {
+    [Obsolete]
     internal class Settings
     {
         public Settings()

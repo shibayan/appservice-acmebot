@@ -1,18 +1,21 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
+
+using DurableTask.Core;
 
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class CleanCertificatesFunctions
+    public class PurgeFunctions
     {
-        [FunctionName(nameof(CleanCertificates))]
-        public async Task CleanCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(PurgeCertificates))]
+        public async Task PurgeCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
             var proxy = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -51,16 +54,31 @@ namespace AppService.Acmebot
             await Task.WhenAll(tasks);
         }
 
-        [FunctionName(nameof(CleanCertificates_Timer))]
-        public async Task CleanCertificates_Timer(
+        [FunctionName(nameof(PurgeCertificates_Timer))]
+        public async Task PurgeCertificates_Timer(
             [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
             [OrchestrationClient] DurableOrchestrationClient starter,
             ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(CleanCertificates), null);
+            var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates), null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+        }
+
+        [FunctionName(nameof(PurgeInstanceHistory_Timer))]
+        public Task PurgeInstanceHistory_Timer(
+            [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
+            [OrchestrationClient] DurableOrchestrationClient starter)
+        {
+            return starter.PurgeInstanceHistoryAsync(
+                DateTime.MinValue,
+                DateTime.UtcNow.AddDays(-30),
+                new []
+                {
+                    OrchestrationStatus.Completed,
+                    OrchestrationStatus.Failed
+                });
         }
     }
 }
