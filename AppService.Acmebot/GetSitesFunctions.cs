@@ -20,11 +20,11 @@ namespace AppService.Acmebot
         [FunctionName(nameof(GetSitesInformation))]
         public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] DurableOrchestrationContext context)
         {
-            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // App Service を取得
-            var sites = await proxy.GetSites();
-            var certificates = await proxy.GetAllCertificates();
+            var sites = await activity.GetSites();
+            var certificates = await activity.GetAllCertificates();
 
             var result = new List<ResourceGroupInformation>();
 

@@ -12,15 +12,15 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class PurgeFunctions
+    public class PurgeCertificatesFunctions
     {
         [FunctionName(nameof(PurgeCertificates))]
         public async Task PurgeCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
-            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await proxy.GetCertificates(context.CurrentUtcDateTime);
+            var certificates = await activity.GetCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -36,7 +36,7 @@ namespace AppService.Acmebot
             }
 
             // App Service を取得
-            var sites = await proxy.GetSites();
+            var sites = await activity.GetSites();
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
@@ -47,7 +47,7 @@ namespace AppService.Acmebot
             // バインドされていない証明書を削除
             foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
             {
-                tasks.Add(proxy.DeleteCertificate(certificate));
+                tasks.Add(activity.DeleteCertificate(certificate));
             }
 
             // アクティビティの完了を待つ
@@ -74,7 +74,7 @@ namespace AppService.Acmebot
             return starter.PurgeInstanceHistoryAsync(
                 DateTime.MinValue,
                 DateTime.UtcNow.AddDays(-30),
-                new []
+                new[]
                 {
                     OrchestrationStatus.Completed,
                     OrchestrationStatus.Failed

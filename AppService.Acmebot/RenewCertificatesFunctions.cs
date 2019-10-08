@@ -16,10 +16,10 @@ namespace AppService.Acmebot
         [FunctionName(nameof(RenewCertificates))]
         public async Task RenewCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
         {
-            var proxy = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await proxy.GetCertificates(context.CurrentUtcDateTime);
+            var certificates = await activity.GetCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -35,7 +35,7 @@ namespace AppService.Acmebot
             }
 
             // App Service を取得
-            var sites = await proxy.GetSites();
+            var sites = await activity.GetSites();
 
             var tasks = new List<Task>();
 
