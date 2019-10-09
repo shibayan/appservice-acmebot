@@ -18,7 +18,7 @@ namespace AppService.Acmebot
     public class GetSitesFunctions
     {
         [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] DurableOrchestrationContext context)
+        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -85,7 +85,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(GetSitesInformation_HttpStart))]
         public async Task<HttpResponseMessage> GetSitesInformation_HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequestMessage req,
-            [OrchestrationClient] DurableOrchestrationClient starter,
+            [DurableClient] IDurableClient starter,
             ILogger log)
         {
             if (!req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID"))

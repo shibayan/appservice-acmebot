@@ -18,7 +18,7 @@ namespace AppService.Acmebot
     public class AddCertificateFunctions
     {
         [FunctionName(nameof(AddCertificate))]
-        public async Task AddCertificate([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task AddCertificate([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
             var request = context.GetInput<AddCertificateRequest>();
 
@@ -113,7 +113,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(AddCertificate_HttpStart))]
         public async Task<HttpResponseMessage> AddCertificate_HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
-            [OrchestrationClient] DurableOrchestrationClient starter,
+            [DurableClient] IDurableClient starter,
             ILogger log)
         {
             if (!req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID"))

@@ -14,7 +14,7 @@ namespace AppService.Acmebot
     public class RenewCertificatesFunctions
     {
         [FunctionName(nameof(RenewCertificates))]
-        public async Task RenewCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RenewCertificates([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -61,7 +61,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
-        public async Task RenewSiteCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task RenewSiteCertificates([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
             var (site, certificates) = context.GetInput<(Site, Certificate[])>();
 
@@ -139,7 +139,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(RenewCertificates_Timer))]
         public async Task RenewCertificates_Timer(
             [TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer,
-            [OrchestrationClient] DurableOrchestrationClient starter,
+            [DurableClient] IDurableClient starter,
             ILogger log)
         {
             // Function input comes from the request content.

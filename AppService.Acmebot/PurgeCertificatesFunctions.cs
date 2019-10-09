@@ -15,7 +15,7 @@ namespace AppService.Acmebot
     public class PurgeCertificatesFunctions
     {
         [FunctionName(nameof(PurgeCertificates))]
-        public async Task PurgeCertificates([OrchestrationTrigger] DurableOrchestrationContext context, ILogger log)
+        public async Task PurgeCertificates([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -57,7 +57,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(PurgeCertificates_Timer))]
         public async Task PurgeCertificates_Timer(
             [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
-            [OrchestrationClient] DurableOrchestrationClient starter,
+            [DurableClient] IDurableClient starter,
             ILogger log)
         {
             // Function input comes from the request content.
@@ -69,7 +69,7 @@ namespace AppService.Acmebot
         [FunctionName(nameof(PurgeInstanceHistory_Timer))]
         public Task PurgeInstanceHistory_Timer(
             [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
-            [OrchestrationClient] DurableOrchestrationClient starter)
+            [DurableClient] IDurableClient starter)
         {
             return starter.PurgeInstanceHistoryAsync(
                 DateTime.MinValue,
