@@ -9,7 +9,10 @@ using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
+using DurableTask.TypedProxy;
+
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 

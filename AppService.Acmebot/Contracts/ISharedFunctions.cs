@@ -6,8 +6,9 @@ using ACMESharp.Protocol;
 
 using AppService.Acmebot.Models;
 
+using DurableTask.TypedProxy;
+
 using Microsoft.Azure.Management.WebSites.Models;
-using Microsoft.Azure.WebJobs;
 
 namespace AppService.Acmebot.Contracts
 {

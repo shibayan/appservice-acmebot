@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Contracts;
 
 using DurableTask.Core;
+using DurableTask.TypedProxy;
 
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
