@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
@@ -10,11 +8,17 @@ using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+
+using Newtonsoft.Json;
+
+using ChallengeResult = AppService.Acmebot.Models.ChallengeResult;
 
 namespace AppService.Acmebot
 {
@@ -114,31 +118,31 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(AddCertificate_HttpStart))]
-        public async Task<HttpResponseMessage> AddCertificate_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequestMessage req,
+        public async Task<IActionResult> AddCertificate_HttpStart(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequest req,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID"))
+            if (!req.HttpContext.User.Identity.IsAuthenticated)
             {
-                return req.CreateErrorResponse(HttpStatusCode.Unauthorized, $"Need to activate EasyAuth.");
+                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
             }
 
-            var request = await req.Content.ReadAsAsync<AddCertificateRequest>();
+            var request = JsonConvert.DeserializeObject<AddCertificateRequest>(await req.ReadAsStringAsync());
 
             if (string.IsNullOrEmpty(request.ResourceGroupName))
             {
-                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.ResourceGroupName)} is empty.");
+                return new BadRequestObjectResult($"{nameof(request.ResourceGroupName)} is empty.");
             }
 
             if (string.IsNullOrEmpty(request.SiteName))
             {
-                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.SiteName)} is empty.");
+                return new BadRequestObjectResult($"{nameof(request.SiteName)} is empty.");
             }
 
             if (request.Domains == null || request.Domains.Length == 0)
             {
-                return req.CreateErrorResponse(HttpStatusCode.BadRequest, $"{nameof(request.Domains)} is empty.");
+                return new BadRequestObjectResult($"{nameof(request.Domains)} is empty.");
             }
 
             // Function input comes from the request content.
