@@ -21,6 +21,7 @@ using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
 namespace AppService.Acmebot
 {

@@ -8,6 +8,7 @@ using DnsClient;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.WebSites;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -62,6 +63,7 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
             builder.Services.AddSingleton<IKuduApiClientFactory, KuduApiClientFactory>();
+            builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
 
             builder.Services.Configure<LetsEncryptOptions>(Configuration.GetSection("LetsEncrypt"));
         }

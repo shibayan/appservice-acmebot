@@ -2,9 +2,9 @@
   "version": "2.0",
   "extensions": {
     "durableTask": {
+      "hubName": "DurableFunctionsHub",
       "extendedSessionsEnabled": true,
-      "extendedSessionIdleTimeoutInSeconds": 60,
-      "CustomLifeCycleNotificationHelperType": "AzureAppService.LetsEncrypt.Internal.InProcLifeCycleNotificationHelper, AzureAppService.LetsEncrypt"
+      "extendedSessionIdleTimeoutInSeconds": 60
     }
   }
 }

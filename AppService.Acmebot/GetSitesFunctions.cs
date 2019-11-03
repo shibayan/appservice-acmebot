@@ -1,15 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
+using DurableTask.TypedProxy;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +21,7 @@ namespace AppService.Acmebot
     public class GetSitesFunctions
     {
         [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] DurableOrchestrationContext context)
+        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
@@ -83,14 +86,14 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetSitesInformation_HttpStart))]
-        public async Task<HttpResponseMessage> GetSitesInformation_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequestMessage req,
-            [OrchestrationClient] DurableOrchestrationClient starter,
+        public async Task<IActionResult> GetSitesInformation_HttpStart(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequest req,
+            [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID"))
+            if (!req.HttpContext.User.Identity.IsAuthenticated)
             {
-                return req.CreateErrorResponse(HttpStatusCode.Unauthorized, $"Need to activate EasyAuth.");
+                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
             }
 
             // Function input comes from the request content.
