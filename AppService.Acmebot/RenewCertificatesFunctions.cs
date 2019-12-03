@@ -137,6 +137,9 @@ namespace AppService.Acmebot
             }
 
             await activity.UpdateSiteBinding(site);
+
+            // クリーンアップ処理を実行
+            await activity.CleanupVirtualApplication(site);
         }
 
         [FunctionName(nameof(RenewCertificates_Timer))]
