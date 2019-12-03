@@ -49,6 +49,8 @@ namespace AppService.Acmebot.Contracts
 
         Task UpdateSiteBinding(Site site);
 
+        Task CleanupVirtualApplication(Site site);
+
         Task DeleteCertificate(Certificate certificate);
     }
 }

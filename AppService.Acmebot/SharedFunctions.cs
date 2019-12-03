@@ -382,6 +382,25 @@ namespace AppService.Acmebot
             return _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
         }
 
+        [FunctionName(nameof(CleanupVirtualApplication))]
+        public async Task CleanupVirtualApplication([ActivityTrigger] Site site)
+        {
+            var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
+
+            // 既に .well-known が仮想アプリケーションとして追加されているか確認
+            var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known" && x.PhysicalPath == "site\\.well-known");
+
+            if (virtualApplication == null)
+            {
+                return;
+            }
+
+            // 作成した仮想アプリケーションを削除
+            config.VirtualApplications.Remove(virtualApplication);
+
+            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+        }
+
         [FunctionName(nameof(DeleteCertificate))]
         public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
         {
