@@ -37,6 +37,7 @@ The Key Vault version is available for services that support Key Vault certifica
 - Azure Web Apps (Linux) / Web App for Containers (required Azure DNS)
 - Azure App Service Environment (Windows / Linux)
 - Certificate issued to any deployment slot
+- Zone Apex domain certificates
 - Subject Alternative Names certificates (multi-domains support)
 - Wildcard certificates (required Azure DNS)
 - Multiple App Services support with single Function App
