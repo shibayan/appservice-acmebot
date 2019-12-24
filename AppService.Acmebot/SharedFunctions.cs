@@ -338,9 +338,9 @@ namespace AppService.Acmebot
         {
             var (hostNames, orderDetails) = input;
 
-            // ECC 256bit の証明書に固定
-            var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var csr = CryptoHelper.Ec.GenerateCsr(hostNames, ec);
+            // App Service に ECDSA 証明書をアップロードするとエラーになるので一時的に RSA に
+            var rsa = RSA.Create(2048);
+            var csr = CryptoHelper.Rsa.GenerateCsr(hostNames, rsa);
 
             // Order の最終処理を実行し、証明書を作成
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
@@ -354,7 +354,7 @@ namespace AppService.Acmebot
             // 秘密鍵を含んだ形で X509Certificate2 を作成
             var (certificate, chainCertificate) = X509Certificate2Helper.LoadFromPem(certificateData);
 
-            var certificateWithPrivateKey = certificate.CopyWithPrivateKey(ec);
+            var certificateWithPrivateKey = certificate.CopyWithPrivateKey(rsa);
 
             var x509Certificates = new X509Certificate2Collection(new[] { certificateWithPrivateKey, chainCertificate });
 
