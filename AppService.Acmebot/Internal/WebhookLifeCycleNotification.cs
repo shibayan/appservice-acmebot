@@ -61,6 +61,13 @@ namespace AppService.Acmebot.Internal
                     }
                 };
             }
+            else if (_options.Webhook.Contains("outlook.office.com"))
+            {
+                model = new
+                {
+                    text = $"## Error - {functionName}\n\n```\n{reason}\n```"
+                };
+            }
             else
             {
                 model = new
