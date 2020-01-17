@@ -133,7 +133,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public async Task<ChallengeResult> Http01Authorization([ActivityTrigger] (Site, string) input)
+        public async Task<AcmeChallengeResult> Http01Authorization([ActivityTrigger] (Site, string) input)
         {
             var (site, authzUrl) = input;
 
@@ -154,7 +154,7 @@ namespace AppService.Acmebot
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
-            return new ChallengeResult
+            return new AcmeChallengeResult
             {
                 Url = challenge.Url,
                 HttpResourceUrl = challengeValidationDetails.HttpResourceUrl,
@@ -163,7 +163,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CheckHttpChallenge))]
-        public async Task CheckHttpChallenge([ActivityTrigger] ChallengeResult challenge)
+        public async Task CheckHttpChallenge([ActivityTrigger] AcmeChallengeResult challenge)
         {
             // 実際に HTTP でアクセスして確認する
             var insecureHttpClient = _httpClientFactory.CreateClient("InSecure");
@@ -202,7 +202,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public async Task<ChallengeResult> Dns01Authorization([ActivityTrigger] (string, string) input)
+        public async Task<AcmeChallengeResult> Dns01Authorization([ActivityTrigger] (string, string) input)
         {
             var (authzUrl, instanceId) = input;
 
@@ -274,7 +274,7 @@ namespace AppService.Acmebot
 
             await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
 
-            return new ChallengeResult
+            return new AcmeChallengeResult
             {
                 Url = challenge.Url,
                 DnsRecordName = challengeValidationDetails.DnsRecordName,
@@ -283,7 +283,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CheckDnsChallenge))]
-        public async Task CheckDnsChallenge([ActivityTrigger] ChallengeResult challenge)
+        public async Task CheckDnsChallenge([ActivityTrigger] AcmeChallengeResult challenge)
         {
             // 実際に ACME の TXT レコードを引いて確認する
             var queryResult = await _lookupClient.QueryAsync(challenge.DnsRecordName, QueryType.TXT);
@@ -326,7 +326,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
+        public async Task AnswerChallenges([ActivityTrigger] IList<AcmeChallengeResult> challenges)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 

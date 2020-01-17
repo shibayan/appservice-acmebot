@@ -93,11 +93,11 @@ namespace AppService.Acmebot
                 var orderDetails = await activity.Order(certificate.HostNames);
 
                 // 複数の Authorizations を処理する
-                var challenges = new List<ChallengeResult>();
+                var challenges = new List<AcmeChallengeResult>();
 
                 foreach (var authorization in orderDetails.Payload.Authorizations)
                 {
-                    ChallengeResult result;
+                    AcmeChallengeResult result;
 
                     // ACME Challenge を実行
                     if (useDns01Auth)

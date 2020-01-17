@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -17,8 +16,6 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
 using Newtonsoft.Json;
-
-using ChallengeResult = AppService.Acmebot.Models.ChallengeResult;
 
 namespace AppService.Acmebot
 {
@@ -69,11 +66,11 @@ namespace AppService.Acmebot
             var orderDetails = await activity.Order(request.Domains);
 
             // 複数の Authorizations を処理する
-            var challenges = new List<ChallengeResult>();
+            var challenges = new List<AcmeChallengeResult>();
 
             foreach (var authorization in orderDetails.Payload.Authorizations)
             {
-                ChallengeResult result;
+                AcmeChallengeResult result;
 
                 // ACME Challenge を実行
                 if (useDns01Auth)
@@ -153,7 +150,7 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(5));
+            return starter.CreateCheckStatusResponse(req, instanceId, true);
         }
     }
 }
