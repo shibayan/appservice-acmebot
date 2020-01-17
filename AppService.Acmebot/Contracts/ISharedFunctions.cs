@@ -26,22 +26,22 @@ namespace AppService.Acmebot.Contracts
 
         Task Http01Precondition(Site site);
 
-        Task<ChallengeResult> Http01Authorization((Site, string) input);
+        Task<AcmeChallengeResult> Http01Authorization((Site, string) input);
 
         [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckHttpChallenge(ChallengeResult challenge);
+        Task CheckHttpChallenge(AcmeChallengeResult challenge);
 
         Task Dns01Precondition(IList<string> hostNames);
 
-        Task<ChallengeResult> Dns01Authorization((string, string) context);
+        Task<AcmeChallengeResult> Dns01Authorization((string, string) context);
 
         [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckDnsChallenge(ChallengeResult challenge);
+        Task CheckDnsChallenge(AcmeChallengeResult challenge);
 
         [RetryOptions("00:00:05", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
         Task CheckIsReady(OrderDetails orderDetails);
 
-        Task AnswerChallenges(IList<ChallengeResult> challenges);
+        Task AnswerChallenges(IList<AcmeChallengeResult> challenges);
 
         Task<(string, byte[])> FinalizeOrder((IList<string>, OrderDetails) input);
 

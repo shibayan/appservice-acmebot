@@ -1,6 +1,6 @@
 ﻿namespace AppService.Acmebot.Models
 {
-    public class ChallengeResult
+    public class AcmeChallengeResult
     {
         public string Url { get; set; }
         public string HttpResourceUrl { get; set; }
