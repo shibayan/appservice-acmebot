@@ -108,6 +108,9 @@ namespace AppService.Acmebot
         [FunctionName(nameof(Http01Precondition))]
         public async Task Http01Precondition([ActivityTrigger] Site site)
         {
+            if (site.Kind.Contains("linux"))
+                return ;
+
             var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
 
             // 既に .well-known が仮想アプリケーションとして追加されているか確認
@@ -150,9 +153,17 @@ namespace AppService.Acmebot
 
             // Kudu API を使い、Answer 用のファイルを作成
             var kuduClient = _kuduApiClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+            if (site.Kind.Contains("linux"))
+            {
 
-            await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
-            await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
+                await kuduClient.WriteFileAsync("wwwroot/" + challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
+            } else
+            {
+                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+                await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
+
+            }
+
 
             return new AcmeChallengeResult
             {

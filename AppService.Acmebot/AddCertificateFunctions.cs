@@ -50,8 +50,8 @@ namespace AppService.Acmebot
             }
 
             // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = request.Domains.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
-
+            var useDns01Auth =
+            SiteHelper.needDns01Auth(request.Domains, site);
             // 前提条件をチェック
             if (useDns01Auth)
             {

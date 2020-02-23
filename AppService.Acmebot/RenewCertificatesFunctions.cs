@@ -77,7 +77,7 @@ namespace AppService.Acmebot
                 log.LogInformation($"Subject name: {certificate.SubjectName}");
 
                 // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                var useDns01Auth = certificate.HostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+                var useDns01Auth = SiteHelper.needDns01Auth(certificate.HostNames, site);
 
                 // 前提条件をチェック
                 if (useDns01Auth)
