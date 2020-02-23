@@ -53,7 +53,7 @@ app.UseStaticFiles(new StaticFileOptions
                 DefaultContentType = "text/plain",
                 ServeUnknownFileTypes =true
             });
-            ```
+```
 
 
 ## Requirements
