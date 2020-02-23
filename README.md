@@ -54,6 +54,8 @@ app.UseStaticFiles(new StaticFileOptions
                 ServeUnknownFileTypes =true
             });
             ```
+
+
 ## Requirements
 
 - Azure Subscription
