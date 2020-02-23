@@ -34,7 +34,7 @@ The Key Vault version is available for services that support Key Vault certifica
 ## Feature Support
 
 - Azure Web Apps and Azure Functions (Windows)
-- Azure Web Apps (Linux) (required Azure DNS) with Tag: CertBot Http Auth will be made *
+- Azure Web Apps (Linux) (required Azure DNS) with Tag: CertBot Http Auth will be made [^1]
 - Web App for Containers (required Azure DNS)
 - Azure App Service Environment (Windows / Linux)
 - Certificate issued to any deployment slot
@@ -43,8 +43,8 @@ The Key Vault version is available for services that support Key Vault certifica
 - Wildcard certificates (required Azure DNS)
 - Multiple App Services support with single Function App
 
-* this will require to change your application code like this:
-````cs
+[^1]: this will require to change your application code like this:
+```cs
 app.UseStaticFiles(new StaticFileOptions
             {
                 FileProvider = new PhysicalFileProvider(
@@ -53,7 +53,7 @@ app.UseStaticFiles(new StaticFileOptions
                 DefaultContentType = "text/plain",
                 ServeUnknownFileTypes =true
             });
-            ````
+            ```
 ## Requirements
 
 - Azure Subscription
