@@ -107,7 +107,27 @@ If they need a Wildcard certificate, additional assign `DNS Zone Contributor` ro
 
 ![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
 
-Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
+Certificates for "App Service on Linux" and "Web App for Container" require Azure DNS.
+
+#### Generating certificates for subdomains(App Service on Linux)
+To generate certificates for subdomains attached to App Services running on Linux, you will need the following setup:
+* main Azure DNS Zone with your domain delegated to it
+* subzones made using Azure DNS Zone
+
+Let's consider the following example: you're the owner of contoso.com domain and you have two websites you want to host using the following subdomains:
+* web.contoso.com
+* api.contoso.com
+
+You need to create 3 Azure DNS Zones:
+* contoso.com
+* web.contoso.com
+* api.contoso.com
+
+After delegating a domain to Azure DNS Zone(using Name servers attached to the contoso.com zone), you will need to add to contoso.com DNS Zone the following entries:
+* web(Type: NS, Value: Name servers attached to web.contoso.com Azure DNS Zone)
+* api(Type: NS, Value: Name servers attached to api.contoso.com Azure DNS Zone)
+
+After that you will need to configure web/api Azure DNS Zones to point to your App Service(using e.g. A record). Once everything is set, you will be able to generate certificates.
 
 ### Renew certificates
 
