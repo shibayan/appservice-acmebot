@@ -65,7 +65,9 @@ namespace AppService.Acmebot.Internal
             {
                 model = new
                 {
-                    text = $"## Error - {functionName}\n\n```\n{reason}\n```"
+                    title = functionName,
+                    text = reason,
+                    themeColor = "A30200"
                 };
             }
             else
