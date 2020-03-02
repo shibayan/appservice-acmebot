@@ -93,33 +93,26 @@ namespace AppService.Acmebot
                 var orderDetails = await activity.Order(certificate.HostNames);
 
                 // 複数の Authorizations を処理する
-                var challenges = new List<AcmeChallengeResult>();
+                IList<AcmeChallengeResult> challengeResults;
 
-                foreach (var authorization in orderDetails.Payload.Authorizations)
+                // ACME Challenge を実行
+                if (useDns01Auth)
                 {
-                    AcmeChallengeResult result;
+                    challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
 
-                    // ACME Challenge を実行
-                    if (useDns01Auth)
-                    {
-                        result = await activity.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
+                    // Azure DNS で正しくレコードが引けるか確認
+                    await activity.CheckDnsChallenge(challengeResults);
+                }
+                else
+                {
+                    challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
 
-                        // Azure DNS で正しくレコードが引けるか確認
-                        await activity.CheckDnsChallenge(result);
-                    }
-                    else
-                    {
-                        result = await activity.Http01Authorization((site, authorization));
-
-                        // HTTP で正しくアクセスできるか確認
-                        await activity.CheckHttpChallenge(result);
-                    }
-
-                    challenges.Add(result);
+                    // HTTP で正しくアクセスできるか確認
+                    await activity.CheckHttpChallenge(challengeResults);
                 }
 
                 // ACME Answer を実行
-                await activity.AnswerChallenges(challenges);
+                await activity.AnswerChallenges(challengeResults);
 
                 // Order のステータスが ready になるまで 60 秒待機
                 await activity.CheckIsReady(orderDetails);

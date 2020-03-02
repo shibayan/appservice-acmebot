@@ -112,5 +112,17 @@ namespace AppService.Acmebot.Internal
 
             return zones;
         }
+
+        public static async Task<RecordSet> GetOrDefaultAsync(this IRecordSetsOperations operations, string resourceGroupName, string zoneName, string relativeRecordSetName, RecordType recordType)
+        {
+            try
+            {
+                return await operations.GetAsync(resourceGroupName, zoneName, relativeRecordSetName, RecordType.TXT);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }
