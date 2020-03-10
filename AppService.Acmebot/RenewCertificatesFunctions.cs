@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -40,8 +41,6 @@ namespace AppService.Acmebot
             // App Service を取得
             var sites = await activity.GetSites();
 
-            var tasks = new List<Task>();
-
             // サイト単位で証明書の更新を行う
             foreach (var site in sites)
             {
@@ -55,12 +54,18 @@ namespace AppService.Acmebot
                     continue;
                 }
 
-                // 証明書の更新処理を開始
-                tasks.Add(context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates)));
+                try
+                {
+                    // 証明書の更新処理を開始
+                    await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates));
+                }
+                catch (Exception ex)
+                {
+                    // 失敗した場合はログに詳細を書き出して続きを実行する
+                    log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
+                    log.LogError(ex.Message);
+                }
             }
-
-            // サブオーケストレーターの完了を待つ
-            await Task.WhenAll(tasks);
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
