@@ -117,7 +117,7 @@ namespace AppService.Acmebot
         {
             if (!req.HttpContext.User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
+                return new UnauthorizedResult();
             }
 
             var request = JsonConvert.DeserializeObject<AddCertificateRequest>(await req.ReadAsStringAsync());

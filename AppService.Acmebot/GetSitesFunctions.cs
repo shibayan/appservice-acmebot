@@ -93,7 +93,7 @@ namespace AppService.Acmebot
         {
             if (!req.HttpContext.User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
+                return new UnauthorizedResult();
             }
 
             // Function input comes from the request content.
