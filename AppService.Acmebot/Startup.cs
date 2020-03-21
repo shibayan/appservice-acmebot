@@ -39,7 +39,7 @@ namespace AppService.Acmebot
                        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                    });
 
-            builder.Services.AddSingleton(new LookupClient { UseCache = false });
+            builder.Services.AddSingleton(new LookupClient(new LookupClientOptions { UseCache = false }));
 
             builder.Services.AddSingleton(provider =>
             {
