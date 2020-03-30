@@ -29,13 +29,13 @@ Key Vault 版は App Service / Application Gateway / CDN / Front Door といっ�
 
 ## 目次
 
-- [対応している機能](#feature-support)
-- [必要なもの](#requirements)
-- [開始する](#getting-started)
-- [使い方](#usage)
-- [トラブルシューティング](#troubleshooting)
-- [謝辞](#thanks)
-- [ライセンス](#license)
+- [対応している機能](#対応している機能)
+- [必要なもの](#必要なもの)
+- [開始する](#開始する)
+- [使い方](#使い方)
+- [トラブルシューティング](#トラブルシューティング)
+- [謝辞](#謝辞)
+- [ライセンス](#ライセンス)
 
 ## 対応している機能
 
