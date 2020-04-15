@@ -11,7 +11,7 @@ namespace AppService.Acmebot.Internal
             return site.Name.Contains('/');
         }
 
-        public static (string siteName, string slotName) SplitName(this Site site)
+        public static (string appName, string slotName) SplitName(this Site site)
         {
             var index = site.Name.IndexOf('/');
 
