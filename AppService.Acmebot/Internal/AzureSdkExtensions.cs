@@ -15,9 +15,9 @@ namespace AppService.Acmebot.Internal
         {
             if (site.IsSlot())
             {
-                var (siteName, slotName) = site.SplitName();
+                var (appName, slotName) = site.SplitName();
 
-                return operations.GetConfigurationSlotAsync(site.ResourceGroup, siteName, slotName, cancellationToken);
+                return operations.GetConfigurationSlotAsync(site.ResourceGroup, appName, slotName, cancellationToken);
             }
 
             return operations.GetConfigurationAsync(site.ResourceGroup, site.Name, cancellationToken);
@@ -27,9 +27,9 @@ namespace AppService.Acmebot.Internal
         {
             if (site.IsSlot())
             {
-                var (siteName, slotName) = site.SplitName();
+                var (appName, slotName) = site.SplitName();
 
-                return operations.UpdateConfigurationSlotAsync(site.ResourceGroup, siteName, siteConfig, slotName, cancellationToken);
+                return operations.UpdateConfigurationSlotAsync(site.ResourceGroup, appName, siteConfig, slotName, cancellationToken);
             }
 
             return operations.UpdateConfigurationAsync(site.ResourceGroup, site.Name, siteConfig, cancellationToken);
@@ -39,9 +39,9 @@ namespace AppService.Acmebot.Internal
         {
             if (site.IsSlot())
             {
-                var (siteName, slotName) = site.SplitName();
+                var (appName, slotName) = site.SplitName();
 
-                return operations.ListPublishingCredentialsSlotAsync(site.ResourceGroup, siteName, slotName, cancellationToken);
+                return operations.ListPublishingCredentialsSlotAsync(site.ResourceGroup, appName, slotName, cancellationToken);
             }
 
             return operations.ListPublishingCredentialsAsync(site.ResourceGroup, site.Name, cancellationToken);
@@ -51,9 +51,9 @@ namespace AppService.Acmebot.Internal
         {
             if (site.IsSlot())
             {
-                var (siteName, slotName) = site.SplitName();
+                var (appName, slotName) = site.SplitName();
 
-                return operations.CreateOrUpdateSlotAsync(site.ResourceGroup, siteName, site, slotName, cancellationToken);
+                return operations.CreateOrUpdateSlotAsync(site.ResourceGroup, appName, site, slotName, cancellationToken);
             }
 
             return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);

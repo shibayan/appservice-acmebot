@@ -7,6 +7,8 @@ using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
+using Azure.WebJobs.Extensions.HttpApi;
+
 using DurableTask.TypedProxy;
 
 using Microsoft.AspNetCore.Http;
@@ -18,8 +20,13 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class GetSitesFunctions
+    public class GetSitesFunctions : HttpFunctionBase
     {
+        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor)
+            : base(httpContextAccessor)
+        {
+        }
+
         [FunctionName(nameof(GetSitesInformation))]
         public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
@@ -39,7 +46,7 @@ namespace AppService.Acmebot
                     Sites = new List<SiteInformation>()
                 };
 
-                foreach (var site in item.ToLookup(x => x.SplitName().siteName))
+                foreach (var site in item.ToLookup(x => x.SplitName().appName))
                 {
                     var siteInformation = new SiteInformation
                     {
@@ -91,9 +98,9 @@ namespace AppService.Acmebot
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.HttpContext.User.Identity.IsAuthenticated)
+            if (!User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedResult();
+                return Unauthorized();
             }
 
             // Function input comes from the request content.

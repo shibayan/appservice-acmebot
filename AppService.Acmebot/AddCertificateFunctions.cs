@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Models;
 
+using Azure.WebJobs.Extensions.HttpApi;
+
 using DurableTask.TypedProxy;
 
 using Microsoft.AspNetCore.Http;
@@ -15,12 +17,15 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-using Newtonsoft.Json;
-
 namespace AppService.Acmebot
 {
-    public class AddCertificateFunctions
+    public class AddCertificateFunctions : HttpFunctionBase
     {
+        public AddCertificateFunctions(IHttpContextAccessor httpContextAccessor)
+            : base(httpContextAccessor)
+        {
+        }
+
         [FunctionName(nameof(AddCertificate))]
         public async Task AddCertificate([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
@@ -28,11 +33,11 @@ namespace AppService.Acmebot
 
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            var site = await activity.GetSite((request.ResourceGroupName, request.SiteName, request.SlotName));
+            var site = await activity.GetSite((request.ResourceGroupName, request.AppName, request.SlotName));
 
             if (site == null)
             {
-                log.LogError($"{request.SiteName} is not found");
+                log.LogError($"{request.AppName} is not found");
                 return;
             }
 
@@ -111,30 +116,18 @@ namespace AppService.Acmebot
 
         [FunctionName(nameof(AddCertificate_HttpStart))]
         public async Task<IActionResult> AddCertificate_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] AddCertificateRequest request,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.HttpContext.User.Identity.IsAuthenticated)
+            if (!User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedResult();
+                return Unauthorized();
             }
 
-            var request = JsonConvert.DeserializeObject<AddCertificateRequest>(await req.ReadAsStringAsync());
-
-            if (string.IsNullOrEmpty(request.ResourceGroupName))
+            if (!TryValidateModel(request))
             {
-                return new BadRequestObjectResult($"{nameof(request.ResourceGroupName)} is empty.");
-            }
-
-            if (string.IsNullOrEmpty(request.SiteName))
-            {
-                return new BadRequestObjectResult($"{nameof(request.SiteName)} is empty.");
-            }
-
-            if (request.Domains == null || request.Domains.Length == 0)
-            {
-                return new BadRequestObjectResult($"{nameof(request.Domains)} is empty.");
+                return BadRequest(ModelState);
             }
 
             // Function input comes from the request content.
@@ -142,7 +135,7 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return starter.CreateCheckStatusResponse(req, instanceId, true);
+            return starter.CreateCheckStatusResponse(Request, instanceId, true);
         }
     }
 }

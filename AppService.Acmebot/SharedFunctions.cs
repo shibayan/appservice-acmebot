@@ -49,14 +49,14 @@ namespace AppService.Acmebot
         [FunctionName(nameof(GetSite))]
         public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
-            var (resourceGroupName, siteName, slotName) = input;
+            var (resourceGroupName, appName, slotName) = input;
 
-            if (!string.IsNullOrEmpty(slotName))
+            if (slotName != "production")
             {
-                return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, siteName, slotName);
+                return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, appName, slotName);
             }
 
-            return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, siteName);
+            return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, appName);
         }
 
         [FunctionName(nameof(GetSites))]

@@ -39,7 +39,7 @@
             <div class="field">
               <div class="control">
                 <div class="select" v-bind:class="{ 'is-loading': loading }">
-                  <select v-model="siteName">
+                  <select v-model="appName">
                     <option disabled value="">Please select one</option>
                     <option v-for="site in (selectedResourceGroup || {}).sites" :value="site.name">{{ site.name }}</option>
                   </select>
@@ -125,7 +125,7 @@
       data: {
         list: [],
         resourceGroupName: '',
-        siteName: '',
+        appName: '',
         slotName: '',
         domains: [],
         useIpBasedSsl: false,
@@ -141,7 +141,7 @@
           if (!this.selectedResourceGroup) {
             return undefined;
           }
-          const name = this.siteName;
+          const name = this.appName;
           return this.selectedResourceGroup.sites.find(function (x) { return x.name === name; });
         },
         selectedSlot: function () {
@@ -169,7 +169,7 @@
         reload: function () {
           this.list = [];
           this.resourceGroupName = '';
-          this.siteName = '';
+          this.appName = '';
           this.slotName = '';
           this.domains = [];
           this.useIpBasedSsl = false;
@@ -181,20 +181,27 @@
 
           const postData = {
             ResourceGroupName: this.resourceGroupName,
-            SiteName: this.siteName,
-            SlotName: this.slotName === 'production' ? null : this.slotName,
+            appName: this.appName,
+            SlotName: this.slotName,
             Domains: this.domains,
             UseIpBasedSsl: this.useIpBasedSsl
           };
 
-          var response = await axios.post("/api/add-certificate", postData);
+          var response;
+
+          try {
+            response = await axios.post("/api/add-certificate", postData);
+          }
+          catch (error) {
+            alert("An error has occurred. No certificate was issued.");
+          }
 
           while (true) {
             await delay(5000);
 
             try {
               response = await axios.get(response.headers["location"]);
-            } catch {
+            } catch (error) {
               alert("An error has occurred. No certificate was issued.");
               break;
             }
