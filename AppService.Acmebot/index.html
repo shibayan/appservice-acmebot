@@ -194,6 +194,8 @@
           }
           catch (error) {
             alert("An error has occurred. No certificate was issued.");
+            this.sending = false;
+            return;
           }
 
           while (true) {
