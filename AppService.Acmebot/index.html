@@ -21,7 +21,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" v-bind:class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': loading }">
                   <select v-model="resourceGroupName">
                     <option disabled value="">Please select one</option>
                     <option v-for="resourceGroup in list" :value="resourceGroup.name">{{ resourceGroup.name }}</option>
@@ -38,7 +38,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" v-bind:class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': loading }">
                   <select v-model="appName">
                     <option disabled value="">Please select one</option>
                     <option v-for="site in (selectedResourceGroup || {}).sites" :value="site.name">{{ site.name }}</option>
@@ -55,7 +55,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" v-bind:class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': loading }">
                   <select v-model="slotName">
                     <option disabled value="">Please select one</option>
                     <option v-for="slot in (selectedSite || {}).slots">{{ slot.name }}</option>
@@ -74,7 +74,7 @@
               <div class="control">
                 <div class="select is-multiple">
                   <select multiple v-model="domains">
-                    <option v-for="domain in (selectedSlot || {}).domains" v-bind:value="domain.name">{{ domain.name }} ({{ domain.issuer }})</option>
+                    <option v-for="domain in (selectedSlot || {}).domains" :value="domain.name">{{ domain.name }} ({{ domain.issuer }})</option>
                   </select>
                 </div>
               </div>
@@ -105,7 +105,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <button class="button is-primary" v-on:click="submit" v-bind:class="{ 'is-loading': sending }">Submit</button>
+                <button class="button is-primary" @click="submit" :class="{ 'is-loading': sending }" :disabled="domains.length === 0">Submit</button>
               </div>
             </div>
           </div>
@@ -187,32 +187,36 @@
             UseIpBasedSsl: this.useIpBasedSsl
           };
 
-          var response;
-
           try {
-            response = await axios.post("/api/add-certificate", postData);
+            let response = await axios.post("/api/add-certificate", postData);
+
+            while (true) {
+              await delay(5000);
+
+              response = await axios.get(response.headers["location"]);
+
+              if (response.status === 200) {
+                alert("The certificate was successfully issued.");
+                break;
+              }
+            }
           }
           catch (error) {
-            alert("An error has occurred. No certificate was issued.");
-            this.sending = false;
-            return;
-          }
+            const problem = error.response.data;
 
-          while (true) {
-            await delay(5000);
+            if (error.response.status === 400) {
+              const errors = [];
 
-            try {
-              response = await axios.get(response.headers["location"]);
-            } catch (error) {
-              alert("An error has occurred. No certificate was issued.");
-              break;
-            }
+              for (let key in problem.errors) {
+                errors.push(problem.errors[key][0]);
+              }
 
-            if (response.status === 200) {
-              alert("The certificate was successfully issued.");
-              break;
+              alert(errors.join("\n"));
+            } else {
+              alert(problem.detail)
             }
           }
+
 
           this.reload();
           this.sending = false;
