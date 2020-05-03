@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
+using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
 using Azure.WebJobs.Extensions.HttpApi;
@@ -54,13 +55,15 @@ namespace AppService.Acmebot
                 return;
             }
 
+            var asciiHostNames = request.Domains.Select(Punycode.Encode).ToArray();
+
             // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = request.Domains.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+            var useDns01Auth = asciiHostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
             // 前提条件をチェック
             if (useDns01Auth)
             {
-                await activity.Dns01Precondition(request.Domains);
+                await activity.Dns01Precondition(asciiHostNames);
             }
             else
             {
@@ -68,7 +71,7 @@ namespace AppService.Acmebot
             }
 
             // 新しく ACME Order を作成する
-            var orderDetails = await activity.Order(request.Domains);
+            var orderDetails = await activity.Order(asciiHostNames);
 
             IList<AcmeChallengeResult> challengeResults;
 
@@ -97,9 +100,9 @@ namespace AppService.Acmebot
             await activity.CheckIsReady(orderDetails);
 
             // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((request.Domains, orderDetails));
+            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((asciiHostNames, orderDetails));
 
-            await activity.UpdateCertificate((site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
+            await activity.UpdateCertificate((site, $"{asciiHostNames[0]}-{thumbprint}", pfxBlob));
 
             foreach (var hostNameSslState in hostNameSslStates)
             {
