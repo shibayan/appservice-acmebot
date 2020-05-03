@@ -74,7 +74,8 @@ namespace AppService.Acmebot
                 list.AddRange(slots);
             }
 
-            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net"))).ToArray();
+            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net")))
+                       .ToArray();
         }
 
         [FunctionName(nameof(GetCertificates))]
@@ -82,9 +83,9 @@ namespace AppService.Acmebot
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
-            return certificates
-                   .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
-                   .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
+            return certificates.Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
+                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
+                               .ToArray();
         }
 
         [FunctionName(nameof(GetAllCertificates))]

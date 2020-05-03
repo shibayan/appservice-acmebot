@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
+using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
@@ -81,13 +82,16 @@ namespace AppService.Acmebot
             {
                 log.LogInformation($"Subject name: {certificate.SubjectName}");
 
+                // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+                var hostNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
+
                 // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                var useDns01Auth = certificate.HostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+                var useDns01Auth = hostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
                 // 前提条件をチェック
                 if (useDns01Auth)
                 {
-                    await activity.Dns01Precondition(certificate.HostNames);
+                    await activity.Dns01Precondition(hostNames);
                 }
                 else
                 {
@@ -95,7 +99,7 @@ namespace AppService.Acmebot
                 }
 
                 // 新しく ACME Order を作成する
-                var orderDetails = await activity.Order(certificate.HostNames);
+                var orderDetails = await activity.Order(hostNames);
 
                 // 複数の Authorizations を処理する
                 IList<AcmeChallengeResult> challengeResults;
@@ -123,11 +127,11 @@ namespace AppService.Acmebot
                 await activity.CheckIsReady(orderDetails);
 
                 // Order の最終処理を実行し PFX を作成
-                var (thumbprint, pfxBlob) = await activity.FinalizeOrder((certificate.HostNames, orderDetails));
+                var (thumbprint, pfxBlob) = await activity.FinalizeOrder((hostNames, orderDetails));
 
-                await activity.UpdateCertificate((site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
+                await activity.UpdateCertificate((site, $"{hostNames[0]}-{thumbprint}", pfxBlob));
 
-                foreach (var hostNameSslState in site.HostNameSslStates.Where(x => certificate.HostNames.Contains(x.Name)))
+                foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(Punycode.Encode(x.Name))))
                 {
                     hostNameSslState.Thumbprint = thumbprint;
                     hostNameSslState.ToUpdate = true;
