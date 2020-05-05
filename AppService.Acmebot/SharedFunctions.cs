@@ -46,6 +46,12 @@ namespace AppService.Acmebot
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
 
+        private static readonly string[] _renewalIssuers =
+        {
+            "Let's Encrypt Authority X3", "Let's Encrypt Authority X4", "Fake LE Intermediate X1",
+            "Buypass Class 2 CA 5", "Buypass Class 2 Test4 CA 5"
+        };
+
         [FunctionName(nameof(GetSite))]
         public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
@@ -83,7 +89,7 @@ namespace AppService.Acmebot
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
-            return certificates.Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
+            return certificates.Where(x => _renewalIssuers.Contains(x.Issuer))
                                .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
                                .ToArray();
         }
