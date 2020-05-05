@@ -11,7 +11,18 @@
     "mailAddress": {
       "type": "string",
       "metadata": {
-        "description": "Email address for Let's Encrypt account."
+        "description": "Email address for ACME account."
+      }
+    },
+    "acmeEndpoint": {
+      "type": "string",
+      "allowedValues": [
+        "https://acme-v02.api.letsencrypt.org/",
+        "https://api.buypass.com/acme/"
+      ],
+      "defaultValue": "https://acme-v02.api.letsencrypt.org/",
+      "metadata": {
+        "description": "Certification authority ACME Endpoint."
       }
     }
   },
@@ -19,7 +30,8 @@
     "functionAppName": "[concat(parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
     "storageAccountName": "[concat(uniquestring(resourceGroup().id, deployment().name), 'azfunctions')]",
     "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-    "mailAddress": "[parameters('mailAddress')]"
+    "mailAddress": "[parameters('mailAddress')]",
+    "acmeEndpoint": "[parameters('acmeEndpoint')]"
   },
   "resources": [
     {
@@ -111,6 +123,10 @@
             {
               "name": "Acmebot:Contacts",
               "value": "[variables('mailAddress')]"
+            },
+            {
+              "name": "Acmebot:Endpoint",
+              "value": "[variables('acmeEndpoint')]"
             }
           ],
           "clientAffinityEnabled": false
