@@ -105,11 +105,11 @@
               "value": "dotnet"
             },
             {
-              "name": "LetsEncrypt:SubscriptionId",
+              "name": "Acmebot:SubscriptionId",
               "value": "[subscription().subscriptionId]"
             },
             {
-              "name": "LetsEncrypt:Contacts",
+              "name": "Acmebot:Contacts",
               "value": "[variables('mailAddress')]"
             }
           ],

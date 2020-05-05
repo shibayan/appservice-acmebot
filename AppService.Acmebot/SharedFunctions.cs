@@ -351,15 +351,16 @@ namespace AppService.Acmebot
 
             var certificateData = await httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
 
+            // X509Certificate2Collection を作成
+            var x509Certificates = new X509Certificate2Collection();
+
+            x509Certificates.ImportFromPem(certificateData);
+
             // 秘密鍵を含んだ形で X509Certificate2 を作成
-            var (certificate, chainCertificate) = X509Certificate2Helper.LoadFromPem(certificateData);
-
-            var certificateWithPrivateKey = certificate.CopyWithPrivateKey(rsa);
-
-            var x509Certificates = new X509Certificate2Collection(new[] { certificateWithPrivateKey, chainCertificate });
+            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
 
             // PFX 形式としてエクスポート
-            return (certificateWithPrivateKey.Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
+            return (x509Certificates[0].Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
         }
 
         [FunctionName(nameof(UpdateCertificate))]

@@ -43,7 +43,7 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton(provider =>
             {
-                var options = provider.GetRequiredService<IOptions<LetsEncryptOptions>>();
+                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
 
                 return new WebSiteManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
                 {
@@ -53,7 +53,7 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton(provider =>
             {
-                var options = provider.GetRequiredService<IOptions<LetsEncryptOptions>>();
+                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
 
                 return new DnsManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
                 {
@@ -65,7 +65,9 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton<IKuduApiClientFactory, KuduApiClientFactory>();
             builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
 
-            builder.Services.Configure<LetsEncryptOptions>(Configuration.GetSection("LetsEncrypt"));
+            var section = Configuration.GetSection("Acmebot");
+
+            builder.Services.Configure<AcmebotOptions>(section.Exists() ? section : Configuration.GetSection("LetsEncrypt"));
         }
     }
 }
