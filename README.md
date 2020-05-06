@@ -1,6 +1,6 @@
 # App Service Acmebot
 
-[![Build Status](https://dev.azure.com/shibayan/azure-acmebot/_apis/build/status/Build%20appservice-acmebot?branchName=master)](https://dev.azure.com/shibayan/azure-acmebot/_build/latest?definitionId=37&branchName=master)
+![Build](https://github.com/shibayan/appservice-acmebot/workflows/Build/badge.svg)
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
