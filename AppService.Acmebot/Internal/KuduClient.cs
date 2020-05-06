@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace AppService.Acmebot.Internal
 {
-    public class KuduApiClient
+    public class KuduClient
     {
-        public KuduApiClient(HttpClient httpClient, string scmUrl, string userName, string password)
+        public KuduClient(HttpClient httpClient, string scmUrl, string userName, string password)
         {
             _httpClient = httpClient;
             _scmUrl = scmUrl;

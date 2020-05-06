@@ -22,29 +22,35 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot
 {
     public class SharedFunctions : ISharedFunctions
     {
         public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
-                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduApiClientFactory kuduApiClientFactory,
-                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
+                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
+                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
+                               IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
             _acmeProtocolClientFactory = acmeProtocolClientFactory;
-            _kuduApiClientFactory = kuduApiClientFactory;
+            _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
+            _options = options.Value;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly LookupClient _lookupClient;
         private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
-        private readonly IKuduApiClientFactory _kuduApiClientFactory;
+        private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
+        private readonly AcmebotOptions _options;
+
+        private const string IssuerName = "Acmebot";
 
         private static readonly string[] _renewalIssuers =
         {
@@ -169,7 +175,7 @@ namespace AppService.Acmebot
             // 発行プロファイルを取得
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
-            var kuduClient = _kuduApiClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+            var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
             // Answer 用ファイルを返すための Web.config を作成
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
@@ -379,7 +385,12 @@ namespace AppService.Acmebot
                 Location = site.Location,
                 Password = "P@ssw0rd",
                 PfxBlob = pfxBlob,
-                ServerFarmId = site.ServerFarmId
+                ServerFarmId = site.ServerFarmId,
+                Tags = new Dictionary<string, string>
+                {
+                    { "Issuer", IssuerName },
+                    { "Endpoint", _options.Endpoint }
+                }
             });
         }
 

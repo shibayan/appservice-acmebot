@@ -62,7 +62,7 @@ namespace AppService.Acmebot
             });
 
             builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
-            builder.Services.AddSingleton<IKuduApiClientFactory, KuduApiClientFactory>();
+            builder.Services.AddSingleton<IKuduClientFactory, KuduClientFactory>();
             builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
 
             var section = Configuration.GetSection("Acmebot");
