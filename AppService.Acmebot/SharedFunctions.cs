@@ -22,6 +22,7 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot
 {
@@ -29,7 +30,8 @@ namespace AppService.Acmebot
     {
         public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
-                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
+                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
+                               IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
@@ -37,6 +39,7 @@ namespace AppService.Acmebot
             _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
+            _options = options.Value;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
@@ -45,6 +48,7 @@ namespace AppService.Acmebot
         private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
+        private readonly AcmebotOptions _options;
 
         private const string IssuerName = "Acmebot";
 
@@ -384,7 +388,8 @@ namespace AppService.Acmebot
                 ServerFarmId = site.ServerFarmId,
                 Tags = new Dictionary<string, string>
                 {
-                    { "Issuer", IssuerName }
+                    { "Issuer", IssuerName },
+                    { "Endpoint", _options.Endpoint }
                 }
             });
         }
