@@ -20,6 +20,7 @@ Steps to reproduce the behavior:
 **Environment (please complete the following information):**
  - App Service OS: [e.g. Windows / Linux]
  - App Service Type: [e.g. Code / Container]
+ - Runtime Stack: [e.g. .NET v4.7, PHP, Node.js]
  - Certificate Type: [e.g. Zone apex, Sub-domain, Wildcard]
 
 **Additional context**
