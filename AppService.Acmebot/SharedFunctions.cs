@@ -133,14 +133,9 @@ namespace AppService.Acmebot
                     PhysicalPath = "site\\.well-known",
                     PreloadEnabled = false
                 });
-            }
-            else
-            {
-                // 追加済みの場合は物理パスを変更しているので対処
-                virtualApplication.PhysicalPath = "site\\.well-known";
-            }
 
-            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+                await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+            }
         }
 
         [FunctionName(nameof(Http01Authorization))]
