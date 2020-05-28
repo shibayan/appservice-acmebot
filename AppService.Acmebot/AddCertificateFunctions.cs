@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
@@ -57,52 +56,8 @@ namespace AppService.Acmebot
 
             var asciiHostNames = request.Domains.Select(Punycode.Encode).ToArray();
 
-            // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = asciiHostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
-
-            // 前提条件をチェック
-            if (useDns01Auth)
-            {
-                await activity.Dns01Precondition(asciiHostNames);
-            }
-            else
-            {
-                await activity.Http01Precondition(site);
-            }
-
-            // 新しく ACME Order を作成する
-            var orderDetails = await activity.Order(asciiHostNames);
-
-            IList<AcmeChallengeResult> challengeResults;
-
-            // ACME Challenge を実行
-            if (useDns01Auth)
-            {
-                // DNS-01 を使う
-                challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
-
-                // Azure DNS で正しくレコードが引けるか確認
-                await activity.CheckDnsChallenge(challengeResults);
-            }
-            else
-            {
-                // HTTP-01 を使う
-                challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
-
-                // HTTP で正しくアクセスできるか確認
-                await activity.CheckHttpChallenge(challengeResults);
-            }
-
-            // ACME Answer を実行
-            await activity.AnswerChallenges(challengeResults);
-
-            // Order のステータスが ready になるまで 60 秒待機
-            await activity.CheckIsReady(orderDetails);
-
-            // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((asciiHostNames, orderDetails));
-
-            await activity.UpdateCertificate((site, $"{asciiHostNames[0]}-{thumbprint}", pfxBlob));
+            // 証明書を発行し Azure にアップロード
+            var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiHostNames));
 
             foreach (var hostNameSslState in hostNameSslStates)
             {

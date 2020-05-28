@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
-using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
@@ -85,51 +83,8 @@ namespace AppService.Acmebot
                 // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
                 var hostNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
 
-                // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                var useDns01Auth = hostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
-
-                // 前提条件をチェック
-                if (useDns01Auth)
-                {
-                    await activity.Dns01Precondition(hostNames);
-                }
-                else
-                {
-                    await activity.Http01Precondition(site);
-                }
-
-                // 新しく ACME Order を作成する
-                var orderDetails = await activity.Order(hostNames);
-
-                // 複数の Authorizations を処理する
-                IList<AcmeChallengeResult> challengeResults;
-
-                // ACME Challenge を実行
-                if (useDns01Auth)
-                {
-                    challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
-
-                    // Azure DNS で正しくレコードが引けるか確認
-                    await activity.CheckDnsChallenge(challengeResults);
-                }
-                else
-                {
-                    challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
-
-                    // HTTP で正しくアクセスできるか確認
-                    await activity.CheckHttpChallenge(challengeResults);
-                }
-
-                // ACME Answer を実行
-                await activity.AnswerChallenges(challengeResults);
-
-                // Order のステータスが ready になるまで 60 秒待機
-                await activity.CheckIsReady(orderDetails);
-
-                // Order の最終処理を実行し PFX を作成
-                var (thumbprint, pfxBlob) = await activity.FinalizeOrder((hostNames, orderDetails));
-
-                await activity.UpdateCertificate((site, $"{hostNames[0]}-{thumbprint}", pfxBlob));
+                // 証明書を発行し Azure にアップロード
+                var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, hostNames));
 
                 foreach (var hostNameSslState in site.HostNameSslStates.Where(x => hostNames.Contains(Punycode.Encode(x.Name))))
                 {
