@@ -16,6 +16,8 @@ using AppService.Acmebot.Models;
 
 using DnsClient;
 
+using DurableTask.TypedProxy;
+
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
 using Microsoft.Azure.Management.WebSites;
@@ -57,6 +59,62 @@ namespace AppService.Acmebot
             "Let's Encrypt Authority X3", "Let's Encrypt Authority X4", "Fake LE Intermediate X1",
             "Buypass Class 2 CA 5", "Buypass Class 2 Test4 CA 5"
         };
+
+        [FunctionName(nameof(IssueCertificate))]
+        public async Task<string> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
+        {
+            var (site, hostNames) = context.GetInput<(Site, string[])>();
+
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
+
+            // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
+            var useDns01Auth = hostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+
+            // 前提条件をチェック
+            if (useDns01Auth)
+            {
+                await activity.Dns01Precondition(hostNames);
+            }
+            else
+            {
+                await activity.Http01Precondition(site);
+            }
+
+            // 新しく ACME Order を作成する
+            var orderDetails = await activity.Order(hostNames);
+
+            // 複数の Authorizations を処理する
+            IList<AcmeChallengeResult> challengeResults;
+
+            // ACME Challenge を実行
+            if (useDns01Auth)
+            {
+                challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
+
+                // Azure DNS で正しくレコードが引けるか確認
+                await activity.CheckDnsChallenge(challengeResults);
+            }
+            else
+            {
+                challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
+
+                // HTTP で正しくアクセスできるか確認
+                await activity.CheckHttpChallenge(challengeResults);
+            }
+
+            // ACME Answer を実行
+            await activity.AnswerChallenges(challengeResults);
+
+            // Order のステータスが ready になるまで 60 秒待機
+            await activity.CheckIsReady(orderDetails);
+
+            // Order の最終処理を実行し PFX を作成
+            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((hostNames, orderDetails));
+
+            await activity.UpdateCertificate((site, $"{hostNames[0]}-{thumbprint}", pfxBlob));
+
+            return thumbprint;
+        }
 
         [FunctionName(nameof(GetSite))]
         public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
