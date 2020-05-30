@@ -128,7 +128,7 @@ The role assignment to the target resource group may be incorrect or not yet ref
 
 In order for the certificate to be created, the bot needs to create a TXT DNS record for _acme-challenge in Azure DNS. This error occurs when the TXT record isn't being served. One cause of this may be that the nameservers for your domain may be pointing to the domain registrar, rather than Azure DNS. Make sure that you have properly delegated the domain to Azure DNS: [Host your domain in Azure DNS](https://docs.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
 
-**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code.
+**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code** error occurs
 
 It seems like URL rewrite error, so please try `inheritInChildApplications="false"` settings for web.config under wwwroot.
 https://www.hanselman.com/blog/ChangingASPNETWebconfigInheritanceWhenMixingVersionsOfChildApplications.aspx
