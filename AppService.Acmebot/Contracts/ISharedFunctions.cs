@@ -22,7 +22,7 @@ namespace AppService.Acmebot.Contracts
 
         Task<IList<Certificate>> GetAllCertificates(object input = null);
 
-        Task<OrderDetails> Order(IList<string> hostNames);
+        Task<OrderDetails> Order(IList<string> dnsNames);
 
         Task Http01Precondition(Site site);
 
@@ -31,7 +31,7 @@ namespace AppService.Acmebot.Contracts
         [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
         Task CheckHttpChallenge(IList<AcmeChallengeResult> challengeResults);
 
-        Task Dns01Precondition(IList<string> hostNames);
+        Task Dns01Precondition(IList<string> dnsNames);
 
         Task<IList<AcmeChallengeResult>> Dns01Authorization(string[] authorizationUrls);
 

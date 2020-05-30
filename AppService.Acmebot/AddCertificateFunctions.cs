@@ -42,22 +42,22 @@ namespace AppService.Acmebot
             }
 
             var hostNameSslStates = site.HostNameSslStates
-                                        .Where(x => request.Domains.Contains(x.Name))
+                                        .Where(x => request.DnsNames.Contains(x.Name))
                                         .ToArray();
 
-            if (hostNameSslStates.Length != request.Domains.Length)
+            if (hostNameSslStates.Length != request.DnsNames.Length)
             {
-                foreach (var hostName in request.Domains.Except(hostNameSslStates.Select(x => x.Name)))
+                foreach (var dnsName in request.DnsNames.Except(hostNameSslStates.Select(x => x.Name)))
                 {
-                    log.LogError($"{hostName} is not found");
+                    log.LogError($"{dnsName} is not found");
                 }
                 return;
             }
 
-            var asciiHostNames = request.Domains.Select(Punycode.Encode).ToArray();
+            var asciiDnsNames = request.DnsNames.Select(Punycode.Encode).ToArray();
 
             // 証明書を発行し Azure にアップロード
-            var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiHostNames));
+            var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
 
             foreach (var hostNameSslState in hostNameSslStates)
             {
