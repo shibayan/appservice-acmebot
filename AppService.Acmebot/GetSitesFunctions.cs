@@ -64,14 +64,14 @@ namespace AppService.Acmebot
                         var slotInformation = new SlotInformation
                         {
                             Name = slotName ?? "production",
-                            Domains = hostNameSslStates.Select(x => new DomainInformation
+                            DnsNames = hostNameSslStates.Select(x => new DnsNameInformation
                             {
                                 Name = x.Name,
                                 Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
                             }).ToArray()
                         };
 
-                        if (slotInformation.Domains.Count != 0)
+                        if (slotInformation.DnsNames.Count != 0)
                         {
                             siteInformation.Slots.Add(slotInformation);
                         }

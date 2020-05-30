@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>App Service Acmebot</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.8.1/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.8.2/css/bulma.min.css">
   <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
 </head>
 <body>
@@ -67,14 +67,14 @@
         </div>
         <div class="field is-horizontal">
           <div class="field-label">
-            <label class="label">Domains</label>
+            <label class="label">DNS Names</label>
           </div>
           <div class="field-body">
             <div class="field">
               <div class="control">
                 <div class="select is-multiple">
-                  <select multiple v-model="domains">
-                    <option v-for="domain in (selectedSlot || {}).domains" :value="domain.name">{{ domain.name }} ({{ domain.issuer }})</option>
+                  <select multiple v-model="dnsNames">
+                    <option v-for="dnsName in (selectedSlot || {}).dnsNames" :value="dnsName.name">{{ dnsName.name }} ({{ dnsName.issuer }})</option>
                   </select>
                 </div>
               </div>
@@ -105,7 +105,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <button class="button is-primary" @click="submit" :class="{ 'is-loading': sending }" :disabled="domains.length === 0">Submit</button>
+                <button class="button is-primary" @click="submit" :class="{ 'is-loading': sending }" :disabled="dnsNames.length === 0">Submit</button>
               </div>
             </div>
           </div>
@@ -127,7 +127,7 @@
         resourceGroupName: '',
         appName: '',
         slotName: '',
-        domains: [],
+        dnsNames: [],
         useIpBasedSsl: false,
         loading: false,
         sending: false
@@ -171,7 +171,7 @@
           this.resourceGroupName = '';
           this.appName = '';
           this.slotName = '';
-          this.domains = [];
+          this.dnsNames = [];
           this.useIpBasedSsl = false;
 
           this.load();
@@ -183,7 +183,7 @@
             ResourceGroupName: this.resourceGroupName,
             appName: this.appName,
             SlotName: this.slotName,
-            Domains: this.domains,
+            DnsNames: this.dnsNames,
             UseIpBasedSsl: this.useIpBasedSsl
           };
 

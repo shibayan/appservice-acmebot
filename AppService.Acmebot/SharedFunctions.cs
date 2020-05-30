@@ -63,17 +63,17 @@ namespace AppService.Acmebot
         [FunctionName(nameof(IssueCertificate))]
         public async Task<string> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            var (site, hostNames) = context.GetInput<(Site, string[])>();
+            var (site, dnsNames) = context.GetInput<(Site, string[])>();
 
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = hostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+            var useDns01Auth = dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
             // 前提条件をチェック
             if (useDns01Auth)
             {
-                await activity.Dns01Precondition(hostNames);
+                await activity.Dns01Precondition(dnsNames);
             }
             else
             {
@@ -81,7 +81,7 @@ namespace AppService.Acmebot
             }
 
             // 新しく ACME Order を作成する
-            var orderDetails = await activity.Order(hostNames);
+            var orderDetails = await activity.Order(dnsNames);
 
             // 複数の Authorizations を処理する
             IList<AcmeChallengeResult> challengeResults;
@@ -109,9 +109,9 @@ namespace AppService.Acmebot
             await activity.CheckIsReady(orderDetails);
 
             // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((hostNames, orderDetails));
+            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            await activity.UpdateCertificate((site, $"{hostNames[0]}-{thumbprint}", pfxBlob));
+            await activity.UpdateCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
 
             return thumbprint;
         }
@@ -167,11 +167,11 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Order))]
-        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
+        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> dnsNames)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            return await acmeProtocolClient.CreateOrderAsync(hostNames);
+            return await acmeProtocolClient.CreateOrderAsync(dnsNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -270,16 +270,16 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Dns01Precondition))]
-        public async Task Dns01Precondition([ActivityTrigger] IList<string> hostNames)
+        public async Task Dns01Precondition([ActivityTrigger] IList<string> dnsNames)
         {
             // Azure DNS が存在するか確認
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
-            foreach (var hostName in hostNames)
+            foreach (var dnsName in dnsNames)
             {
-                if (!zones.Any(x => string.Equals(hostName, x.Name, StringComparison.OrdinalIgnoreCase) || hostName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase)))
+                if (!zones.Any(x => string.Equals(dnsName, x.Name, StringComparison.OrdinalIgnoreCase) || dnsName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase)))
                 {
-                    throw new InvalidOperationException($"Azure DNS zone \"{hostName}\" is not found");
+                    throw new InvalidOperationException($"Azure DNS zone \"{dnsName}\" is not found");
                 }
             }
         }
@@ -401,11 +401,11 @@ namespace AppService.Acmebot
         [FunctionName(nameof(FinalizeOrder))]
         public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IList<string>, OrderDetails) input)
         {
-            var (hostNames, orderDetails) = input;
+            var (dnsNames, orderDetails) = input;
 
             // App Service に ECDSA 証明書をアップロードするとエラーになるので一時的に RSA に
             var rsa = RSA.Create(2048);
-            var csr = CryptoHelper.Rsa.GenerateCsr(hostNames, rsa);
+            var csr = CryptoHelper.Rsa.GenerateCsr(dnsNames, rsa);
 
             // Order の最終処理を実行し、証明書を作成
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
