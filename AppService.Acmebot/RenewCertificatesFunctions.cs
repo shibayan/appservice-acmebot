@@ -76,27 +76,32 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Site name: {site.Name}");
 
-            foreach (var certificate in certificates)
+            try
             {
-                log.LogInformation($"Subject name: {certificate.SubjectName}");
-
-                // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
-                var dnsNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
-
-                // 証明書を発行し Azure にアップロード
-                var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
-
-                foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
+                foreach (var certificate in certificates)
                 {
-                    hostNameSslState.Thumbprint = thumbprint;
-                    hostNameSslState.ToUpdate = true;
+                    log.LogInformation($"Subject name: {certificate.SubjectName}");
+
+                    // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+                    var dnsNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
+
+                    // 証明書を発行し Azure にアップロード
+                    var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
+
+                    foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
+                    {
+                        hostNameSslState.Thumbprint = thumbprint;
+                        hostNameSslState.ToUpdate = true;
+                    }
                 }
+
+                await activity.UpdateSiteBinding(site);
             }
-
-            await activity.UpdateSiteBinding(site);
-
-            // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(site);
+            finally
+            {
+                // クリーンアップ処理を実行
+                await activity.CleanupVirtualApplication(site);
+            }
         }
 
         [FunctionName(nameof(RenewCertificates_Timer))]
