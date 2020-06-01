@@ -67,7 +67,7 @@ namespace AppService.Acmebot.Internal
                 {
                     title = $"{appName} - {slotName}",
                     text = string.Join("\n", dnsNames),
-                    themeColor = "A30200"
+                    themeColor = "2EB886"
                 };
             }
             else
