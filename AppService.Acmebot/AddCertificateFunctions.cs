@@ -70,6 +70,9 @@ namespace AppService.Acmebot
                 }
 
                 await activity.UpdateSiteBinding(site);
+
+                // 証明書の更新が完了後に Webhook を送信する
+                await activity.SendCompletedEvent((site, asciiDnsNames));
             }
             finally
             {

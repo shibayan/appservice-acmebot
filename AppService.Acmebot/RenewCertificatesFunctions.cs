@@ -78,6 +78,7 @@ namespace AppService.Acmebot
 
             try
             {
+                // 証明書単位で更新を行う
                 foreach (var certificate in certificates)
                 {
                     log.LogInformation($"Subject name: {certificate.SubjectName}");
@@ -93,9 +94,12 @@ namespace AppService.Acmebot
                         hostNameSslState.Thumbprint = thumbprint;
                         hostNameSslState.ToUpdate = true;
                     }
-                }
 
-                await activity.UpdateSiteBinding(site);
+                    await activity.UpdateSiteBinding(site);
+
+                    // 証明書の更新が完了後に Webhook を送信する
+                    await activity.SendCompletedEvent((site, dnsNames));
+                }
             }
             finally
             {

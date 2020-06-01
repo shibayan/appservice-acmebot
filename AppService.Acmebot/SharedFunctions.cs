@@ -33,7 +33,7 @@ namespace AppService.Acmebot
         public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                               IOptions<AcmebotOptions> options)
+                               WebhookClient webhookClient, IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
             _lookupClient = lookupClient;
@@ -41,6 +41,7 @@ namespace AppService.Acmebot
             _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
+            _webhookClient = webhookClient;
             _options = options.Value;
         }
 
@@ -50,6 +51,7 @@ namespace AppService.Acmebot
         private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
+        private readonly WebhookClient _webhookClient;
         private readonly AcmebotOptions _options;
 
         private const string IssuerName = "Acmebot";
@@ -478,6 +480,15 @@ namespace AppService.Acmebot
             var resourceGroup = ExtractResourceGroup(certificate.Id);
 
             return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
+        }
+
+        [FunctionName(nameof(SendCompletedEvent))]
+        public Task SendCompletedEvent([ActivityTrigger] (Site, string[]) input)
+        {
+            var (site, dnsNames) = input;
+            var (appName, slotName) = site.SplitName();
+
+            return _webhookClient.SendCompletedEventAsync(appName, slotName, dnsNames);
         }
 
         private static string ExtractResourceGroup(string resourceId)

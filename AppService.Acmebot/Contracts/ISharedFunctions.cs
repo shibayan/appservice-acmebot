@@ -52,5 +52,7 @@ namespace AppService.Acmebot.Contracts
         Task CleanupVirtualApplication(Site site);
 
         Task DeleteCertificate(Certificate certificate);
+
+        Task SendCompletedEvent((Site, string[]) input);
     }
 }
