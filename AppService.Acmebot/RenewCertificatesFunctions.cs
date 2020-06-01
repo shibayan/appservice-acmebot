@@ -78,6 +78,7 @@ namespace AppService.Acmebot
 
             try
             {
+                // 証明書単位で更新を行う
                 foreach (var certificate in certificates)
                 {
                     log.LogInformation($"Subject name: {certificate.SubjectName}");
@@ -86,16 +87,19 @@ namespace AppService.Acmebot
                     var dnsNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
 
                     // 証明書を発行し Azure にアップロード
-                    var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
+                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
 
                     foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                     {
-                        hostNameSslState.Thumbprint = thumbprint;
+                        hostNameSslState.Thumbprint = newCertificate.Thumbprint;
                         hostNameSslState.ToUpdate = true;
                     }
-                }
 
-                await activity.UpdateSiteBinding(site);
+                    await activity.UpdateSiteBinding(site);
+
+                    // 証明書の更新が完了後に Webhook を送信する
+                    await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
+                }
             }
             finally
             {

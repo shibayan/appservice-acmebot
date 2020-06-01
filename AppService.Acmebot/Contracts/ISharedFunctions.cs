@@ -45,12 +45,14 @@ namespace AppService.Acmebot.Contracts
 
         Task<(string, byte[])> FinalizeOrder((IList<string>, OrderDetails) input);
 
-        Task UpdateCertificate((Site, string, byte[]) input);
+        Task<Certificate> UpdateCertificate((Site, string, byte[]) input);
 
         Task UpdateSiteBinding(Site site);
 
         Task CleanupVirtualApplication(Site site);
 
         Task DeleteCertificate(Certificate certificate);
+
+        Task SendCompletedEvent((Site, DateTime?, string[]) input);
     }
 }
