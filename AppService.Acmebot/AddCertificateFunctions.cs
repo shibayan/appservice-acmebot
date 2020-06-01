@@ -56,20 +56,26 @@ namespace AppService.Acmebot
 
             var asciiDnsNames = request.DnsNames.Select(Punycode.Encode).ToArray();
 
-            // 証明書を発行し Azure にアップロード
-            var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
-
-            foreach (var hostNameSslState in hostNameSslStates)
+            try
             {
-                hostNameSslState.Thumbprint = thumbprint;
-                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
-                hostNameSslState.ToUpdate = true;
+                // 証明書を発行し Azure にアップロード
+                var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
+
+                // App Service のホスト名に証明書をセットする
+                foreach (var hostNameSslState in hostNameSslStates)
+                {
+                    hostNameSslState.Thumbprint = thumbprint;
+                    hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
+                    hostNameSslState.ToUpdate = true;
+                }
+
+                await activity.UpdateSiteBinding(site);
             }
-
-            await activity.UpdateSiteBinding(site);
-
-            // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(site);
+            finally
+            {
+                // クリーンアップ処理を実行
+                await activity.CleanupVirtualApplication(site);
+            }
         }
 
         [FunctionName(nameof(AddCertificate_HttpStart))]
