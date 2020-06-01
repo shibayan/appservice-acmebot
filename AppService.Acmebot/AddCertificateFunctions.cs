@@ -59,12 +59,12 @@ namespace AppService.Acmebot
             try
             {
                 // 証明書を発行し Azure にアップロード
-                var thumbprint = await context.CallSubOrchestratorAsync<string>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
+                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
 
                 // App Service のホスト名に証明書をセットする
                 foreach (var hostNameSslState in hostNameSslStates)
                 {
-                    hostNameSslState.Thumbprint = thumbprint;
+                    hostNameSslState.Thumbprint = certificate.Thumbprint;
                     hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
                     hostNameSslState.ToUpdate = true;
                 }
@@ -72,7 +72,7 @@ namespace AppService.Acmebot
                 await activity.UpdateSiteBinding(site);
 
                 // 証明書の更新が完了後に Webhook を送信する
-                await activity.SendCompletedEvent((site, asciiDnsNames));
+                await activity.SendCompletedEvent((site, certificate.ExpirationDate, asciiDnsNames));
             }
             finally
             {

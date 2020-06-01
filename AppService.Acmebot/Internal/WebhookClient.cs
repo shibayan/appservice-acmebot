@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -17,7 +17,7 @@ namespace AppService.Acmebot.Internal
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AcmebotOptions _options;
 
-        public Task SendCompletedEventAsync(string appName, string slotName, IEnumerable<string> dnsNames)
+        public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, string[] dnsNames)
         {
             object model;
 
@@ -25,10 +25,12 @@ namespace AppService.Acmebot.Internal
             {
                 model = new
                 {
+                    username = "Acmebot",
                     attachments = new[]
                     {
                         new
                         {
+                            text = "A new certificate has been issued.",
                             color = "good",
                             fields = new object[]
                             {
@@ -43,6 +45,11 @@ namespace AppService.Acmebot.Internal
                                     title = "Slot Name",
                                     value = slotName,
                                     @short = true
+                                },
+                                new
+                                {
+                                    title = "Expiration Date",
+                                    value = expirationDate
                                 },
                                 new
                                 {

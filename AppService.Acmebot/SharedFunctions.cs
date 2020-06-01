@@ -63,7 +63,7 @@ namespace AppService.Acmebot
         };
 
         [FunctionName(nameof(IssueCertificate))]
-        public async Task<string> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var (site, dnsNames) = context.GetInput<(Site, string[])>();
 
@@ -113,9 +113,7 @@ namespace AppService.Acmebot
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            await activity.UpdateCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
-
-            return thumbprint;
+            return await activity.UpdateCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
         }
 
         [FunctionName(nameof(GetSite))]
@@ -431,7 +429,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(UpdateCertificate))]
-        public Task UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
+        public Task<Certificate> UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
         {
             var (site, certificateName, pfxBlob) = input;
 
@@ -483,12 +481,12 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(SendCompletedEvent))]
-        public Task SendCompletedEvent([ActivityTrigger] (Site, string[]) input)
+        public Task SendCompletedEvent([ActivityTrigger] (Site, DateTime?, string[]) input)
         {
-            var (site, dnsNames) = input;
+            var (site, expirationDate, dnsNames) = input;
             var (appName, slotName) = site.SplitName();
 
-            return _webhookClient.SendCompletedEventAsync(appName, slotName, dnsNames);
+            return _webhookClient.SendCompletedEventAsync(appName, slotName ?? "production", expirationDate, dnsNames);
         }
 
         private static string ExtractResourceGroup(string resourceId)

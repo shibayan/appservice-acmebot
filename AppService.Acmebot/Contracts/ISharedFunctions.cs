@@ -45,7 +45,7 @@ namespace AppService.Acmebot.Contracts
 
         Task<(string, byte[])> FinalizeOrder((IList<string>, OrderDetails) input);
 
-        Task UpdateCertificate((Site, string, byte[]) input);
+        Task<Certificate> UpdateCertificate((Site, string, byte[]) input);
 
         Task UpdateSiteBinding(Site site);
 
@@ -53,6 +53,6 @@ namespace AppService.Acmebot.Contracts
 
         Task DeleteCertificate(Certificate certificate);
 
-        Task SendCompletedEvent((Site, string[]) input);
+        Task SendCompletedEvent((Site, DateTime?, string[]) input);
     }
 }
