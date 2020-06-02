@@ -5,7 +5,7 @@
       "matchCondition": {
         "route": "add-certificate"
       },
-      "backendUri": "http://localhost/api/static-page/index"
+      "backendUri": "http://localhost/api/static-page/add-certificate"
     }
   }
 }

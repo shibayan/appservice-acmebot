@@ -113,7 +113,7 @@ namespace AppService.Acmebot
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            return await activity.UpdateCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
+            return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
         }
 
         [FunctionName(nameof(GetSite))]
@@ -428,8 +428,8 @@ namespace AppService.Acmebot
             return (x509Certificates[0].Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
         }
 
-        [FunctionName(nameof(UpdateCertificate))]
-        public Task<Certificate> UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
+        [FunctionName(nameof(UploadCertificate))]
+        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[]) input)
         {
             var (site, certificateName, pfxBlob) = input;
 
