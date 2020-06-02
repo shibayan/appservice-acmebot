@@ -15,9 +15,9 @@ namespace AppService.Acmebot
         {
         }
 
-        [FunctionName(nameof(StaticPage))]
-        public IActionResult StaticPage(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "static-page/index")] HttpRequest req,
+        [FunctionName(nameof(AddCertificatePage))]
+        public IActionResult AddCertificatePage(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "static-page/add-certificate")] HttpRequest req,
             ILogger log)
         {
             if (!User.Identity.IsAuthenticated)
@@ -25,7 +25,7 @@ namespace AppService.Acmebot
                 return Forbid();
             }
 
-            return File("index.html", "text/html");
+            return File("static/add-certificate.html");
         }
     }
 }
