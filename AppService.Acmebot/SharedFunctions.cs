@@ -412,9 +412,8 @@ namespace AppService.Acmebot
 
             var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
-            var httpClient = _httpClientFactory.CreateClient();
-
-            var certificateData = await httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
+            // 証明書をバイト配列としてダウンロード
+            var certificateData = await acmeProtocolClient.GetOrderCertificateAsync(finalize);
 
             // X509Certificate2Collection を作成
             var x509Certificates = new X509Certificate2Collection();
