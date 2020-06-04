@@ -19,12 +19,14 @@ namespace AppService.Acmebot.Internal
         private readonly string _scmUrl;
         private readonly string _basicAuth;
 
-        public Task WriteFileAsync(string filePath, string value)
+        public Task WriteFileAsync(string filePath, string content)
         {
             var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmUrl}/api/vfs/site/{filePath}");
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
-            request.Content = new StringContent(value, Encoding.UTF8);
+            request.Headers.IfMatch.Add(EntityTagHeaderValue.Any);
+
+            request.Content = new StringContent(content, Encoding.UTF8);
 
             return _httpClient.SendAsync(request);
         }
