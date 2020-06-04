@@ -24,7 +24,7 @@ namespace AppService.Acmebot.Internal
             var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmUrl}/api/vfs/site/{filePath}");
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
-            request.Headers.IfMatch.Add(new EntityTagHeaderValue("*"));
+            request.Headers.IfMatch.Add(EntityTagHeaderValue.Any);
 
             request.Content = new StringContent(content, Encoding.UTF8);
 
