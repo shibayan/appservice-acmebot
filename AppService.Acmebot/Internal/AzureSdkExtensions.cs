@@ -59,6 +59,18 @@ namespace AppService.Acmebot.Internal
             return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);
         }
 
+        public static Task RestartAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            if (site.IsSlot())
+            {
+                var (appName, slotName) = site.SplitName();
+
+                return operations.RestartSlotAsync(site.ResourceGroup, appName, slotName, true, cancellationToken: cancellationToken);
+            }
+
+            return operations.RestartAsync(site.ResourceGroup, site.Name, true, cancellationToken: cancellationToken);
+        }
+
         public static async Task<IList<Site>> ListAllAsync(this IWebAppsOperations operations)
         {
             var sites = new List<Site>();

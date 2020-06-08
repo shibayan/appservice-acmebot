@@ -193,6 +193,9 @@ namespace AppService.Acmebot
                 });
 
                 await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+
+                // Web App を明示的に再起動する
+                await _webSiteManagementClient.WebApps.RestartAsync(site);
             }
         }
 
@@ -469,6 +472,9 @@ namespace AppService.Acmebot
             config.VirtualApplications.Remove(virtualApplication);
 
             await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+
+            // Web App を明示的に再起動する
+            await _webSiteManagementClient.WebApps.RestartAsync(site);
         }
 
         [FunctionName(nameof(DeleteCertificate))]
