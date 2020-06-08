@@ -264,7 +264,7 @@ namespace AppService.Acmebot
                 // ファイルに今回のチャレンジが含まれていない場合もエラー
                 if (fileContent != challengeResult.HttpResourceValue)
                 {
-                    throw new RetriableActivityException($"{challengeResult.HttpResourceUrl} is not correct. Expected: {challengeResult.HttpResourceValue}, Actual: {fileContent}");
+                    throw new RetriableActivityException($"{challengeResult.HttpResourceUrl} is not correct. Expected: \"{challengeResult.HttpResourceValue}\", Actual: \"{fileContent}\"");
                 }
             }
         }
