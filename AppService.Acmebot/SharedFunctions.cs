@@ -365,7 +365,7 @@ namespace AppService.Acmebot
                 // レコードに今回のチャレンジが含まれていない場合もエラー
                 if (!txtRecords.Any(x => x.Text.Contains(challengeResult.DnsRecordValue)))
                 {
-                    throw new RetriableActivityException($"{challengeResult.DnsRecordName} value is not correct.");
+                    throw new RetriableActivityException($"{challengeResult.DnsRecordName} is not correct. Expected: \"{challengeResult.DnsRecordValue}\", Actual: \"{string.Join(",", txtRecords.SelectMany(x => x.Text))}\"");
                 }
             }
         }
