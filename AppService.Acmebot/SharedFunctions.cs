@@ -145,7 +145,7 @@ namespace AppService.Acmebot
             }
 
             return list.Where(x => x.State == "Running")
-                       .Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net")))
+                       .Where(x => x.HostNames.Any(xs => !xs.EndsWith(".azurewebsites.net") && !xs.EndsWith(".trafficmanager.net")))
                        .ToArray();
         }
 

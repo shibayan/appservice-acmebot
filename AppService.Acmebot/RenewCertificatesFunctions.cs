@@ -84,7 +84,9 @@ namespace AppService.Acmebot
                     log.LogInformation($"Subject name: {certificate.SubjectName}");
 
                     // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
-                    var dnsNames = certificate.HostNames.Where(x => !x.Contains(" (")).ToArray();
+                    var dnsNames = certificate.HostNames
+                                              .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
+                                              .ToArray();
 
                     // 証明書を発行し Azure にアップロード
                     var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
