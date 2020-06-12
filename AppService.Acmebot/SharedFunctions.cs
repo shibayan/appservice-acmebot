@@ -144,7 +144,8 @@ namespace AppService.Acmebot
                 list.AddRange(slots);
             }
 
-            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net")))
+            return list.Where(x => x.State == "Running")
+                       .Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net")))
                        .ToArray();
         }
 
