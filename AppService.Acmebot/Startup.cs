@@ -11,6 +11,7 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Rest;
 
@@ -32,6 +33,8 @@ namespace AppService.Acmebot
 
         public override void Configure(IFunctionsHostBuilder builder)
         {
+            builder.Services.Replace(ServiceDescriptor.Transient(typeof(IOptionsFactory<>), typeof(OptionsFactory<>)));
+
             builder.Services.AddHttpClient();
             builder.Services.AddHttpClient("InSecure")
                    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -69,7 +72,9 @@ namespace AppService.Acmebot
 
             var section = Configuration.GetSection("Acmebot");
 
-            builder.Services.Configure<AcmebotOptions>(section.Exists() ? section : Configuration.GetSection("LetsEncrypt"));
+            builder.Services.AddOptions<AcmebotOptions>()
+                   .Bind(section.Exists() ? section : Configuration.GetSection("LetsEncrypt"))
+                   .ValidateDataAnnotations();
         }
     }
 }
