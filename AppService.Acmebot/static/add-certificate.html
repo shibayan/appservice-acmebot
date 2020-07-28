@@ -101,6 +101,25 @@
           </div>
         </div>
         <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">Force DNS-01 Challenge?</label>
+          </div>
+          <div class="field-body">
+            <div class="field is-narrow">
+              <div class="control">
+                <label class="radio">
+                  <input type="radio" value="true" v-model="forceDns01Challenge">
+                  Yes
+                </label>
+                <label class="radio">
+                  <input type="radio" value="false" v-model="forceDns01Challenge">
+                  No
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
           <div class="field-label"></div>
           <div class="field-body">
             <div class="field">
@@ -129,6 +148,7 @@
         slotName: '',
         dnsNames: [],
         useIpBasedSsl: false,
+        forceDns01Challenge: false,
         loading: false,
         sending: false
       },
@@ -173,6 +193,7 @@
           this.slotName = '';
           this.dnsNames = [];
           this.useIpBasedSsl = false;
+          this.forceDns01Challenge = false;
 
           this.load();
         },
@@ -184,7 +205,8 @@
             appName: this.appName,
             SlotName: this.slotName,
             DnsNames: this.dnsNames,
-            UseIpBasedSsl: this.useIpBasedSsl
+            UseIpBasedSsl: this.useIpBasedSsl,
+            ForceDns01Challenge: this.forceDns01Challenge
           };
 
           try {

@@ -59,7 +59,7 @@ namespace AppService.Acmebot
             try
             {
                 // 証明書を発行し Azure にアップロード
-                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames));
+                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
                 // App Service のホスト名に証明書をセットする
                 foreach (var hostNameSslState in hostNameSslStates)
