@@ -88,8 +88,10 @@ namespace AppService.Acmebot
                                               .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
                                               .ToArray();
 
+                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
+
                     // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames));
+                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames, forceDns01Challenge));
 
                     foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                     {

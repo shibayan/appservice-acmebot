@@ -65,12 +65,12 @@ namespace AppService.Acmebot
         [FunctionName(nameof(IssueCertificate))]
         public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            var (site, dnsNames) = context.GetInput<(Site, string[])>();
+            var (site, dnsNames, forceDns01Challenge) = context.GetInput<(Site, string[], bool)>();
 
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+            var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
 
             // 前提条件をチェック
             if (useDns01Auth)
@@ -113,7 +113,7 @@ namespace AppService.Acmebot
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob));
+            return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
         }
 
         [FunctionName(nameof(GetSite))]
@@ -215,7 +215,12 @@ namespace AppService.Acmebot
                 var authorization = await acmeProtocolClient.GetAuthorizationDetailsAsync(authorizationUrl);
 
                 // HTTP-01 Challenge の情報を拾う
-                var challenge = authorization.Challenges.First(x => x.Type == "http-01");
+                var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "http-01");
+
+                if (challenge == null)
+                {
+                    throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
+                }
 
                 var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authorization, challenge, acmeProtocolClient.Signer);
 
@@ -301,7 +306,12 @@ namespace AppService.Acmebot
                 var authorization = await acmeProtocolClient.GetAuthorizationDetailsAsync(authorizationUrl);
 
                 // DNS-01 Challenge の情報を拾う
-                var challenge = authorization.Challenges.First(x => x.Type == "dns-01");
+                var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "dns-01");
+
+                if (challenge == null)
+                {
+                    throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
+                }
 
                 var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authorization, challenge, acmeProtocolClient.Signer);
 
@@ -432,9 +442,9 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(UploadCertificate))]
-        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[]) input)
+        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[], bool) input)
         {
-            var (site, certificateName, pfxBlob) = input;
+            var (site, certificateName, pfxBlob, forceDns01Challenge) = input;
 
             return _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
@@ -445,7 +455,8 @@ namespace AppService.Acmebot
                 Tags = new Dictionary<string, string>
                 {
                     { "Issuer", IssuerName },
-                    { "Endpoint", _options.Endpoint }
+                    { "Endpoint", _options.Endpoint },
+                    { "ForceDns01Challenge", forceDns01Challenge.ToString() }
                 }
             });
         }

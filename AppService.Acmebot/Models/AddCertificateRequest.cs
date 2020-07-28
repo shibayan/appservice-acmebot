@@ -18,6 +18,8 @@ namespace AppService.Acmebot.Models
 
         public bool? UseIpBasedSsl { get; set; }
 
+        public bool? ForceDns01Challenge { get; set; }
+
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (DnsNames == null || DnsNames.Length == 0)
