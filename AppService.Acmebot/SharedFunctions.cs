@@ -56,12 +56,6 @@ namespace AppService.Acmebot
 
         private const string IssuerName = "Acmebot";
 
-        private static readonly string[] _renewalIssuers =
-        {
-            "Let's Encrypt Authority X3", "Let's Encrypt Authority X4", "Fake LE Intermediate X1",
-            "Buypass Class 2 CA 5", "Buypass Class 2 Test4 CA 5"
-        };
-
         [FunctionName(nameof(IssueCertificate))]
         public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
@@ -154,7 +148,8 @@ namespace AppService.Acmebot
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
-            return certificates.Where(x => _renewalIssuers.Contains(x.Issuer))
+            return certificates.Where(x => x.Tags.TryGetValue("Issuer", out var issuer) && issuer == IssuerName)
+                               .Where(x => x.Tags.TryGetValue("Endpoint", out var endpoint) && endpoint == _options.Endpoint)
                                .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
                                .ToArray();
         }
