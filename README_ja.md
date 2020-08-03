@@ -59,11 +59,7 @@ Key Vault 版は App Service / Application Gateway / CDN / Front Door といっ�
 ### 1. Acmebot をデプロイする
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://azuredeploy.net/deploybutton.png" />
-</a>
-
-<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="http://armviz.io/visualizebutton.png" />
+  <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
 ### 2. App Service 認証を有効化する

@@ -59,11 +59,7 @@ The Key Vault version can be used with services that support Key Vault certifica
 ### 1. Deploy Acmebot
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://azuredeploy.net/deploybutton.png" />
-</a>
-
-<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="http://armviz.io/visualizebutton.png" />
+  <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
 ### 2. Enabling App Service Authentication
