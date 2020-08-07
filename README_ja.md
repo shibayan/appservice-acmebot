@@ -1,6 +1,6 @@
 # App Service Acmebot
 
-[![Build Status](https://dev.azure.com/shibayan/azure-acmebot/_apis/build/status/Build%20appservice-acmebot?branchName=master)](https://dev.azure.com/shibayan/azure-acmebot/_build/latest?definitionId=37&branchName=master)
+![Build](https://github.com/shibayan/appservice-acmebot/workflows/Build/badge.svg)
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
@@ -11,9 +11,9 @@
 - 信頼性の高い実装
 - モニタリングを容易に (Application Insights, Webhook)
 
-単一のアプリケーションで複数の App Service 証明書の管理が行えます。
+一つのアプリケーションで複数の App Service 証明書の管理が行えます。
 
-## 注意
+## お知らせ
 
 ### Acmebot v3 へのアップグレード
 
@@ -46,7 +46,10 @@ Key Vault 版は App Service / Application Gateway / CDN / Front Door といっ�
 - Zone Apex ドメイン向けの証明書の発行
 - SANs (サブジェクト代替名) を持つ証明書の発行 (1 つの証明書で複数ドメインに対応)
 - ワイルドカード証明書 (Azure DNS が必要)
-- 単一アプリケーションで複数の App Service に対応
+- 一つのアプリケーションで複数の App Service に対応
+- ACME と互換性のある証明書発行機関への対応
+  - [Let's Encrypt](https://letsencrypt.org/)
+  - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
 
 ## 必要なもの
 
@@ -119,6 +122,16 @@ App Service on Linux や Web App for Containers 向けに証明書を発行す�
 **Causes Azure REST API error at GetSite or Dns01Precondition** エラーが発生する
 
 対象のリソースグループへのロール割り当てが間違っているか、まだ反映されていない可能性があります。IAM 設定の反映には 30 分ほどかかる可能性があります。
+
+**CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct** エラーが発生する
+
+証明書を発行するために、Acmebot は Azure DNS で`_acme-challenge` の TXT DNS レコードを作成する必要があります。このエラーは TXT レコードが作成されていない場合に発生します。この原因の 1 つはドメインのネームサーバーが Azure DNS ではなく、ドメインレジストラを指している可能性があります。ドメインを Azure DNS に適切に委任していることを確認してください。[Azure DNS でドメインをホストする](https://docs.microsoft.com/ja-jp/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
+
+**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code** エラーが発生する
+
+主に URL Rewrite によって発生するエラーなので、wwwroot の下に存在する web.config に `inheritInChildApplications="false"` の追加を試してみてください。
+
+https://www.hanselman.com/blog/ChangingASPNETWebconfigInheritanceWhenMixingVersionsOfChildApplications.aspx
 
 ## 謝辞
 
