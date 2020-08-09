@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
 
-using DurableTask.Core;
 using DurableTask.TypedProxy;
 
 using Microsoft.Azure.WebJobs;
@@ -66,21 +64,6 @@ namespace AppService.Acmebot
             var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates), null);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
-        }
-
-        [FunctionName(nameof(PurgeInstanceHistory_Timer))]
-        public Task PurgeInstanceHistory_Timer(
-            [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
-            [DurableClient] IDurableClient starter)
-        {
-            return starter.PurgeInstanceHistoryAsync(
-                DateTime.MinValue,
-                DateTime.UtcNow.AddDays(-30),
-                new[]
-                {
-                    OrchestrationStatus.Completed,
-                    OrchestrationStatus.Failed
-                });
         }
     }
 }
