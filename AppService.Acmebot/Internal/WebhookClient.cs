@@ -101,6 +101,7 @@ namespace AppService.Acmebot.Internal
             {
                 model = new
                 {
+                    username = "Acmebot",
                     attachments = new[]
                     {
                         new
