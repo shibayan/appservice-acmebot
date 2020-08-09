@@ -22,7 +22,7 @@ namespace AppService.Acmebot
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await activity.GetCertificates(context.CurrentUtcDateTime);
+            var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -38,7 +38,7 @@ namespace AppService.Acmebot
             }
 
             // App Service を取得
-            var sites = await activity.GetSites();
+            var sites = await activity.GetSites(false);
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))

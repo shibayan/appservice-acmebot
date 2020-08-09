@@ -16,9 +16,9 @@ namespace AppService.Acmebot.Contracts
     {
         Task<Site> GetSite((string, string, string) input);
 
-        Task<IList<Site>> GetSites(object input = null);
+        Task<IList<Site>> GetSites(bool isRunningOnly = true);
 
-        Task<IList<Certificate>> GetCertificates(DateTime currentDateTime);
+        Task<IList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
 
         Task<IList<Certificate>> GetAllCertificates(object input = null);
 

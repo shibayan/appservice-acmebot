@@ -124,7 +124,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetSites))]
-        public async Task<IList<Site>> GetSites([ActivityTrigger] object input)
+        public async Task<IList<Site>> GetSites([ActivityTrigger] bool isRunningOnly)
         {
             var list = new List<Site>();
 
@@ -138,18 +138,17 @@ namespace AppService.Acmebot
                 list.AddRange(slots);
             }
 
-            return list.Where(x => x.State == "Running")
+            return list.Where(x => !isRunningOnly || x.State == "Running")
                        .Where(x => x.HostNames.Any(xs => !xs.EndsWith(".azurewebsites.net") && !xs.EndsWith(".trafficmanager.net")))
                        .ToArray();
         }
 
-        [FunctionName(nameof(GetCertificates))]
-        public async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DateTime currentDateTime)
+        [FunctionName(nameof(GetExpiringCertificates))]
+        public async Task<IList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
-            return certificates.Where(x => x.Tags.TryGetValue("Issuer", out var issuer) && issuer == IssuerName)
-                               .Where(x => x.Tags.TryGetValue("Endpoint", out var endpoint) && endpoint == _options.Endpoint)
+            return certificates.Where(x => x.TagsFilter(IssuerName, _options.Endpoint))
                                .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
                                .ToArray();
         }
