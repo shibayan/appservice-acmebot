@@ -132,6 +132,10 @@
             {
               "name": "Acmebot:Endpoint",
               "value": "[variables('acmeEndpoint')]"
+            },
+            {
+              "name": "Acmebot:Environment",
+              "value": "[environment().name]"
             }
           ],
           "clientAffinityEnabled": false
