@@ -13,6 +13,7 @@ using ACMESharp.Protocol;
 using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
+using AppService.Acmebot.Options;
 
 using DnsClient;
 
@@ -30,12 +31,13 @@ namespace AppService.Acmebot
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
+        public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
                                WebhookClient webhookClient, IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
+            _environment = environment;
             _lookupClient = lookupClient;
             _acmeProtocolClientFactory = acmeProtocolClientFactory;
             _kuduClientFactory = kuduClientFactory;
@@ -46,6 +48,7 @@ namespace AppService.Acmebot
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAzureEnvironment _environment;
         private readonly LookupClient _lookupClient;
         private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
         private readonly IKuduClientFactory _kuduClientFactory;
@@ -139,7 +142,7 @@ namespace AppService.Acmebot
             }
 
             return list.Where(x => !isRunningOnly || x.State == "Running")
-                       .Where(x => x.HostNames.Any(xs => !xs.EndsWith(".azurewebsites.net") && !xs.EndsWith(".trafficmanager.net")))
+                       .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
                        .ToArray();
         }
 

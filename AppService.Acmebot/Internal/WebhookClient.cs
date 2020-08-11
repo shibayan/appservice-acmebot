@@ -2,6 +2,8 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Options;
+
 using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot.Internal

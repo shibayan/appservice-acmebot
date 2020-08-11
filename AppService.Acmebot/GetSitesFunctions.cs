@@ -22,10 +22,13 @@ namespace AppService.Acmebot
 {
     public class GetSitesFunctions : HttpFunctionBase
     {
-        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor)
+        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor, IAzureEnvironment environment)
             : base(httpContextAccessor)
         {
+            _environment = environment;
         }
+
+        private readonly IAzureEnvironment _environment;
 
         [FunctionName(nameof(GetSitesInformation))]
         public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
@@ -59,7 +62,7 @@ namespace AppService.Acmebot
                         var (_, slotName) = slot.SplitName();
 
                         var hostNameSslStates = slot.HostNameSslStates
-                                                    .Where(x => !x.Name.EndsWith(".azurewebsites.net"));
+                                                    .Where(x => !x.Name.EndsWith(_environment.AppService));
 
                         var slotInformation = new SlotInformation
                         {
