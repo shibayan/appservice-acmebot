@@ -34,7 +34,12 @@
     "storageAccountName": "[concat('st', uniquestring(resourceGroup().id, deployment().name), 'func')]",
     "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
     "mailAddress": "[parameters('mailAddress')]",
-    "acmeEndpoint": "[parameters('acmeEndpoint')]"
+    "acmeEndpoint": "[parameters('acmeEndpoint')]",
+    "appInsightsEndpoints": {
+      "AzureCloud": "applicationinsights.azure.com",
+      "AzureChinaCloud": "applicationinsights.azure.cn",
+      "AzureUSGovernment": "applicationinsights.us"
+    }
   },
   "resources": [
     {
@@ -95,7 +100,7 @@
           "appSettings": [
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[concat('InstrumentationKey=', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey)]"
+              "value": "[concat('InstrumentationKey=', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey, ';EndpointSuffix=', variables('appInsightsEndpoints')[environment().name])]"
             },
             {
               "name": "AzureWebJobsStorage",
