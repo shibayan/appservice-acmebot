@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
-This is an application that automates the issuance and renewal of Let's Encrypt certificates for the Azure App Service. We have started to solve the following issues
+This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
 
 - Support for multiple App Services
 - Easy to deploy and configure
