@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
-This is an application that automates the issuance and renewal of Let's Encrypt certificates for the Azure App Service. We have started to solve the following issues
+This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
 
 - Support for multiple App Services
 - Easy to deploy and configure
@@ -61,7 +61,21 @@ The Key Vault version can be used with services that support Key Vault certifica
 
 ### 1. Deploy Acmebot
 
+For Azure Cloud
+
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
+</a>
+
+For Azure China
+
+<a href="https://portal.azure.cn/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
+</a>
+
+For Azure Government
+
+<a href="https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
   <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 

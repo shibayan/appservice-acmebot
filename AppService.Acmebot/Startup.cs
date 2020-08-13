@@ -1,7 +1,9 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 
 using AppService.Acmebot;
 using AppService.Acmebot.Internal;
+using AppService.Acmebot.Options;
 
 using DnsClient;
 
@@ -44,11 +46,21 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton(new LookupClient(new LookupClientOptions { UseCache = false }));
 
-            builder.Services.AddSingleton(provider =>
+            builder.Services.AddSingleton<ITokenProvider, AppAuthenticationTokenProvider>();
+
+            builder.Services.AddSingleton<IAzureEnvironment>(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
 
-                return new WebSiteManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+                return AzureEnvironment.Get(options.Value.Environment);
+            });
+
+            builder.Services.AddSingleton(provider =>
+            {
+                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+                var environment = provider.GetRequiredService<IAzureEnvironment>();
+
+                return new WebSiteManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
                     SubscriptionId = options.Value.SubscriptionId
                 };
@@ -57,8 +69,9 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+                var environment = provider.GetRequiredService<IAzureEnvironment>();
 
-                return new DnsManagementClient(new TokenCredentials(new AppAuthenticationTokenProvider()))
+                return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
                     SubscriptionId = options.Value.SubscriptionId
                 };

@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using ACMESharp.Protocol;
 using ACMESharp.Protocol.Resources;
 
+using AppService.Acmebot.Options;
+
 using Microsoft.Extensions.Options;
 
 using Newtonsoft.Json;

@@ -34,7 +34,12 @@
     "storageAccountName": "[concat('st', uniquestring(resourceGroup().id, deployment().name), 'func')]",
     "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
     "mailAddress": "[parameters('mailAddress')]",
-    "acmeEndpoint": "[parameters('acmeEndpoint')]"
+    "acmeEndpoint": "[parameters('acmeEndpoint')]",
+    "appInsightsEndpoints": {
+      "AzureCloud": "applicationinsights.azure.com",
+      "AzureChinaCloud": "applicationinsights.azure.cn",
+      "AzureUSGovernment": "applicationinsights.us"
+    }
   },
   "resources": [
     {
@@ -42,6 +47,7 @@
       "name": "[variables('storageAccountName')]",
       "apiVersion": "2018-11-01",
       "location": "[resourceGroup().location]",
+      "kind": "Storage",
       "sku": {
         "name": "Standard_LRS"
       }
@@ -70,6 +76,7 @@
         "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('functionAppName'))]": "Resource"
       },
       "properties": {
+        "Application_Type": "web",
         "applicationId": "[variables('appInsightsName')]"
       }
     },
@@ -92,16 +99,16 @@
         "siteConfig": {
           "appSettings": [
             {
-              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey]"
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[concat('InstrumentationKey=', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey, ';EndpointSuffix=', variables('appInsightsEndpoints')[environment().name])]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value)]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value)]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -130,6 +137,10 @@
             {
               "name": "Acmebot:Endpoint",
               "value": "[variables('acmeEndpoint')]"
+            },
+            {
+              "name": "Acmebot:Environment",
+              "value": "[environment().name]"
             }
           ],
           "clientAffinityEnabled": false

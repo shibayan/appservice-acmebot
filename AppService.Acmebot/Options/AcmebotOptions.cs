@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Options
 {
     public class AcmebotOptions
     {
@@ -15,5 +15,8 @@ namespace AppService.Acmebot
 
         [Url]
         public string Webhook { get; set; }
+
+        [Required]
+        public string Environment { get; set; } = "AzureCloud";
     }
 }
