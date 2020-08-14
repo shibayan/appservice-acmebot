@@ -37,32 +37,37 @@ namespace AppService.Acmebot
                 return;
             }
 
-            // App Service を取得
-            var sites = await activity.GetSites();
+            var resourceGroups = await activity.GetResourceGroups();
 
-            // サイト単位で証明書の更新を行う
-            foreach (var site in sites)
+            foreach (var resourceGroup in resourceGroups)
             {
-                // 期限切れが近い証明書がバインドされているか確認
-                var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
-                                                    .ToArray();
+                // App Service を取得
+                var sites = await activity.GetSites((resourceGroup.Name, true));
 
-                // 対象となる証明書が存在しない場合はスキップ
-                if (boundCertificates.Length == 0)
+                // サイト単位で証明書の更新を行う
+                foreach (var site in sites)
                 {
-                    continue;
-                }
+                    // 期限切れが近い証明書がバインドされているか確認
+                    var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
+                                                        .ToArray();
 
-                try
-                {
-                    // 証明書の更新処理を開始
-                    await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates));
-                }
-                catch (Exception ex)
-                {
-                    // 失敗した場合はログに詳細を書き出して続きを実行する
-                    log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
-                    log.LogError(ex.Message);
+                    // 対象となる証明書が存在しない場合はスキップ
+                    if (boundCertificates.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        // 証明書の更新処理を開始
+                        await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 失敗した場合はログに詳細を書き出して続きを実行する
+                        log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
+                        log.LogError(ex.Message);
+                    }
                 }
             }
         }

@@ -8,15 +8,18 @@ using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
+using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites.Models;
 
 namespace AppService.Acmebot.Contracts
 {
     public interface ISharedFunctions
     {
+        Task<IList<ResourceGroup>> GetResourceGroups(object input = null);
+
         Task<Site> GetSite((string, string, string) input);
 
-        Task<IList<Site>> GetSites(bool isRunningOnly = true);
+        Task<IList<Site>> GetSites((string, bool) input);
 
         Task<IList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
 

@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
+using Microsoft.Azure.Management.ResourceManager;
+using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 
@@ -71,17 +73,35 @@ namespace AppService.Acmebot.Internal
             return operations.RestartAsync(site.ResourceGroup, site.Name, true, cancellationToken: cancellationToken);
         }
 
-        public static async Task<IList<Site>> ListAllAsync(this IWebAppsOperations operations)
+        public static async Task<IList<ResourceGroup>> ListAllAsync(this IResourceGroupsOperations operations)
+        {
+            var resourceGroups = new List<ResourceGroup>();
+
+            var list = await operations.ListAsync();
+
+            resourceGroups.AddRange(list);
+
+            while (list.NextPageLink != null)
+            {
+                list = await operations.ListNextAsync(list.NextPageLink);
+
+                resourceGroups.AddRange(list);
+            }
+
+            return resourceGroups;
+        }
+
+        public static async Task<IList<Site>> ListByResourceGroupAllAsync(this IWebAppsOperations operations, string resourceGroupName)
         {
             var sites = new List<Site>();
 
-            var list = await operations.ListAsync();
+            var list = await operations.ListByResourceGroupAsync(resourceGroupName, true);
 
             sites.AddRange(list);
 
             while (list.NextPageLink != null)
             {
-                list = await operations.ListNextAsync(list.NextPageLink);
+                list = await operations.ListByResourceGroupNextAsync(list.NextPageLink);
 
                 sites.AddRange(list);
             }

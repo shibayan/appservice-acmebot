@@ -9,6 +9,7 @@ using DnsClient;
 
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Azure.Management.Dns;
+using Microsoft.Azure.Management.ResourceManager;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Configuration;
@@ -72,6 +73,17 @@ namespace AppService.Acmebot
                 var environment = provider.GetRequiredService<IAzureEnvironment>();
 
                 return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
+                {
+                    SubscriptionId = options.Value.SubscriptionId
+                };
+            });
+
+            builder.Services.AddSingleton(provider =>
+            {
+                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+                var environment = provider.GetRequiredService<IAzureEnvironment>();
+
+                return new ResourceManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
                     SubscriptionId = options.Value.SubscriptionId
                 };

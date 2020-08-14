@@ -21,6 +21,8 @@ using DurableTask.TypedProxy;
 
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
+using Microsoft.Azure.Management.ResourceManager;
+using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -34,7 +36,7 @@ namespace AppService.Acmebot
         public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                               WebhookClient webhookClient, IOptions<AcmebotOptions> options)
+                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
             _environment = environment;
@@ -43,6 +45,7 @@ namespace AppService.Acmebot
             _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
+            _resourceManagementClient = resourceManagementClient;
             _webhookClient = webhookClient;
             _options = options.Value;
         }
@@ -54,6 +57,7 @@ namespace AppService.Acmebot
         private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
+        private readonly ResourceManagementClient _resourceManagementClient;
         private readonly WebhookClient _webhookClient;
         private readonly AcmebotOptions _options;
 
@@ -113,6 +117,12 @@ namespace AppService.Acmebot
             return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
         }
 
+        [FunctionName(nameof(GetResourceGroups))]
+        public Task<IList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+        {
+            return _resourceManagementClient.ResourceGroups.ListAllAsync();
+        }
+
         [FunctionName(nameof(GetSite))]
         public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
@@ -127,23 +137,15 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetSites))]
-        public async Task<IList<Site>> GetSites([ActivityTrigger] bool isRunningOnly)
+        public async Task<IList<Site>> GetSites([ActivityTrigger] (string, bool) input)
         {
-            var list = new List<Site>();
+            var (resourceGroupName, isRunningOnly) = input;
 
-            var sites = await _webSiteManagementClient.WebApps.ListAllAsync();
+            var sites = await _webSiteManagementClient.WebApps.ListByResourceGroupAllAsync(resourceGroupName);
 
-            foreach (var site in sites)
-            {
-                var slots = await _webSiteManagementClient.WebApps.ListSlotsAsync(site.ResourceGroup, site.Name);
-
-                list.Add(site);
-                list.AddRange(slots);
-            }
-
-            return list.Where(x => !isRunningOnly || x.State == "Running")
-                       .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
-                       .ToArray();
+            return sites.Where(x => !isRunningOnly || x.State == "Running")
+                        .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
+                        .ToArray();
         }
 
         [FunctionName(nameof(GetExpiringCertificates))]

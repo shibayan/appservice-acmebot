@@ -35,23 +35,28 @@ namespace AppService.Acmebot
                 return;
             }
 
-            // App Service を取得
-            var sites = await activity.GetSites(false);
+            var resourceGroups = await activity.GetResourceGroups();
 
-            // App Service にバインド済み証明書のサムプリントを取得
-            var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
-                                         .ToArray();
-
-            var tasks = new List<Task>();
-
-            // バインドされていない証明書を削除
-            foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
+            foreach (var resourceGroup in resourceGroups)
             {
-                tasks.Add(activity.DeleteCertificate(certificate));
-            }
+                // App Service を取得
+                var sites = await activity.GetSites((resourceGroup.Name, false));
 
-            // アクティビティの完了を待つ
-            await Task.WhenAll(tasks);
+                // App Service にバインド済み証明書のサムプリントを取得
+                var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
+                                             .ToArray();
+
+                var tasks = new List<Task>();
+
+                // バインドされていない証明書を削除
+                foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
+                {
+                    tasks.Add(activity.DeleteCertificate(certificate));
+                }
+
+                // アクティビティの完了を待つ
+                await Task.WhenAll(tasks);
+            }
         }
 
         [FunctionName(nameof(PurgeCertificates_Timer))]

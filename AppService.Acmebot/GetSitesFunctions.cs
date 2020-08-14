@@ -35,21 +35,23 @@ namespace AppService.Acmebot
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            // App Service を取得
-            var sites = await activity.GetSites();
-            var certificates = await activity.GetAllCertificates();
-
             var result = new List<ResourceGroupInformation>();
 
-            foreach (var item in sites.ToLookup(x => x.ResourceGroup))
+            var resourceGroups = await activity.GetResourceGroups();
+            var certificates = await activity.GetAllCertificates();
+
+            foreach (var resourceGroup in resourceGroups)
             {
-                var resourceGroup = new ResourceGroupInformation
+                // App Service を取得
+                var sites = await activity.GetSites((resourceGroup.Name, true));
+
+                var resourceGroupInformation = new ResourceGroupInformation
                 {
-                    Name = item.Key,
+                    Name = resourceGroup.Name,
                     Sites = new List<SiteInformation>()
                 };
 
-                foreach (var site in item.ToLookup(x => x.SplitName().appName))
+                foreach (var site in sites.ToLookup(x => x.SplitName().appName))
                 {
                     var siteInformation = new SiteInformation
                     {
@@ -62,7 +64,7 @@ namespace AppService.Acmebot
                         var (_, slotName) = slot.SplitName();
 
                         var hostNameSslStates = slot.HostNameSslStates
-                                                    .Where(x => !x.Name.EndsWith(_environment.AppService));
+                                                    .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
 
                         var slotInformation = new SlotInformation
                         {
@@ -82,13 +84,13 @@ namespace AppService.Acmebot
 
                     if (siteInformation.Slots.Count != 0)
                     {
-                        resourceGroup.Sites.Add(siteInformation);
+                        resourceGroupInformation.Sites.Add(siteInformation);
                     }
                 }
 
-                if (resourceGroup.Sites.Count != 0)
+                if (resourceGroupInformation.Sites.Count != 0)
                 {
-                    result.Add(resourceGroup);
+                    result.Add(resourceGroupInformation);
                 }
             }
 
@@ -111,7 +113,7 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(30));
+            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(60));
         }
     }
 }
