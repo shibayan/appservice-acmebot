@@ -8,9 +8,6 @@ namespace AppService.Acmebot.Models
     {
         [JsonProperty("name")]
         public string Name { get; set; }
-
-        [JsonProperty("sites")]
-        public IList<SiteInformation> Sites { get; set; }
     }
 
     public class SiteInformation

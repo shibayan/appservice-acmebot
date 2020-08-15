@@ -15,15 +15,15 @@ namespace AppService.Acmebot.Internal
 
             if (!tags.TryGetValue("Issuer", out var tagIssuer) || tagIssuer != issuer)
             {
-                return true;
+                return false;
             }
 
             if (!tags.TryGetValue("Endpoint", out var tagEndpoint) || tagEndpoint != endpoint)
             {
-                return true;
+                return false;
             }
 
-            return false;
+            return true;
         }
     }
 }
