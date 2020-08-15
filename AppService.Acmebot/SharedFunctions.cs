@@ -159,11 +159,9 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetAllCertificates))]
-        public async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
+        public Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
         {
-            var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
-
-            return certificates.ToArray();
+            return _webSiteManagementClient.Certificates.ListAllAsync();
         }
 
         [FunctionName(nameof(Order))]

@@ -31,66 +31,49 @@ namespace AppService.Acmebot
         private readonly IAzureEnvironment _environment;
 
         [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public async Task<IList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
+            var resourceGroup = context.GetInput<string>();
+
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            var result = new List<ResourceGroupInformation>();
+            var result = new List<SiteInformation>();
 
-            var resourceGroups = await activity.GetResourceGroups();
             var certificates = await activity.GetAllCertificates();
 
-            foreach (var resourceGroup in resourceGroups)
+            // App Service を取得
+            var sites = await activity.GetSites((resourceGroup, true));
+
+            foreach (var site in sites.ToLookup(x => x.SplitName().appName))
             {
-                // App Service を取得
-                var sites = await activity.GetSites((resourceGroup.Name, true));
+                var siteInformation = new SiteInformation { Name = site.Key, Slots = new List<SlotInformation>() };
 
-                var resourceGroupInformation = new ResourceGroupInformation
+                foreach (var slot in site)
                 {
-                    Name = resourceGroup.Name,
-                    Sites = new List<SiteInformation>()
-                };
+                    var (_, slotName) = slot.SplitName();
 
-                foreach (var site in sites.ToLookup(x => x.SplitName().appName))
-                {
-                    var siteInformation = new SiteInformation
+                    var hostNameSslStates = slot.HostNameSslStates
+                                                .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
+
+                    var slotInformation = new SlotInformation
                     {
-                        Name = site.Key,
-                        Slots = new List<SlotInformation>()
+                        Name = slotName ?? "production",
+                        DnsNames = hostNameSslStates.Select(x => new DnsNameInformation
+                        {
+                            Name = x.Name,
+                            Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
+                        }).ToArray()
                     };
 
-                    foreach (var slot in site)
+                    if (slotInformation.DnsNames.Count != 0)
                     {
-                        var (_, slotName) = slot.SplitName();
-
-                        var hostNameSslStates = slot.HostNameSslStates
-                                                    .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
-
-                        var slotInformation = new SlotInformation
-                        {
-                            Name = slotName ?? "production",
-                            DnsNames = hostNameSslStates.Select(x => new DnsNameInformation
-                            {
-                                Name = x.Name,
-                                Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
-                            }).ToArray()
-                        };
-
-                        if (slotInformation.DnsNames.Count != 0)
-                        {
-                            siteInformation.Slots.Add(slotInformation);
-                        }
-                    }
-
-                    if (siteInformation.Slots.Count != 0)
-                    {
-                        resourceGroupInformation.Sites.Add(siteInformation);
+                        siteInformation.Slots.Add(slotInformation);
                     }
                 }
 
-                if (resourceGroupInformation.Sites.Count != 0)
+                if (siteInformation.Slots.Count != 0)
                 {
-                    result.Add(resourceGroupInformation);
+                    result.Add(siteInformation);
                 }
             }
 
@@ -99,7 +82,8 @@ namespace AppService.Acmebot
 
         [FunctionName(nameof(GetSitesInformation_HttpStart))]
         public async Task<IActionResult> GetSitesInformation_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites/{resourceGroup}")] HttpRequest req,
+            string resourceGroup,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
@@ -109,7 +93,7 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null);
+            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null, resourceGroup);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 

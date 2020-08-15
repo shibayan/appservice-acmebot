@@ -21,10 +21,10 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': resourceGroupsLoading }">
                   <select v-model="resourceGroupName">
                     <option disabled value="">Please select one</option>
-                    <option v-for="resourceGroup in list" :value="resourceGroup.name">{{ resourceGroup.name }}</option>
+                    <option v-for="resourceGroup in resourceGroups" :value="resourceGroup.name">{{ resourceGroup.name }}</option>
                   </select>
                 </div>
               </div>
@@ -38,10 +38,10 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': sitesLoading }">
                   <select v-model="appName">
                     <option disabled value="">Please select one</option>
-                    <option v-for="site in (selectedResourceGroup || {}).sites" :value="site.name">{{ site.name }}</option>
+                    <option v-for="site in sites" :value="site.name">{{ site.name }}</option>
                   </select>
                 </div>
               </div>
@@ -55,7 +55,7 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': loading }">
+                <div class="select" :class="{ 'is-loading': sitesLoading }">
                   <select v-model="slotName">
                     <option disabled value="">Please select one</option>
                     <option v-for="slot in (selectedSite || {}).slots">{{ slot.name }}</option>
@@ -142,27 +142,25 @@
     const app = new Vue({
       el: '#app',
       data: {
-        list: [],
+        resourceGroups: [],
+        sites: [],
         resourceGroupName: '',
         appName: '',
         slotName: '',
         dnsNames: [],
         useIpBasedSsl: false,
         forceDns01Challenge: false,
-        loading: false,
+        resourceGroupsLoading: false,
+        sitesLoading: false,
         sending: false
       },
       computed: {
-        selectedResourceGroup: function () {
-          const name = this.resourceGroupName;
-          return this.list.find(function (x) { return x.name === name; });
-        },
         selectedSite: function () {
-          if (!this.selectedResourceGroup) {
+          if (!this.sites) {
             return undefined;
           }
           const name = this.appName;
-          return this.selectedResourceGroup.sites.find(function (x) { return x.name === name; });
+          return this.sites.find(function (x) { return x.name === name; });
         },
         selectedSlot: function () {
           if (!this.selectedSite) {
@@ -172,30 +170,47 @@
           return this.selectedSite.slots.find(function (x) { return x.name === name; });
         }
       },
-      methods: {
-        load: async function () {
-          this.loading = true;
+      watch: {
+        resourceGroupName: async function (newValue, _) {
+          if (!newValue) {
+            return;
+          }
+
+          this.sitesLoading = true;
 
           try {
-            const response = await axios.get("/api/get-sites-information");
+            const response = await axios.get("/api/get-sites/" + newValue);
 
-            this.$set(this, "list", response.data);
+            this.$set(this, "sites", response.data);
           } catch (error) {
             alert(error);
           }
 
-          this.loading = false;
+          this.sitesLoading = false;
+        }
+      },
+      methods: {
+        load: async function () {
+          this.resourceGroupsLoading = true;
+
+          try {
+            const response = await axios.get("/api/get-resource-groups");
+
+            this.$set(this, "resourceGroups", response.data);
+          } catch (error) {
+            alert(error);
+          }
+
+          this.resourceGroupsLoading = false;
         },
-        reload: function () {
-          this.list = [];
+        reset: function () {
+          this.sites = [];
           this.resourceGroupName = '';
           this.appName = '';
           this.slotName = '';
           this.dnsNames = [];
           this.useIpBasedSsl = false;
           this.forceDns01Challenge = false;
-
-          this.load();
         },
         submit: async function () {
           this.sending = true;
@@ -240,7 +255,7 @@
           }
 
 
-          this.reload();
+          this.reset();
           this.sending = false;
         }
       },
