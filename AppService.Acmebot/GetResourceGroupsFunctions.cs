@@ -33,7 +33,7 @@ namespace AppService.Acmebot
 
             var resourceGroups = await activity.GetResourceGroups();
 
-            return resourceGroups.Select(x => new ResourceGroupInformation { Name = x.Name }).ToList();
+            return resourceGroups.Select(x => new ResourceGroupInformation { Name = x.Name }).ToArray();
         }
 
         [FunctionName(nameof(GetResourceGroupsInformation_HttpStart))]

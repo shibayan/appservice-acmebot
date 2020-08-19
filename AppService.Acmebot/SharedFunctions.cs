@@ -145,6 +145,7 @@ namespace AppService.Acmebot
 
             return sites.Where(x => !isRunningOnly || x.State == "Running")
                         .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
+                        .OrderBy(x => x.Name)
                         .ToArray();
         }
 
