@@ -24,16 +24,6 @@ namespace AppService.Acmebot
 {
     public class Startup : FunctionsStartup
     {
-        public Startup()
-        {
-            var config = new ConfigurationBuilder()
-                .AddEnvironmentVariables();
-
-            Configuration = config.Build();
-        }
-
-        public IConfiguration Configuration { get; }
-
         public override void Configure(IFunctionsHostBuilder builder)
         {
             builder.Services.Replace(ServiceDescriptor.Transient(typeof(IOptionsFactory<>), typeof(OptionsFactory<>)));
@@ -95,10 +85,12 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton<WebhookClient>();
             builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
 
-            var section = Configuration.GetSection("Acmebot");
+            var context = builder.GetContext();
+
+            var section = context.Configuration.GetSection("Acmebot");
 
             builder.Services.AddOptions<AcmebotOptions>()
-                   .Bind(section.Exists() ? section : Configuration.GetSection("LetsEncrypt"))
+                   .Bind(section.Exists() ? section : context.Configuration.GetSection("LetsEncrypt"))
                    .ValidateDataAnnotations();
         }
     }
