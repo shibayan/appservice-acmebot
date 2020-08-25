@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
+using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
+
+using Azure.WebJobs.Extensions.HttpApi;
 
 using DurableTask.TypedProxy;
 
@@ -16,14 +17,15 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-using Newtonsoft.Json;
-
-using ChallengeResult = AppService.Acmebot.Models.ChallengeResult;
-
 namespace AppService.Acmebot
 {
-    public class AddCertificateFunctions
+    public class AddCertificateFunctions : HttpFunctionBase
     {
+        public AddCertificateFunctions(IHttpContextAccessor httpContextAccessor)
+            : base(httpContextAccessor)
+        {
+        }
+
         [FunctionName(nameof(AddCertificate))]
         public async Task AddCertificate([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
@@ -31,118 +33,68 @@ namespace AppService.Acmebot
 
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            var site = await activity.GetSite((request.ResourceGroupName, request.SiteName, request.SlotName));
+            var site = await activity.GetSite((request.ResourceGroupName, request.AppName, request.SlotName));
 
             if (site == null)
             {
-                log.LogError($"{request.SiteName} is not found");
+                log.LogError($"{request.AppName} is not found");
                 return;
             }
 
             var hostNameSslStates = site.HostNameSslStates
-                                        .Where(x => request.Domains.Contains(x.Name))
+                                        .Where(x => request.DnsNames.Contains(x.Name))
                                         .ToArray();
 
-            if (hostNameSslStates.Length != request.Domains.Length)
+            if (hostNameSslStates.Length != request.DnsNames.Length)
             {
-                foreach (var hostName in request.Domains.Except(hostNameSslStates.Select(x => x.Name)))
+                foreach (var dnsName in request.DnsNames.Except(hostNameSslStates.Select(x => x.Name)))
                 {
-                    log.LogError($"{hostName} is not found");
+                    log.LogError($"{dnsName} is not found");
                 }
                 return;
             }
 
-            // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = request.Domains.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+            var asciiDnsNames = request.DnsNames.Select(Punycode.Encode).ToArray();
 
-            // 前提条件をチェック
-            if (useDns01Auth)
+            try
             {
-                await activity.Dns01Precondition(request.Domains);
-            }
-            else
-            {
-                await activity.Http01Precondition(site);
-            }
+                // 証明書を発行し Azure にアップロード
+                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
-            // 新しく ACME Order を作成する
-            var orderDetails = await activity.Order(request.Domains);
-
-            // 複数の Authorizations を処理する
-            var challenges = new List<ChallengeResult>();
-
-            foreach (var authorization in orderDetails.Payload.Authorizations)
-            {
-                ChallengeResult result;
-
-                // ACME Challenge を実行
-                if (useDns01Auth)
+                // App Service のホスト名に証明書をセットする
+                foreach (var hostNameSslState in hostNameSslStates)
                 {
-                    // DNS-01 を使う
-                    result = await activity.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
-
-                    // Azure DNS で正しくレコードが引けるか確認
-                    await activity.CheckDnsChallenge(result);
-                }
-                else
-                {
-                    // HTTP-01 を使う
-                    result = await activity.Http01Authorization((site, authorization));
-
-                    // HTTP で正しくアクセスできるか確認
-                    await activity.CheckHttpChallenge(result);
+                    hostNameSslState.Thumbprint = certificate.Thumbprint;
+                    hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
+                    hostNameSslState.ToUpdate = true;
                 }
 
-                challenges.Add(result);
+                await activity.UpdateSiteBinding(site);
+
+                // 証明書の更新が完了後に Webhook を送信する
+                await activity.SendCompletedEvent((site, certificate.ExpirationDate, asciiDnsNames));
             }
-
-            // ACME Answer を実行
-            await activity.AnswerChallenges(challenges);
-
-            // Order のステータスが ready になるまで 60 秒待機
-            await activity.CheckIsReady(orderDetails);
-
-            // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((request.Domains, orderDetails));
-
-            await activity.UpdateCertificate((site, $"{request.Domains[0]}-{thumbprint}", pfxBlob));
-
-            foreach (var hostNameSslState in hostNameSslStates)
+            finally
             {
-                hostNameSslState.Thumbprint = thumbprint;
-                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
-                hostNameSslState.ToUpdate = true;
+                // クリーンアップ処理を実行
+                await activity.CleanupVirtualApplication(site);
             }
-
-            await activity.UpdateSiteBinding(site);
         }
 
         [FunctionName(nameof(AddCertificate_HttpStart))]
         public async Task<IActionResult> AddCertificate_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] AddCertificateRequest request,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.HttpContext.User.Identity.IsAuthenticated)
+            if (!User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
+                return Unauthorized();
             }
 
-            var request = JsonConvert.DeserializeObject<AddCertificateRequest>(await req.ReadAsStringAsync());
-
-            if (string.IsNullOrEmpty(request.ResourceGroupName))
+            if (!TryValidateModel(request))
             {
-                return new BadRequestObjectResult($"{nameof(request.ResourceGroupName)} is empty.");
-            }
-
-            if (string.IsNullOrEmpty(request.SiteName))
-            {
-                return new BadRequestObjectResult($"{nameof(request.SiteName)} is empty.");
-            }
-
-            if (request.Domains == null || request.Domains.Length == 0)
-            {
-                return new BadRequestObjectResult($"{nameof(request.Domains)} is empty.");
+                return ValidationProblem(ModelState);
             }
 
             // Function input comes from the request content.
@@ -150,7 +102,40 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(5));
+            return AcceptedAtFunction(nameof(AddCertificate_HttpPoll), new { instanceId }, null);
+        }
+
+        [FunctionName(nameof(AddCertificate_HttpPoll))]
+        public async Task<IActionResult> AddCertificate_HttpPoll(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "add-certificate/{instanceId}")] HttpRequest req,
+            string instanceId,
+            [DurableClient] IDurableClient starter)
+        {
+            if (!User.Identity.IsAuthenticated)
+            {
+                return Unauthorized();
+            }
+
+            var status = await starter.GetStatusAsync(instanceId);
+
+            if (status == null)
+            {
+                return BadRequest();
+            }
+
+            if (status.RuntimeStatus == OrchestrationRuntimeStatus.Failed)
+            {
+                return Problem(status.Output.ToString());
+            }
+
+            if (status.RuntimeStatus == OrchestrationRuntimeStatus.Running ||
+                status.RuntimeStatus == OrchestrationRuntimeStatus.Pending ||
+                status.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew)
+            {
+                return AcceptedAtFunction(nameof(AddCertificate_HttpPoll), new { instanceId }, null);
+            }
+
+            return Ok();
         }
     }
 }

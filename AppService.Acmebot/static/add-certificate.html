@@ -1,0 +1,269 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App Service Acmebot</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.8.2/css/bulma.min.css">
+  <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+</head>
+<body>
+  <section class="section">
+    <div class="container">
+      <h1 class="title">
+        Add Certificate
+      </h1>
+      <div id="app">
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">Resource Group</label>
+          </div>
+          <div class="field-body">
+            <div class="field">
+              <div class="control">
+                <div class="select" :class="{ 'is-loading': resourceGroupsLoading }">
+                  <select v-model="resourceGroupName">
+                    <option disabled value="">Please select one</option>
+                    <option v-for="resourceGroup in resourceGroups" :value="resourceGroup.name">{{ resourceGroup.name }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">App Name</label>
+          </div>
+          <div class="field-body">
+            <div class="field">
+              <div class="control">
+                <div class="select" :class="{ 'is-loading': sitesLoading }">
+                  <select v-model="appName">
+                    <option disabled value="">Please select one</option>
+                    <option v-for="site in sites" :value="site.name">{{ site.name }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">Deployment Slot</label>
+          </div>
+          <div class="field-body">
+            <div class="field">
+              <div class="control">
+                <div class="select" :class="{ 'is-loading': sitesLoading }">
+                  <select v-model="slotName">
+                    <option disabled value="">Please select one</option>
+                    <option v-for="slot in (selectedSite || {}).slots">{{ slot.name }}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">DNS Names</label>
+          </div>
+          <div class="field-body">
+            <div class="field">
+              <div class="control">
+                <div class="select is-multiple">
+                  <select multiple v-model="dnsNames">
+                    <option v-for="dnsName in (selectedSlot || {}).dnsNames" :value="dnsName.name">{{ dnsName.name }} ({{ dnsName.issuer }})</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">Use IP Based SSL?</label>
+          </div>
+          <div class="field-body">
+            <div class="field is-narrow">
+              <div class="control">
+                <label class="radio">
+                  <input type="radio" value="true" v-model="useIpBasedSsl">
+                  Yes
+                </label>
+                <label class="radio">
+                  <input type="radio" value="false" v-model="useIpBasedSsl">
+                  No
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label">
+            <label class="label">Force DNS-01 Challenge?</label>
+          </div>
+          <div class="field-body">
+            <div class="field is-narrow">
+              <div class="control">
+                <label class="radio">
+                  <input type="radio" value="true" v-model="forceDns01Challenge">
+                  Yes
+                </label>
+                <label class="radio">
+                  <input type="radio" value="false" v-model="forceDns01Challenge">
+                  No
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field is-horizontal">
+          <div class="field-label"></div>
+          <div class="field-body">
+            <div class="field">
+              <div class="control">
+                <button class="button is-primary" @click="submit" :class="{ 'is-loading': sending }" :disabled="dnsNames.length === 0">Submit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.11/vue.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+  <script>
+    const delay = (millisecondsDelay) => {
+      return new Promise(resolve => setTimeout(() => resolve(), millisecondsDelay));
+    }
+
+    const app = new Vue({
+      el: '#app',
+      data: {
+        resourceGroups: [],
+        sites: [],
+        resourceGroupName: '',
+        appName: '',
+        slotName: '',
+        dnsNames: [],
+        useIpBasedSsl: false,
+        forceDns01Challenge: false,
+        resourceGroupsLoading: false,
+        sitesLoading: false,
+        sending: false
+      },
+      computed: {
+        selectedSite: function () {
+          if (!this.sites) {
+            return undefined;
+          }
+          const name = this.appName;
+          return this.sites.find(function (x) { return x.name === name; });
+        },
+        selectedSlot: function () {
+          if (!this.selectedSite) {
+            return undefined;
+          }
+          const name = this.slotName;
+          return this.selectedSite.slots.find(function (x) { return x.name === name; });
+        }
+      },
+      watch: {
+        resourceGroupName: async function (newValue, _) {
+          if (!newValue) {
+            return;
+          }
+
+          this.sitesLoading = true;
+
+          try {
+            const response = await axios.get("/api/get-sites/" + newValue);
+
+            this.$set(this, "sites", response.data);
+          } catch (error) {
+            alert(error);
+          }
+
+          this.sitesLoading = false;
+        }
+      },
+      methods: {
+        load: async function () {
+          this.resourceGroupsLoading = true;
+
+          try {
+            const response = await axios.get("/api/get-resource-groups");
+
+            this.$set(this, "resourceGroups", response.data);
+          } catch (error) {
+            alert(error);
+          }
+
+          this.resourceGroupsLoading = false;
+        },
+        reset: function () {
+          this.sites = [];
+          this.resourceGroupName = '';
+          this.appName = '';
+          this.slotName = '';
+          this.dnsNames = [];
+          this.useIpBasedSsl = false;
+          this.forceDns01Challenge = false;
+        },
+        submit: async function () {
+          this.sending = true;
+
+          const postData = {
+            ResourceGroupName: this.resourceGroupName,
+            appName: this.appName,
+            SlotName: this.slotName,
+            DnsNames: this.dnsNames,
+            UseIpBasedSsl: this.useIpBasedSsl,
+            ForceDns01Challenge: this.forceDns01Challenge
+          };
+
+          try {
+            let response = await axios.post("/api/add-certificate", postData);
+
+            while (true) {
+              await delay(5000);
+
+              response = await axios.get(response.headers["location"]);
+
+              if (response.status === 200) {
+                alert("The certificate was successfully issued.");
+                break;
+              }
+            }
+          }
+          catch (error) {
+            const problem = error.response.data;
+
+            if (error.response.status === 400) {
+              const errors = [];
+
+              for (let key in problem.errors) {
+                errors.push(problem.errors[key][0]);
+              }
+
+              alert(errors.join("\n"));
+            } else {
+              alert(problem.detail)
+            }
+          }
+
+
+          this.reset();
+          this.sending = false;
+        }
+      },
+      beforeMount: function () {
+        this.load();
+      }
+    });
+
+  </script>
+</body>
+</html>

@@ -13,96 +13,164 @@ using ACMESharp.Protocol;
 using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
+using AppService.Acmebot.Options;
 
 using DnsClient;
 
+using DurableTask.TypedProxy;
+
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
+using Microsoft.Azure.Management.ResourceManager;
+using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot
 {
     public class SharedFunctions : ISharedFunctions
     {
-        public SharedFunctions(IHttpClientFactory httpClientFactory, LookupClient lookupClient,
-                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduApiClientFactory kuduApiClientFactory,
-                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient)
+        public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
+                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
+                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
+                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options)
         {
             _httpClientFactory = httpClientFactory;
+            _environment = environment;
             _lookupClient = lookupClient;
             _acmeProtocolClientFactory = acmeProtocolClientFactory;
-            _kuduApiClientFactory = kuduApiClientFactory;
+            _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
+            _resourceManagementClient = resourceManagementClient;
+            _webhookClient = webhookClient;
+            _options = options.Value;
         }
 
-        private const string InstanceIdKey = "InstanceId";
-
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAzureEnvironment _environment;
         private readonly LookupClient _lookupClient;
         private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
-        private readonly IKuduApiClientFactory _kuduApiClientFactory;
+        private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
+        private readonly ResourceManagementClient _resourceManagementClient;
+        private readonly WebhookClient _webhookClient;
+        private readonly AcmebotOptions _options;
+
+        private const string IssuerName = "Acmebot";
+
+        [FunctionName(nameof(IssueCertificate))]
+        public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
+        {
+            var (site, dnsNames, forceDns01Challenge) = context.GetInput<(Site, string[], bool)>();
+
+            var activity = context.CreateActivityProxy<ISharedFunctions>();
+
+            // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
+            var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+
+            // 前提条件をチェック
+            if (useDns01Auth)
+            {
+                await activity.Dns01Precondition(dnsNames);
+            }
+            else
+            {
+                await activity.Http01Precondition(site);
+            }
+
+            // 新しく ACME Order を作成する
+            var orderDetails = await activity.Order(dnsNames);
+
+            // 複数の Authorizations を処理する
+            IList<AcmeChallengeResult> challengeResults;
+
+            // ACME Challenge を実行
+            if (useDns01Auth)
+            {
+                challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
+
+                // Azure DNS で正しくレコードが引けるか確認
+                await activity.CheckDnsChallenge(challengeResults);
+            }
+            else
+            {
+                challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
+
+                // HTTP で正しくアクセスできるか確認
+                await activity.CheckHttpChallenge(challengeResults);
+            }
+
+            // ACME Answer を実行
+            await activity.AnswerChallenges(challengeResults);
+
+            // Order のステータスが ready になるまで 60 秒待機
+            await activity.CheckIsReady(orderDetails);
+
+            // Order の最終処理を実行し PFX を作成
+            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
+
+            return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
+        }
+
+        [FunctionName(nameof(GetResourceGroups))]
+        public Task<IList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+        {
+            return _resourceManagementClient.ResourceGroups.ListAllAsync();
+        }
 
         [FunctionName(nameof(GetSite))]
         public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
         {
-            var (resourceGroupName, siteName, slotName) = input;
+            var (resourceGroupName, appName, slotName) = input;
 
-            if (!string.IsNullOrEmpty(slotName))
+            if (slotName != "production")
             {
-                return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, siteName, slotName);
+                return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, appName, slotName);
             }
 
-            return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, siteName);
+            return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, appName);
         }
 
         [FunctionName(nameof(GetSites))]
-        public async Task<IList<Site>> GetSites([ActivityTrigger] object input)
+        public async Task<IList<Site>> GetSites([ActivityTrigger] (string, bool) input)
         {
-            var list = new List<Site>();
+            var (resourceGroupName, isRunningOnly) = input;
 
-            var sites = await _webSiteManagementClient.WebApps.ListAllAsync();
+            var sites = await _webSiteManagementClient.WebApps.ListByResourceGroupAllAsync(resourceGroupName);
 
-            foreach (var site in sites)
-            {
-                var slots = await _webSiteManagementClient.WebApps.ListSlotsAsync(site.ResourceGroup, site.Name);
-
-                list.Add(site);
-                list.AddRange(slots);
-            }
-
-            return list.Where(x => x.HostNameSslStates.Any(xs => !xs.Name.EndsWith(".azurewebsites.net") && !xs.Name.EndsWith(".trafficmanager.net"))).ToArray();
+            return sites.Where(x => !isRunningOnly || x.State == "Running")
+                        .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
+                        .OrderBy(x => x.Name)
+                        .ToArray();
         }
 
-        [FunctionName(nameof(GetCertificates))]
-        public async Task<IList<Certificate>> GetCertificates([ActivityTrigger] DateTime currentDateTime)
+        [FunctionName(nameof(GetExpiringCertificates))]
+        public async Task<IList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
-            return certificates
-                   .Where(x => x.Issuer == "Let's Encrypt Authority X3" || x.Issuer == "Let's Encrypt Authority X4" || x.Issuer == "Fake LE Intermediate X1")
-                   .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30).ToArray();
+            return certificates.Where(x => x.TagsFilter(IssuerName, _options.Endpoint))
+                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
+                               .ToArray();
         }
 
         [FunctionName(nameof(GetAllCertificates))]
-        public async Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
+        public Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
         {
-            var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
-
-            return certificates.ToArray();
+            return _webSiteManagementClient.Certificates.ListAllAsync();
         }
 
         [FunctionName(nameof(Order))]
-        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> hostNames)
+        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> dnsNames)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            return await acmeProtocolClient.CreateOrderAsync(hostNames);
+            return await acmeProtocolClient.CreateOrderAsync(dnsNames);
         }
 
         [FunctionName(nameof(Http01Precondition))]
@@ -122,182 +190,191 @@ namespace AppService.Acmebot
                     PhysicalPath = "site\\.well-known",
                     PreloadEnabled = false
                 });
-            }
-            else
-            {
-                // 追加済みの場合は物理パスを変更しているので対処
-                virtualApplication.PhysicalPath = "site\\.well-known";
-            }
 
-            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+                await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+
+                // Web App を明示的に再起動する
+                await _webSiteManagementClient.WebApps.RestartAsync(site);
+            }
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public async Task<ChallengeResult> Http01Authorization([ActivityTrigger] (Site, string) input)
+        public async Task<IList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (Site, string[]) input)
         {
-            var (site, authzUrl) = input;
+            var (site, authorizationUrls) = input;
 
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            var authz = await acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
+            var challengeResults = new List<AcmeChallengeResult>();
 
-            // HTTP-01 Challenge の情報を拾う
-            var challenge = authz.Challenges.First(x => x.Type == "http-01");
+            foreach (var authorizationUrl in authorizationUrls)
+            {
+                // Authorization の詳細を取得
+                var authorization = await acmeProtocolClient.GetAuthorizationDetailsAsync(authorizationUrl);
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authz, challenge, acmeProtocolClient.Signer);
+                // HTTP-01 Challenge の情報を拾う
+                var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "http-01");
 
+                if (challenge == null)
+                {
+                    throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
+                }
+
+                var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authorization, challenge, acmeProtocolClient.Signer);
+
+                // Challenge の情報を保存する
+                challengeResults.Add(new AcmeChallengeResult
+                {
+                    Url = challenge.Url,
+                    HttpResourceUrl = challengeValidationDetails.HttpResourceUrl,
+                    HttpResourcePath = challengeValidationDetails.HttpResourcePath,
+                    HttpResourceValue = challengeValidationDetails.HttpResourceValue
+                });
+            }
+
+            // 発行プロファイルを取得
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
-            // Kudu API を使い、Answer 用のファイルを作成
-            var kuduClient = _kuduApiClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+            var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
+            // Answer 用ファイルを返すための Web.config を作成
             await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
-            await kuduClient.WriteFileAsync(challengeValidationDetails.HttpResourcePath, challengeValidationDetails.HttpResourceValue);
 
-            return new ChallengeResult
+            // Kudu API を使い、Answer 用のファイルを作成
+            foreach (var challengeResult in challengeResults)
             {
-                Url = challenge.Url,
-                HttpResourceUrl = challengeValidationDetails.HttpResourceUrl,
-                HttpResourceValue = challengeValidationDetails.HttpResourceValue
-            };
+                await kuduClient.WriteFileAsync(challengeResult.HttpResourcePath, challengeResult.HttpResourceValue);
+            }
+
+            return challengeResults;
         }
 
         [FunctionName(nameof(CheckHttpChallenge))]
-        public async Task CheckHttpChallenge([ActivityTrigger] ChallengeResult challenge)
+        public async Task CheckHttpChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
         {
-            // 実際に HTTP でアクセスして確認する
-            var insecureHttpClient = _httpClientFactory.CreateClient("InSecure");
-
-            var httpResponse = await insecureHttpClient.GetAsync(challenge.HttpResourceUrl);
-
-            // ファイルにアクセスできない場合はエラー
-            if (!httpResponse.IsSuccessStatusCode)
+            foreach (var challengeResult in challengeResults)
             {
-                // リトライする
-                throw new RetriableActivityException($"{challenge.HttpResourceUrl} is {httpResponse.StatusCode} status code.");
-            }
+                // 実際に HTTP でアクセスして確認する
+                var insecureHttpClient = _httpClientFactory.CreateClient("InSecure");
 
-            var fileContent = await httpResponse.Content.ReadAsStringAsync();
+                var httpResponse = await insecureHttpClient.GetAsync(challengeResult.HttpResourceUrl);
 
-            // ファイルに今回のチャレンジが含まれていない場合もエラー
-            if (fileContent != challenge.HttpResourceValue)
-            {
-                throw new InvalidOperationException($"{challenge.HttpResourceValue} value is not correct.");
+                // ファイルにアクセスできない場合はエラー
+                if (!httpResponse.IsSuccessStatusCode)
+                {
+                    // リトライする
+                    throw new RetriableActivityException($"{challengeResult.HttpResourceUrl} is {httpResponse.StatusCode} status code.");
+                }
+
+                var fileContent = await httpResponse.Content.ReadAsStringAsync();
+
+                // ファイルに今回のチャレンジが含まれていない場合もエラー
+                if (fileContent != challengeResult.HttpResourceValue)
+                {
+                    throw new RetriableActivityException($"{challengeResult.HttpResourceUrl} is not correct. Expected: \"{challengeResult.HttpResourceValue}\", Actual: \"{fileContent}\"");
+                }
             }
         }
 
         [FunctionName(nameof(Dns01Precondition))]
-        public async Task Dns01Precondition([ActivityTrigger] IList<string> hostNames)
+        public async Task Dns01Precondition([ActivityTrigger] IList<string> dnsNames)
         {
             // Azure DNS が存在するか確認
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
-            foreach (var hostName in hostNames)
+            foreach (var dnsName in dnsNames)
             {
-                if (!zones.Any(x => hostName.EndsWith(x.Name)))
+                if (!zones.Any(x => string.Equals(dnsName, x.Name, StringComparison.OrdinalIgnoreCase) || dnsName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase)))
                 {
-                    throw new InvalidOperationException($"Azure DNS zone \"{hostName}\" is not found");
+                    throw new InvalidOperationException($"Azure DNS zone \"{dnsName}\" is not found");
                 }
             }
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public async Task<ChallengeResult> Dns01Authorization([ActivityTrigger] (string, string) input)
+        public async Task<IList<AcmeChallengeResult>> Dns01Authorization([ActivityTrigger] string[] authorizationUrls)
         {
-            var (authzUrl, instanceId) = input;
-
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            var authz = await acmeProtocolClient.GetAuthorizationDetailsAsync(authzUrl);
+            var challengeResults = new List<AcmeChallengeResult>();
 
-            // DNS-01 Challenge の情報を拾う
-            var challenge = authz.Challenges.First(x => x.Type == "dns-01");
-
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authz, challenge, acmeProtocolClient.Signer);
-
-            // Azure DNS の TXT レコードを書き換え
-            var zone = (await _dnsManagementClient.Zones.ListAllAsync()).First(x => challengeValidationDetails.DnsRecordName.EndsWith(x.Name));
-
-            var resourceGroup = ExtractResourceGroup(zone.Id);
-
-            // Challenge の詳細から Azure DNS 向けにレコード名を作成
-            var acmeDnsRecordName = challengeValidationDetails.DnsRecordName.Replace("." + zone.Name, "");
-
-            RecordSet recordSet;
-
-            try
+            foreach (var authorizationUrl in authorizationUrls)
             {
-                recordSet = await _dnsManagementClient.RecordSets.GetAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
-            }
-            catch
-            {
-                recordSet = null;
-            }
+                // Authorization の詳細を取得
+                var authorization = await acmeProtocolClient.GetAuthorizationDetailsAsync(authorizationUrl);
 
-            if (recordSet != null)
-            {
-                if (recordSet.Metadata == null || !recordSet.Metadata.TryGetValue(InstanceIdKey, out var dnsInstanceId) || dnsInstanceId != instanceId)
+                // DNS-01 Challenge の情報を拾う
+                var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "dns-01");
+
+                if (challenge == null)
                 {
-                    recordSet.Metadata = new Dictionary<string, string>
-                    {
-                        { InstanceIdKey, instanceId }
-                    };
-
-                    recordSet.TxtRecords.Clear();
+                    throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
                 }
 
-                recordSet.TTL = 60;
+                var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForDns01(authorization, challenge, acmeProtocolClient.Signer);
 
-                // 既存の TXT レコードに値を追加する
-                recordSet.TxtRecords.Add(new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue }));
-            }
-            else
-            {
-                // 新しく TXT レコードを作成する
-                recordSet = new RecordSet
+                // Challenge の情報を保存する
+                challengeResults.Add(new AcmeChallengeResult
                 {
-                    TTL = 60,
-                    Metadata = new Dictionary<string, string>
-                    {
-                        { InstanceIdKey, instanceId }
-                    },
-                    TxtRecords = new[]
-                    {
-                        new TxtRecord(new[] { challengeValidationDetails.DnsRecordValue })
-                    }
-                };
+                    Url = challenge.Url,
+                    DnsRecordName = challengeValidationDetails.DnsRecordName,
+                    DnsRecordValue = challengeValidationDetails.DnsRecordValue
+                });
             }
 
-            await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
+            // Azure DNS zone の一覧を取得する
+            var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
-            return new ChallengeResult
+            // DNS-01 の検証レコード名毎に Azure DNS に TXT レコードを作成
+            foreach (var lookup in challengeResults.ToLookup(x => x.DnsRecordName))
             {
-                Url = challenge.Url,
-                DnsRecordName = challengeValidationDetails.DnsRecordName,
-                DnsRecordValue = challengeValidationDetails.DnsRecordValue
-            };
+                var dnsRecordName = lookup.Key;
+
+                var zone = zones.Where(x => dnsRecordName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase))
+                                .OrderByDescending(x => x.Name.Length)
+                                .First();
+
+                var resourceGroup = ExtractResourceGroup(zone.Id);
+
+                // Challenge の詳細から Azure DNS 向けにレコード名を作成
+                var acmeDnsRecordName = dnsRecordName.Replace($".{zone.Name}", "", StringComparison.OrdinalIgnoreCase);
+
+                // 既存の TXT レコードがあれば取得する
+                var recordSet = await _dnsManagementClient.RecordSets.GetOrDefaultAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT) ?? new RecordSet();
+
+                // TXT レコードに TTL と値をセットする
+                recordSet.TTL = 60;
+                recordSet.TxtRecords = lookup.Select(x => new TxtRecord(new[] { x.DnsRecordValue })).ToArray();
+
+                await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
+            }
+
+            return challengeResults;
         }
 
         [FunctionName(nameof(CheckDnsChallenge))]
-        public async Task CheckDnsChallenge([ActivityTrigger] ChallengeResult challenge)
+        public async Task CheckDnsChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
         {
-            // 実際に ACME の TXT レコードを引いて確認する
-            var queryResult = await _lookupClient.QueryAsync(challenge.DnsRecordName, QueryType.TXT);
-
-            var txtRecords = queryResult.Answers
-                                        .OfType<DnsClient.Protocol.TxtRecord>()
-                                        .ToArray();
-
-            // レコードが存在しなかった場合はエラー
-            if (txtRecords.Length == 0)
+            foreach (var challengeResult in challengeResults)
             {
-                throw new RetriableActivityException($"{challenge.DnsRecordName} did not resolve.");
-            }
+                // 実際に ACME の TXT レコードを引いて確認する
+                var queryResult = await _lookupClient.QueryAsync(challengeResult.DnsRecordName, QueryType.TXT);
 
-            // レコードに今回のチャレンジが含まれていない場合もエラー
-            if (!txtRecords.Any(x => x.Text.Contains(challenge.DnsRecordValue)))
-            {
-                throw new RetriableActivityException($"{challenge.DnsRecordName} value is not correct.");
+                var txtRecords = queryResult.Answers
+                                            .OfType<DnsClient.Protocol.TxtRecord>()
+                                            .ToArray();
+
+                // レコードが存在しなかった場合はエラー
+                if (txtRecords.Length == 0)
+                {
+                    throw new RetriableActivityException($"{challengeResult.DnsRecordName} did not resolve.");
+                }
+
+                // レコードに今回のチャレンジが含まれていない場合もエラー
+                if (!txtRecords.Any(x => x.Text.Contains(challengeResult.DnsRecordValue)))
+                {
+                    throw new RetriableActivityException($"{challengeResult.DnsRecordName} is not correct. Expected: \"{challengeResult.DnsRecordValue}\", Actual: \"{string.Join(",", txtRecords.SelectMany(x => x.Text))}\"");
+                }
             }
         }
 
@@ -322,12 +399,12 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public async Task AnswerChallenges([ActivityTrigger] IList<ChallengeResult> challenges)
+        public async Task AnswerChallenges([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
             // Answer の準備が出来たことを通知
-            foreach (var challenge in challenges)
+            foreach (var challenge in challengeResults)
             {
                 await acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
             }
@@ -336,43 +413,49 @@ namespace AppService.Acmebot
         [FunctionName(nameof(FinalizeOrder))]
         public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IList<string>, OrderDetails) input)
         {
-            var (hostNames, orderDetails) = input;
+            var (dnsNames, orderDetails) = input;
 
-            // ECC 256bit の証明書に固定
-            var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var csr = CryptoHelper.Ec.GenerateCsr(hostNames, ec);
+            // App Service に ECDSA 証明書をアップロードするとエラーになるので一時的に RSA に
+            var rsa = RSA.Create(2048);
+            var csr = CryptoHelper.Rsa.GenerateCsr(dnsNames, rsa);
 
             // Order の最終処理を実行し、証明書を作成
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
             var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
-            var httpClient = _httpClientFactory.CreateClient();
+            // 証明書をバイト配列としてダウンロード
+            var certificateData = await acmeProtocolClient.GetOrderCertificateAsync(finalize);
 
-            var certificateData = await httpClient.GetByteArrayAsync(finalize.Payload.Certificate);
+            // X509Certificate2Collection を作成
+            var x509Certificates = new X509Certificate2Collection();
+
+            x509Certificates.ImportFromPem(certificateData);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
-            var (certificate, chainCertificate) = X509Certificate2Helper.LoadFromPem(certificateData);
-
-            var certificateWithPrivateKey = certificate.CopyWithPrivateKey(ec);
-
-            var x509Certificates = new X509Certificate2Collection(new[] { certificateWithPrivateKey, chainCertificate });
+            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
 
             // PFX 形式としてエクスポート
-            return (certificateWithPrivateKey.Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
+            return (x509Certificates[0].Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
         }
 
-        [FunctionName(nameof(UpdateCertificate))]
-        public Task UpdateCertificate([ActivityTrigger] (Site, string, byte[]) input)
+        [FunctionName(nameof(UploadCertificate))]
+        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[], bool) input)
         {
-            var (site, certificateName, pfxBlob) = input;
+            var (site, certificateName, pfxBlob, forceDns01Challenge) = input;
 
             return _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",
                 PfxBlob = pfxBlob,
-                ServerFarmId = site.ServerFarmId
+                ServerFarmId = site.ServerFarmId,
+                Tags = new Dictionary<string, string>
+                {
+                    { "Issuer", IssuerName },
+                    { "Endpoint", _options.Endpoint },
+                    { "ForceDns01Challenge", forceDns01Challenge.ToString() }
+                }
             });
         }
 
@@ -382,12 +465,43 @@ namespace AppService.Acmebot
             return _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
         }
 
+        [FunctionName(nameof(CleanupVirtualApplication))]
+        public async Task CleanupVirtualApplication([ActivityTrigger] Site site)
+        {
+            var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
+
+            // 既に .well-known が仮想アプリケーションとして追加されているか確認
+            var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known" && x.PhysicalPath == "site\\.well-known");
+
+            if (virtualApplication == null)
+            {
+                return;
+            }
+
+            // 作成した仮想アプリケーションを削除
+            config.VirtualApplications.Remove(virtualApplication);
+
+            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+
+            // Web App を明示的に再起動する
+            await _webSiteManagementClient.WebApps.RestartAsync(site);
+        }
+
         [FunctionName(nameof(DeleteCertificate))]
         public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
         {
             var resourceGroup = ExtractResourceGroup(certificate.Id);
 
             return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
+        }
+
+        [FunctionName(nameof(SendCompletedEvent))]
+        public Task SendCompletedEvent([ActivityTrigger] (Site, DateTime?, string[]) input)
+        {
+            var (site, expirationDate, dnsNames) = input;
+            var (appName, slotName) = site.SplitName();
+
+            return _webhookClient.SendCompletedEventAsync(appName, slotName ?? "production", expirationDate, dnsNames);
         }
 
         private static string ExtractResourceGroup(string resourceId)

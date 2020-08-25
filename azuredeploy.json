@@ -4,6 +4,7 @@
   "parameters": {
     "appNamePrefix": {
       "type": "string",
+      "maxLength": 14,
       "metadata": {
         "description": "The name of the function app that you wish to create."
       }
@@ -11,15 +12,34 @@
     "mailAddress": {
       "type": "string",
       "metadata": {
-        "description": "Email address for Let's Encrypt account."
+        "description": "Email address for ACME account."
+      }
+    },
+    "acmeEndpoint": {
+      "type": "string",
+      "allowedValues": [
+        "https://acme-v02.api.letsencrypt.org/",
+        "https://api.buypass.com/acme/"
+      ],
+      "defaultValue": "https://acme-v02.api.letsencrypt.org/",
+      "metadata": {
+        "description": "Certification authority ACME Endpoint."
       }
     }
   },
   "variables": {
-    "functionAppName": "[concat(parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
-    "storageAccountName": "[concat(uniquestring(resourceGroup().id, deployment().name), 'azfunctions')]",
+    "functionAppName": "[concat('func-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
+    "appServicePlanName": "[concat('plan-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
+    "appInsightsName": "[concat('appi-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
+    "storageAccountName": "[concat('st', uniquestring(resourceGroup().id, deployment().name), 'func')]",
     "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-    "mailAddress": "[parameters('mailAddress')]"
+    "mailAddress": "[parameters('mailAddress')]",
+    "acmeEndpoint": "[parameters('acmeEndpoint')]",
+    "appInsightsEndpoints": {
+      "AzureCloud": "applicationinsights.azure.com",
+      "AzureChinaCloud": "applicationinsights.azure.cn",
+      "AzureUSGovernment": "applicationinsights.us"
+    }
   },
   "resources": [
     {
@@ -27,17 +47,18 @@
       "name": "[variables('storageAccountName')]",
       "apiVersion": "2018-11-01",
       "location": "[resourceGroup().location]",
+      "kind": "Storage",
       "sku": {
         "name": "Standard_LRS"
       }
     },
     {
       "type": "Microsoft.Web/serverfarms",
-      "name": "[variables('functionAppName')]",
+      "name": "[variables('appServicePlanName')]",
       "apiVersion": "2018-02-01",
       "location": "[resourceGroup().location]",
       "properties": {
-        "name": "[variables('functionAppName')]"
+        "name": "[variables('appServicePlanName')]"
       },
       "sku": {
         "name": "Y1",
@@ -48,14 +69,15 @@
     },
     {
       "type": "Microsoft.Insights/components",
-      "name": "[variables('functionAppName')]",
+      "name": "[variables('appInsightsName')]",
       "apiVersion": "2015-05-01",
       "location": "[resourceGroup().location]",
       "tags": {
         "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('functionAppName'))]": "Resource"
       },
       "properties": {
-        "applicationId": "[variables('functionAppName')]"
+        "Application_Type": "web",
+        "applicationId": "[variables('appInsightsName')]"
       }
     },
     {
@@ -68,25 +90,25 @@
         "type": "SystemAssigned"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('functionAppName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Insights/components', variables('functionAppName'))]"
+        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
       ],
       "properties": {
-        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('functionAppName'))]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
         "siteConfig": {
           "appSettings": [
             {
-              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-              "value": "[reference(resourceId('Microsoft.Insights/components', variables('functionAppName')), '2015-05-01').InstrumentationKey]"
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[concat('InstrumentationKey=', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey, ';EndpointSuffix=', variables('appInsightsEndpoints')[environment().name])]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value)]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value)]"
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -94,23 +116,31 @@
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/latest.zip"
+              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/v3/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~2"
+              "value": "~3"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
               "value": "dotnet"
             },
             {
-              "name": "LetsEncrypt:SubscriptionId",
+              "name": "Acmebot:SubscriptionId",
               "value": "[subscription().subscriptionId]"
             },
             {
-              "name": "LetsEncrypt:Contacts",
+              "name": "Acmebot:Contacts",
               "value": "[variables('mailAddress')]"
+            },
+            {
+              "name": "Acmebot:Endpoint",
+              "value": "[variables('acmeEndpoint')]"
+            },
+            {
+              "name": "Acmebot:Environment",
+              "value": "[environment().name]"
             }
           ],
           "clientAffinityEnabled": false
@@ -122,7 +152,7 @@
           "name": "metadata",
           "type": "config",
           "dependsOn": [
-            "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
+            "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
           ],
           "properties": {
             "synctriggersstatus": "[listsyncfunctiontriggerstatus(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2018-02-01').status]"

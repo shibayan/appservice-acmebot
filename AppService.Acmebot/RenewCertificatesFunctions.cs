@@ -1,9 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Contracts;
-using AppService.Acmebot.Models;
+using AppService.Acmebot.Internal;
 
 using DurableTask.TypedProxy;
 
@@ -22,7 +22,7 @@ namespace AppService.Acmebot
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
             // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await activity.GetCertificates(context.CurrentUtcDateTime);
+            var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
 
             foreach (var certificate in certificates)
             {
@@ -37,30 +37,39 @@ namespace AppService.Acmebot
                 return;
             }
 
-            // App Service を取得
-            var sites = await activity.GetSites();
+            var resourceGroups = await activity.GetResourceGroups();
 
-            var tasks = new List<Task>();
-
-            // サイト単位で証明書の更新を行う
-            foreach (var site in sites)
+            foreach (var resourceGroup in resourceGroups)
             {
-                // 期限切れが近い証明書がバインドされているか確認
-                var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
-                                                    .ToArray();
+                // App Service を取得
+                var sites = await activity.GetSites((resourceGroup.Name, true));
 
-                // 対象となる証明書が存在しない場合はスキップ
-                if (boundCertificates.Length == 0)
+                // サイト単位で証明書の更新を行う
+                foreach (var site in sites)
                 {
-                    continue;
+                    // 期限切れが近い証明書がバインドされているか確認
+                    var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
+                                                        .ToArray();
+
+                    // 対象となる証明書が存在しない場合はスキップ
+                    if (boundCertificates.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        // 証明書の更新処理を開始
+                        await context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 失敗した場合はログに詳細を書き出して続きを実行する
+                        log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
+                        log.LogError(ex.Message);
+                    }
                 }
-
-                // 証明書の更新処理を開始
-                tasks.Add(context.CallSubOrchestratorAsync(nameof(RenewSiteCertificates), (site, boundCertificates)));
             }
-
-            // サブオーケストレーターの完了を待つ
-            await Task.WhenAll(tasks);
         }
 
         [FunctionName(nameof(RenewSiteCertificates))]
@@ -72,71 +81,40 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Site name: {site.Name}");
 
-            foreach (var certificate in certificates)
+            try
             {
-                log.LogInformation($"Subject name: {certificate.SubjectName}");
-
-                // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-                var useDns01Auth = certificate.HostNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
-
-                // 前提条件をチェック
-                if (useDns01Auth)
+                // 証明書単位で更新を行う
+                foreach (var certificate in certificates)
                 {
-                    await activity.Dns01Precondition(certificate.HostNames);
-                }
-                else
-                {
-                    await activity.Http01Precondition(site);
-                }
+                    log.LogInformation($"Subject name: {certificate.SubjectName}");
 
-                // 新しく ACME Order を作成する
-                var orderDetails = await activity.Order(certificate.HostNames);
+                    // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+                    var dnsNames = certificate.HostNames
+                                              .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
+                                              .ToArray();
 
-                // 複数の Authorizations を処理する
-                var challenges = new List<ChallengeResult>();
+                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
 
-                foreach (var authorization in orderDetails.Payload.Authorizations)
-                {
-                    ChallengeResult result;
+                    // 証明書を発行し Azure にアップロード
+                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, dnsNames, forceDns01Challenge));
 
-                    // ACME Challenge を実行
-                    if (useDns01Auth)
+                    foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                     {
-                        result = await activity.Dns01Authorization((authorization, context.ParentInstanceId ?? context.InstanceId));
-
-                        // Azure DNS で正しくレコードが引けるか確認
-                        await activity.CheckDnsChallenge(result);
-                    }
-                    else
-                    {
-                        result = await activity.Http01Authorization((site, authorization));
-
-                        // HTTP で正しくアクセスできるか確認
-                        await activity.CheckHttpChallenge(result);
+                        hostNameSslState.Thumbprint = newCertificate.Thumbprint;
+                        hostNameSslState.ToUpdate = true;
                     }
 
-                    challenges.Add(result);
-                }
+                    await activity.UpdateSiteBinding(site);
 
-                // ACME Answer を実行
-                await activity.AnswerChallenges(challenges);
-
-                // Order のステータスが ready になるまで 60 秒待機
-                await activity.CheckIsReady(orderDetails);
-
-                // Order の最終処理を実行し PFX を作成
-                var (thumbprint, pfxBlob) = await activity.FinalizeOrder((certificate.HostNames, orderDetails));
-
-                await activity.UpdateCertificate((site, $"{certificate.HostNames[0]}-{thumbprint}", pfxBlob));
-
-                foreach (var hostNameSslState in site.HostNameSslStates.Where(x => certificate.HostNames.Contains(x.Name)))
-                {
-                    hostNameSslState.Thumbprint = thumbprint;
-                    hostNameSslState.ToUpdate = true;
+                    // 証明書の更新が完了後に Webhook を送信する
+                    await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
                 }
             }
-
-            await activity.UpdateSiteBinding(site);
+            finally
+            {
+                // クリーンアップ処理を実行
+                await activity.CleanupVirtualApplication(site);
+            }
         }
 
         [FunctionName(nameof(RenewCertificates_Timer))]

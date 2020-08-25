@@ -8,47 +8,54 @@ using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
+using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites.Models;
 
 namespace AppService.Acmebot.Contracts
 {
     public interface ISharedFunctions
     {
+        Task<IList<ResourceGroup>> GetResourceGroups(object input = null);
+
         Task<Site> GetSite((string, string, string) input);
 
-        Task<IList<Site>> GetSites(object input = null);
+        Task<IList<Site>> GetSites((string, bool) input);
 
-        Task<IList<Certificate>> GetCertificates(DateTime currentDateTime);
+        Task<IList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
 
         Task<IList<Certificate>> GetAllCertificates(object input = null);
 
-        Task<OrderDetails> Order(IList<string> hostNames);
+        Task<OrderDetails> Order(IList<string> dnsNames);
 
         Task Http01Precondition(Site site);
 
-        Task<ChallengeResult> Http01Authorization((Site, string) input);
+        Task<IList<AcmeChallengeResult>> Http01Authorization((Site, string[]) input);
 
-        [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckHttpChallenge(ChallengeResult challenge);
+        [RetryOptions("00:00:10", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
+        Task CheckHttpChallenge(IList<AcmeChallengeResult> challengeResults);
 
-        Task Dns01Precondition(IList<string> hostNames);
+        Task Dns01Precondition(IList<string> dnsNames);
 
-        Task<ChallengeResult> Dns01Authorization((string, string) context);
+        Task<IList<AcmeChallengeResult>> Dns01Authorization(string[] authorizationUrls);
 
-        [RetryOptions("00:00:10", 6, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckDnsChallenge(ChallengeResult challenge);
+        [RetryOptions("00:00:10", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
+        Task CheckDnsChallenge(IList<AcmeChallengeResult> challengeResults);
 
         [RetryOptions("00:00:05", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
         Task CheckIsReady(OrderDetails orderDetails);
 
-        Task AnswerChallenges(IList<ChallengeResult> challenges);
+        Task AnswerChallenges(IList<AcmeChallengeResult> challengeResults);
 
         Task<(string, byte[])> FinalizeOrder((IList<string>, OrderDetails) input);
 
-        Task UpdateCertificate((Site, string, byte[]) input);
+        Task<Certificate> UploadCertificate((Site, string, byte[], bool) input);
 
         Task UpdateSiteBinding(Site site);
 
+        Task CleanupVirtualApplication(Site site);
+
         Task DeleteCertificate(Certificate certificate);
+
+        Task SendCompletedEvent((Site, DateTime?, string[]) input);
     }
 }

@@ -7,6 +7,8 @@ using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
+using Azure.WebJobs.Extensions.HttpApi;
+
 using DurableTask.TypedProxy;
 
 using Microsoft.AspNetCore.Http;
@@ -18,67 +20,60 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot
 {
-    public class GetSitesFunctions
+    public class GetSitesFunctions : HttpFunctionBase
     {
-        [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IList<ResourceGroupInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor, IAzureEnvironment environment)
+            : base(httpContextAccessor)
         {
+            _environment = environment;
+        }
+
+        private readonly IAzureEnvironment _environment;
+
+        [FunctionName(nameof(GetSitesInformation))]
+        public async Task<IList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        {
+            var resourceGroup = context.GetInput<string>();
+
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            // App Service を取得
-            var sites = await activity.GetSites();
+            var result = new List<SiteInformation>();
+
             var certificates = await activity.GetAllCertificates();
 
-            var result = new List<ResourceGroupInformation>();
+            // App Service を取得
+            var sites = await activity.GetSites((resourceGroup, true));
 
-            foreach (var item in sites.ToLookup(x => x.ResourceGroup))
+            foreach (var site in sites.ToLookup(x => x.SplitName().appName))
             {
-                var resourceGroup = new ResourceGroupInformation
-                {
-                    Name = item.Key,
-                    Sites = new List<SiteInformation>()
-                };
+                var siteInformation = new SiteInformation { Name = site.Key, Slots = new List<SlotInformation>() };
 
-                foreach (var site in item.ToLookup(x => x.SplitName().siteName))
+                foreach (var slot in site)
                 {
-                    var siteInformation = new SiteInformation
+                    var (_, slotName) = slot.SplitName();
+
+                    var hostNameSslStates = slot.HostNameSslStates
+                                                .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
+
+                    var slotInformation = new SlotInformation
                     {
-                        Name = site.Key,
-                        Slots = new List<SlotInformation>()
+                        Name = slotName ?? "production",
+                        DnsNames = hostNameSslStates.Select(x => new DnsNameInformation
+                        {
+                            Name = x.Name,
+                            Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
+                        }).ToArray()
                     };
 
-                    foreach (var slot in site)
+                    if (slotInformation.DnsNames.Count != 0)
                     {
-                        var (_, slotName) = slot.SplitName();
-
-                        var hostNameSslStates = slot.HostNameSslStates
-                                                    .Where(x => !x.Name.EndsWith(".azurewebsites.net"));
-
-                        var slotInformation = new SlotInformation
-                        {
-                            Name = slotName ?? "production",
-                            Domains = hostNameSslStates.Select(x => new DomainInformation
-                            {
-                                Name = x.Name,
-                                Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
-                            }).ToArray()
-                        };
-
-                        if (slotInformation.Domains.Count != 0)
-                        {
-                            siteInformation.Slots.Add(slotInformation);
-                        }
-                    }
-
-                    if (siteInformation.Slots.Count != 0)
-                    {
-                        resourceGroup.Sites.Add(siteInformation);
+                        siteInformation.Slots.Add(slotInformation);
                     }
                 }
 
-                if (resourceGroup.Sites.Count != 0)
+                if (siteInformation.Slots.Count != 0)
                 {
-                    result.Add(resourceGroup);
+                    result.Add(siteInformation);
                 }
             }
 
@@ -87,21 +82,22 @@ namespace AppService.Acmebot
 
         [FunctionName(nameof(GetSitesInformation_HttpStart))]
         public async Task<IActionResult> GetSitesInformation_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites-information")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites/{resourceGroup}")] HttpRequest req,
+            string resourceGroup,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!req.HttpContext.User.Identity.IsAuthenticated)
+            if (!User.Identity.IsAuthenticated)
             {
-                return new UnauthorizedObjectResult("Need to activate EasyAuth.");
+                return Unauthorized();
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null);
+            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null, resourceGroup);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(30));
+            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(60));
         }
     }
 }

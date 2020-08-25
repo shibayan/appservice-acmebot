@@ -1,25 +1,31 @@
 # App Service Acmebot
 
-[![Build Status](https://dev.azure.com/shibayan/azure-acmebot/_apis/build/status/Build%20appservice-acmebot?branchName=master)](https://dev.azure.com/shibayan/azure-acmebot/_build/latest?definitionId=37&branchName=master)
+![Build](https://github.com/shibayan/appservice-acmebot/workflows/Build/badge.svg)
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 
-This function provide easy automation of Let's Encrypt for Azure App Service. This project started to solve some problems.
+This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
 
-- Support multiple app services
-- Simple deployment and configuration
-- Robustness of implementation
-- Easy monitoring (Application Insights, Webhook)
+- Support for multiple App Services
+- Easy to deploy and configure
+- Highly reliable implementation
+- Ease of Monitoring (Application Insights, Webhook)
 
-They can manage multiple App Service certificates with single Function App.
+You can manage multiple App Service certificates in a single application.
 
-### Attention
+## Announcements
 
-If you need fine-grained certificate management, I strongly recommend using Key Vault version.
+### Upgrading to Acmebot v3
+
+https://github.com/shibayan/appservice-acmebot/issues/138
+
+### Integration with Key Vault
+
+If you need to use the certificate for a variety of services, consider using the Key Vault version of Acmebot v3.
 
 https://github.com/shibayan/keyvault-acmebot
 
-The Key Vault version is available for services that support Key Vault certificates such as App Service / App Gateway / CDN / Front Door.
+The Key Vault version can be used with services that support Key Vault certificates such as App Service / Application Gateway / CDN / Front Door.
 
 ## Table Of Contents
 
@@ -34,53 +40,60 @@ The Key Vault version is available for services that support Key Vault certifica
 ## Feature Support
 
 - Azure Web Apps and Azure Functions (Windows)
-- Azure Web Apps (Linux) / Web App for Containers (required Azure DNS)
-- Azure App Service Environment (Windows / Linux)
-- Certificate issued to any deployment slot
-- Subject Alternative Names certificates (multi-domains support)
-- Wildcard certificates (required Azure DNS)
-- Multiple App Services support with single Function App
+- Azure Web Apps (Linux) / Web App for Containers (Windows and Linux, requires Azure DNS)
+- Azure App Service Environment (Windows and Linux)
+- Issuing a certificate to the Deployment Slot
+- Issuing Certificates for Zone Apex Domains
+- Issuing certificates with SANs (subject alternative names) (one certificate for multiple domains)
+- Wildcard certificate (requires Azure DNS)
+- Support for multiple App Services in a single application
+- ACME-compliant Certification Authorities
+  - [Let's Encrypt](https://letsencrypt.org/)
+  - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
 
 ## Requirements
 
 - Azure Subscription
-- App Service with added hostnames
-- Email address (for Let's Encrypt account)
+- App Service with a registered custom domain
+- Email address (required to register with Let's Encrypt)
 
 ## Getting Started
 
-### 1. Deploy to Azure Functions
+### 1. Deploy Acmebot
+
+For Azure Cloud
 
 <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://azuredeploy.net/deploybutton.png" />
+  <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-<a href="http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="http://armviz.io/visualizebutton.png" />
+For Azure China
+
+<a href="https://portal.azure.cn/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-### 2. Add application settings key
+For Azure Government
 
-- LetsEncrypt:SubscriptionId
-  - Azure Subscription Id
-- LetsEncrypt:Contacts
-  - Email address for Let's Encrypt account
-- LetsEncrypt:Webhook
-  - Webhook destination URL (optional, Slack recommend)
+<a href="https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
+  <img src="https://aka.ms/deploytoazurebutton" />
+</a>
 
-### 3. Enable App Service Authentication (EasyAuth) with AAD
+### 2. Enabling App Service Authentication
 
-Open `Authentication / Authorization` from Azure Portal and turn on App Service Authentication. Then select `Log in with Azure Active Directory` as an action when not logging in.
+Open the `Authentication / Authorization` menu in Azure Portal and enable App Service authentication. Select the `Login with Azure Active Directory` as the action to perform if the request is not authenticated. We recommend using Azure Active Directory as your authentication provider, but it works with other providers as well, although it's not supported.
 
 ![Enable App Service Authentication with AAD](https://user-images.githubusercontent.com/1356444/49693401-ecc7c400-fbb4-11e8-9ae1-5d376a4d8a05.png)
 
-Set up Azure Active Directory provider by selecting `Express`.
+Select Azure Active Directory as the authentication provider, select `Express` as the management mode, and select OK.
 
 ![Create New Azure AD App](https://user-images.githubusercontent.com/1356444/49693412-6f508380-fbb5-11e8-81fb-6bbcbe47654e.png)
 
-### 4. Assign roles to target resource group
+Finally, you can save your previous settings to enable App Service authentication.
 
-Using `Access control (IAM)`, assign a role to Function App. Require `Website Contributor` and `Web Plan Contributor` roles.
+### 3. Add access control (IAM) to the target resource group
+
+Open the `Access control (IAM)` of the target resource group and assign the roles `Website Contributor` and `Web Plan Contributor` to the deployed application.
 
 ![Assign a role](https://user-images.githubusercontent.com/1356444/43694372-feaefda4-996d-11e8-9ee5-e58254ec05f5.png)
 
@@ -88,41 +101,51 @@ Using `Access control (IAM)`, assign a role to Function App. Require `Website Co
 
 **Remarks**
 
-If the Web App refers to a Service Plan in a different resource group, Please assign `Website Contributor` role for Resource Group with Web App and `Web Plan Contributor` role for Resource Group with Service Plan.
+If the App Service Plan associated with the App Service exists in a separate resource group, you should assign a `Website Contributor` to the resource group where the App Service exists, and a `Web Plan Contributor` to the resource group where the App Service Plan exists.
 
 ## Usage
 
-### Adding new certificate
+### Issuing a new certificate
 
-Go to `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate`. Since the Web UI is displayed, if you select the target App Service and domain and execute it, a certificate will be issued.
+Access `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate` with a browser and authenticate with Azure Active Directory and the Web UI will be displayed. Select the target App Service and domain from that screen and run it, and after a few tens of seconds, the certificate will be issued.
 
 ![Add certificate](https://user-images.githubusercontent.com/1356444/49693421-b3dc1f00-fbb5-11e8-8ac1-37092a2be711.png)
 
-If nothing is displayed in the dropdown, the IAM setting is incorrect.
+If the `Access control (IAM)` setting is not correct, nothing will be shown in the drop-down list.
 
-### Adding wildcard certificate or Linux Container support
+### Issuing a wildcard certificate or a certificate for Linux
 
-If they need a Wildcard certificate, additional assign `DNS Zone Contributor` role to Azure DNS or Resource group.
+Because Azure DNS is required to issue wildcard certificates or certificates for Linux, assign the role of `DNS Zone Contributor` in the resource group containing the target DNS zone.
 
 ![IAM settings](https://user-images.githubusercontent.com/1356444/44642883-3840d280-aa09-11e8-9346-faa26f9675af.png)
 
-Certificates for "App Service on Linux" and "Web App for Container" is required Azure DNS.
+To issue certificates for "App Service on Linux" and "Web App for Container", Azure DNS is always required.
 
-### Renew certificates
+### Renewing certificates
 
-This function will check the expiration date once a day for the certificate issuer is `Let's Encrypt Authority X3` or `Let's Encrypt Authority X4`.
+Once every few days, the application performs an expiration check on the certificate of the issuer of `Let's Encrypt Authority X3` or `Let's Encrypt Authority X4`.
 
-The default time is UTC 00:00, so if necessary they can set any time zone with `WEBSITE_TIME_ZONE`.
+The default check timing is 00:00 UTC. If you need to change the time zone, use `WEBSITE_TIME_ZONE` to set the time zone.
 
-### Deploy new version
+### Deploying a new version
 
-This function use `Run From Package`. To deploy the latest version, just restart Azure Functions.
+The application is automatically updated so that you are always up to date with the latest version. If you explicitly need to deploy the latest version, restart the Azure Function.
 
 ## Troubleshooting
 
-**Causes Azure REST API error at GetSite or Dns01Precondition**
+**Causes Azure REST API error at GetSite or Dns01Precondition** error occurs
 
-Make sure that the required role is assign for the resource group. Azure IAM may take up to 30 minutes to be reflected.
+The role assignment to the target resource group may be incorrect or not yet reflected, and it may take up to 30 minutes for the IAM settings to take effect.
+
+**CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct** error occurs
+
+In order for the certificate to be created, the Acmebot needs to create a TXT DNS record for `_acme-challenge` in Azure DNS. This error occurs when the TXT record isn't being served. One cause of this may be that the nameservers for your domain may be pointing to the domain registrar, rather than Azure DNS. Make sure that you have properly delegated the domain to Azure DNS: [Host your domain in Azure DNS](https://docs.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
+
+**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code** error occurs
+
+It seems like URL rewrite error, so please try `inheritInChildApplications="false"` settings for web.config under wwwroot.
+
+https://www.hanselman.com/blog/ChangingASPNETWebconfigInheritanceWhenMixingVersionsOfChildApplications.aspx
 
 ## Thanks
 
