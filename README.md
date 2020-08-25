@@ -42,7 +42,7 @@ The Key Vault version can be used with services that support Key Vault certifica
 - Azure Web Apps and Azure Functions (Windows)
 - Azure Web Apps (Linux) / Web App for Containers (Windows and Linux, requires Azure DNS)
 - Azure App Service Environment (Windows and Linux)
-- Issuing a certificate to the deproyslot
+- Issuing a certificate to the Deployment Slot
 - Issuing Certificates for Zone Apex Domains
 - Issuing certificates with SANs (subject alternative names) (one certificate for multiple domains)
 - Wildcard certificate (requires Azure DNS)
