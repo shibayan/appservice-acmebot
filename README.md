@@ -123,7 +123,7 @@ To issue certificates for "App Service on Linux" and "Web App for Container", Az
 
 ### Renewing certificates
 
-Once every few days, the application performs an expiration check on the certificate of the issuer of `Let's Encrypt Authority X3` or `Let's Encrypt Authority X4`.
+All existing ACME certificates are automatically renewed 30 days before their expiration.
 
 The default check timing is 00:00 UTC. If you need to change the time zone, use `WEBSITE_TIME_ZONE` to set the time zone.
 
