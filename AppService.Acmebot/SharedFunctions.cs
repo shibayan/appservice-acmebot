@@ -114,7 +114,15 @@ namespace AppService.Acmebot
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            return await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
+            var certificate = await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
+
+            if (useDns01Auth)
+            {
+                // 作成した DNS レコードを削除
+                await activity.CleanupDnsChallenge(challengeResults);
+            }
+
+            return certificate;
         }
 
         [FunctionName(nameof(GetResourceGroups))]
@@ -493,6 +501,30 @@ namespace AppService.Acmebot
             var resourceGroup = ExtractResourceGroup(certificate.Id);
 
             return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
+        }
+
+        [FunctionName(nameof(CleanupDnsChallenge))]
+        public async Task CleanupDnsChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
+        {
+            // Azure DNS zone の一覧を取得する
+            var zones = await _dnsManagementClient.Zones.ListAllAsync();
+
+            // DNS-01 の検証レコード名毎に Azure DNS から TXT レコードを削除
+            foreach (var lookup in challengeResults.ToLookup(x => x.DnsRecordName))
+            {
+                var dnsRecordName = lookup.Key;
+
+                var zone = zones.Where(x => dnsRecordName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase))
+                                .OrderByDescending(x => x.Name.Length)
+                                .First();
+
+                var resourceGroup = ExtractResourceGroup(zone.Id);
+
+                // Challenge の詳細から Azure DNS 向けにレコード名を作成
+                var acmeDnsRecordName = dnsRecordName.Replace($".{zone.Name}", "", StringComparison.OrdinalIgnoreCase);
+
+                await _dnsManagementClient.RecordSets.DeleteAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
+            }
         }
 
         [FunctionName(nameof(SendCompletedEvent))]

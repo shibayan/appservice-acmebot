@@ -56,6 +56,8 @@ namespace AppService.Acmebot.Contracts
 
         Task DeleteCertificate(Certificate certificate);
 
+        Task CleanupDnsChallenge(IList<AcmeChallengeResult> challengeResults);
+
         Task SendCompletedEvent((Site, DateTime?, string[]) input);
     }
 }
