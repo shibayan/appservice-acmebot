@@ -199,8 +199,12 @@ namespace AppService.Acmebot
 
             var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
-            // Answer 用ファイルを返すための Web.config を作成
-            await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+            // 特殊なファイルが存在する場合は web.config の作成を行わない
+            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+            {
+                // Answer 用ファイルを返すための Web.config を作成
+                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+            }
 
             // .well-known を仮想アプリケーションとして追加
             config.VirtualApplications.Add(new VirtualApplication
