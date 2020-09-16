@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -18,6 +19,17 @@ namespace AppService.Acmebot.Internal
         private readonly HttpClient _httpClient;
         private readonly string _scmUrl;
         private readonly string _basicAuth;
+
+        public async Task<bool> ExistsFileAsync(string filePath)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Head, $"https://{_scmUrl}/api/vfs/site/{filePath}");
+
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
+
+            var response = await _httpClient.SendAsync(request);
+
+            return response.StatusCode == HttpStatusCode.OK;
+        }
 
         public Task WriteFileAsync(string filePath, string content)
         {

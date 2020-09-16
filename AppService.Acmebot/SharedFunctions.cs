@@ -189,21 +189,32 @@ namespace AppService.Acmebot
             // 既に .well-known が仮想アプリケーションとして追加されているか確認
             var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-            if (virtualApplication == null)
+            if (virtualApplication != null)
             {
-                // .well-known を仮想アプリケーションとして追加
-                config.VirtualApplications.Add(new VirtualApplication
-                {
-                    VirtualPath = "/.well-known",
-                    PhysicalPath = "site\\.well-known",
-                    PreloadEnabled = false
-                });
-
-                await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
-
-                // Web App を明示的に再起動する
-                await _webSiteManagementClient.WebApps.RestartAsync(site);
+                return;
             }
+
+            // 発行プロファイルを取得
+            var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
+
+            var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+
+            // 特殊なファイルが存在する場合は web.config の作成を行わない
+            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+            {
+                // Answer 用ファイルを返すための Web.config を作成
+                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+            }
+
+            // .well-known を仮想アプリケーションとして追加
+            config.VirtualApplications.Add(new VirtualApplication
+            {
+                VirtualPath = "/.well-known",
+                PhysicalPath = "site\\.well-known",
+                PreloadEnabled = false
+            });
+
+            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
         }
 
         [FunctionName(nameof(Http01Authorization))]
@@ -244,9 +255,6 @@ namespace AppService.Acmebot
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
             var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
-
-            // Answer 用ファイルを返すための Web.config を作成
-            await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
 
             // Kudu API を使い、Answer 用のファイルを作成
             foreach (var challengeResult in challengeResults)
@@ -483,36 +491,6 @@ namespace AppService.Acmebot
             return _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
         }
 
-        [FunctionName(nameof(CleanupVirtualApplication))]
-        public async Task CleanupVirtualApplication([ActivityTrigger] Site site)
-        {
-            var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
-
-            // 既に .well-known が仮想アプリケーションとして追加されているか確認
-            var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known" && x.PhysicalPath == "site\\.well-known");
-
-            if (virtualApplication == null)
-            {
-                return;
-            }
-
-            // 作成した仮想アプリケーションを削除
-            config.VirtualApplications.Remove(virtualApplication);
-
-            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
-
-            // Web App を明示的に再起動する
-            await _webSiteManagementClient.WebApps.RestartAsync(site);
-        }
-
-        [FunctionName(nameof(DeleteCertificate))]
-        public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
-        {
-            var resourceGroup = ExtractResourceGroup(certificate.Id);
-
-            return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
-        }
-
         [FunctionName(nameof(CleanupDnsChallenge))]
         public async Task CleanupDnsChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
         {
@@ -535,6 +513,33 @@ namespace AppService.Acmebot
 
                 await _dnsManagementClient.RecordSets.DeleteAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT);
             }
+        }
+
+        [FunctionName(nameof(CleanupVirtualApplication))]
+        public async Task CleanupVirtualApplication([ActivityTrigger] Site site)
+        {
+            var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
+
+            // 既に .well-known が仮想アプリケーションとして追加されているか確認
+            var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+
+            if (virtualApplication == null)
+            {
+                return;
+            }
+
+            // 作成した仮想アプリケーションを削除
+            config.VirtualApplications.Remove(virtualApplication);
+
+            await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+        }
+
+        [FunctionName(nameof(DeleteCertificate))]
+        public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
+        {
+            var resourceGroup = ExtractResourceGroup(certificate.Id);
+
+            return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
         }
 
         [FunctionName(nameof(SendCompletedEvent))]

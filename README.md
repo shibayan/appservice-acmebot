@@ -131,6 +131,11 @@ The default check timing is 00:00 UTC. If you need to change the time zone, use 
 
 The application is automatically updated so that you are always up to date with the latest version. If you explicitly need to deploy the latest version, restart the Azure Function.
 
+
+### The case where you want to use your own web.config
+
+You can prevent Acmebot from creating `web.config` by creating your own `web.config` and `configured` files in the `site/.well-known` directory.
+
 ## Troubleshooting
 
 **Causes Azure REST API error at GetSite or Dns01Precondition** error occurs
