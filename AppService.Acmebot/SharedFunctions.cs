@@ -27,6 +27,7 @@ using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot
@@ -36,7 +37,8 @@ namespace AppService.Acmebot
         public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options)
+                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options,
+                               ILogger<SharedFunctions> logger)
         {
             _httpClientFactory = httpClientFactory;
             _environment = environment;
@@ -48,6 +50,7 @@ namespace AppService.Acmebot
             _resourceManagementClient = resourceManagementClient;
             _webhookClient = webhookClient;
             _options = options.Value;
+            _logger = logger;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
@@ -60,6 +63,7 @@ namespace AppService.Acmebot
         private readonly ResourceManagementClient _resourceManagementClient;
         private readonly WebhookClient _webhookClient;
         private readonly AcmebotOptions _options;
+        private readonly ILogger<SharedFunctions> _logger;
 
         private const string IssuerName = "Acmebot";
 
@@ -109,7 +113,7 @@ namespace AppService.Acmebot
             await activity.AnswerChallenges(challengeResults);
 
             // Order のステータスが ready になるまで 60 秒待機
-            await activity.CheckIsReady(orderDetails);
+            await activity.CheckIsReady((orderDetails, challengeResults));
 
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
@@ -404,9 +408,23 @@ namespace AppService.Acmebot
             }
         }
 
-        [FunctionName(nameof(CheckIsReady))]
-        public async Task CheckIsReady([ActivityTrigger] OrderDetails orderDetails)
+        [FunctionName(nameof(AnswerChallenges))]
+        public async Task AnswerChallenges([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
         {
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            // Answer の準備が出来たことを通知
+            foreach (var challenge in challengeResults)
+            {
+                await acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
+            }
+        }
+
+        [FunctionName(nameof(CheckIsReady))]
+        public async Task CheckIsReady([ActivityTrigger] (OrderDetails, IList<AcmeChallengeResult>) input)
+        {
+            var (orderDetails, challengeResults) = input;
+
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
             orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
@@ -419,20 +437,24 @@ namespace AppService.Acmebot
 
             if (orderDetails.Payload.Status == "invalid")
             {
+                object lastError = null;
+
+                foreach (var challengeResult in challengeResults)
+                {
+                    var challenge = await acmeProtocolClient.GetChallengeDetailsAsync(challengeResult.Url);
+
+                    if (challenge.Status != "invalid")
+                    {
+                        continue;
+                    }
+
+                    _logger.LogError($"ACME domain validation error: {challenge.Error}");
+
+                    lastError = challenge.Error;
+                }
+
                 // invalid の場合は最初から実行が必要なので失敗させる
-                throw new InvalidOperationException($"ACME domain validation is invalid. Required retry at first. Type: \"{orderDetails.Payload.Error?.Type}\", Detail: \"{orderDetails.Payload.Error?.Detail}\"");
-            }
-        }
-
-        [FunctionName(nameof(AnswerChallenges))]
-        public async Task AnswerChallenges([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
-        {
-            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
-
-            // Answer の準備が出来たことを通知
-            foreach (var challenge in challengeResults)
-            {
-                await acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
+                throw new InvalidOperationException($"ACME domain validation is invalid. Required retry at first.\nLastError = {lastError}");
             }
         }
 
