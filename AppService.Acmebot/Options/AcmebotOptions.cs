@@ -18,5 +18,7 @@ namespace AppService.Acmebot.Options
 
         [Required]
         public string Environment { get; set; } = "AzureCloud";
+
+        public string PreferredChain { get; set; }
     }
 }

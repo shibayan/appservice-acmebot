@@ -473,12 +473,7 @@ namespace AppService.Acmebot
             var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
             // 証明書をバイト配列としてダウンロード
-            var certificateData = await acmeProtocolClient.GetOrderCertificateAsync(finalize);
-
-            // X509Certificate2Collection を作成
-            var x509Certificates = new X509Certificate2Collection();
-
-            x509Certificates.ImportFromPem(certificateData);
+            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(finalize, _options.PreferredChain);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
             x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
