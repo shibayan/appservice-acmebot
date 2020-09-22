@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 
 using ACMESharp.Authorizations;
@@ -97,6 +98,9 @@ namespace AppService.Acmebot
             if (useDns01Auth)
             {
                 challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
+
+                // DNS レコードの変更が伝搬するまで 10 秒遅延させる
+                await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), CancellationToken.None);
 
                 // Azure DNS で正しくレコードが引けるか確認
                 await activity.CheckDnsChallenge(challengeResults);
