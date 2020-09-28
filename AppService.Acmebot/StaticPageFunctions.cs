@@ -1,4 +1,6 @@
-﻿using Azure.WebJobs.Extensions.HttpApi;
+﻿using System;
+
+using Azure.WebJobs.Extensions.HttpApi;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,12 +22,14 @@ namespace AppService.Acmebot
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "static-page/add-certificate")] HttpRequest req,
             ILogger log)
         {
-            if (!User.Identity.IsAuthenticated)
+            if (!IsEasyAuthEnabled || !User.Identity.IsAuthenticated)
             {
                 return Forbid();
             }
 
             return File("static/add-certificate.html");
         }
+
+        private static bool IsEasyAuthEnabled => bool.TryParse(Environment.GetEnvironmentVariable("WEBSITE_AUTH_ENABLED"), out var result) && result;
     }
 }
