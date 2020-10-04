@@ -16,14 +16,15 @@ using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 using AppService.Acmebot.Options;
 
+using Azure.ResourceManager.Dns;
+using Azure.ResourceManager.Dns.Models;
+using Azure.ResourceManager.Resources;
+using Azure.ResourceManager.Resources.Models;
+
 using DnsClient;
 
 using DurableTask.TypedProxy;
 
-using Microsoft.Azure.Management.Dns;
-using Microsoft.Azure.Management.Dns.Models;
-using Microsoft.Azure.Management.ResourceManager;
-using Microsoft.Azure.Management.ResourceManager.Models;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
@@ -38,7 +39,7 @@ namespace AppService.Acmebot
         public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
                                IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
                                WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options,
+                               ResourcesManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options,
                                ILogger<SharedFunctions> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -61,7 +62,7 @@ namespace AppService.Acmebot
         private readonly IKuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
-        private readonly ResourceManagementClient _resourceManagementClient;
+        private readonly ResourcesManagementClient _resourceManagementClient;
         private readonly WebhookClient _webhookClient;
         private readonly AcmebotOptions _options;
         private readonly ILogger<SharedFunctions> _logger;
@@ -368,7 +369,16 @@ namespace AppService.Acmebot
 
                 // TXT レコードに TTL と値をセットする
                 recordSet.TTL = 60;
-                recordSet.TxtRecords = lookup.Select(x => new TxtRecord(new[] { x.DnsRecordValue })).ToArray();
+
+                foreach (var value in lookup)
+                {
+                    var txtRecord = new TxtRecord
+                    {
+                        Value = { value.DnsRecordValue }
+                    };
+
+                    recordSet.TxtRecords.Add(txtRecord);
+                }
 
                 await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
             }

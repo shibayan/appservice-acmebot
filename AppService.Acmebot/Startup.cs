@@ -5,11 +5,13 @@ using AppService.Acmebot;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Options;
 
+using Azure.Identity;
+using Azure.ResourceManager.Dns;
+using Azure.ResourceManager.Resources;
+
 using DnsClient;
 
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
-using Microsoft.Azure.Management.Dns;
-using Microsoft.Azure.Management.ResourceManager;
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Configuration;
@@ -59,7 +61,7 @@ namespace AppService.Acmebot
                 UseRandomNameServer = true
             }));
 
-            builder.Services.AddSingleton<ITokenProvider, AppAuthenticationTokenProvider>();
+            builder.Services.AddSingleton<ITokenProvider, ManagedIdentityTokenProvider>();
 
             builder.Services.AddSingleton<IAzureEnvironment>(provider =>
             {
@@ -73,7 +75,7 @@ namespace AppService.Acmebot
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
                 var environment = provider.GetRequiredService<IAzureEnvironment>();
 
-                return new WebSiteManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
+                return new WebSiteManagementClient(environment.ResourceManager, new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
                     SubscriptionId = options.Value.SubscriptionId
                 };
@@ -84,10 +86,12 @@ namespace AppService.Acmebot
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
                 var environment = provider.GetRequiredService<IAzureEnvironment>();
 
-                return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
+                var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
                 {
-                    SubscriptionId = options.Value.SubscriptionId
-                };
+                    AuthorityHost = environment.ActiveDirectory
+                });
+
+                return new DnsManagementClient(options.Value.SubscriptionId, environment.ResourceManager, credential);
             });
 
             builder.Services.AddSingleton(provider =>
@@ -95,10 +99,12 @@ namespace AppService.Acmebot
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
                 var environment = provider.GetRequiredService<IAzureEnvironment>();
 
-                return new ResourceManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
+                var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
                 {
-                    SubscriptionId = options.Value.SubscriptionId
-                };
+                    AuthorityHost = environment.ActiveDirectory
+                });
+
+                return new ResourcesManagementClient(environment.ResourceManager, options.Value.SubscriptionId, credential);
             });
 
             builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();

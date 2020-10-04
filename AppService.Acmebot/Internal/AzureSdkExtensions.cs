@@ -2,10 +2,11 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Azure.Management.Dns;
-using Microsoft.Azure.Management.Dns.Models;
-using Microsoft.Azure.Management.ResourceManager;
-using Microsoft.Azure.Management.ResourceManager.Models;
+using Azure.ResourceManager.Dns;
+using Azure.ResourceManager.Dns.Models;
+using Azure.ResourceManager.Resources;
+using Azure.ResourceManager.Resources.Models;
+
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
 
@@ -61,31 +62,15 @@ namespace AppService.Acmebot.Internal
             return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);
         }
 
-        public static Task RestartAsync(this IWebAppsOperations operations, Site site, CancellationToken cancellationToken = default(CancellationToken))
-        {
-            if (site.IsSlot())
-            {
-                var (appName, slotName) = site.SplitName();
-
-                return operations.RestartSlotAsync(site.ResourceGroup, appName, slotName, true, cancellationToken: cancellationToken);
-            }
-
-            return operations.RestartAsync(site.ResourceGroup, site.Name, true, cancellationToken: cancellationToken);
-        }
-
-        public static async Task<IList<ResourceGroup>> ListAllAsync(this IResourceGroupsOperations operations)
+        public static async Task<IList<ResourceGroup>> ListAllAsync(this ResourceGroupsOperations operations)
         {
             var resourceGroups = new List<ResourceGroup>();
 
-            var list = await operations.ListAsync();
+            var result = operations.ListAsync();
 
-            resourceGroups.AddRange(list);
-
-            while (list.NextPageLink != null)
+            await foreach (var resourceGroup in result)
             {
-                list = await operations.ListNextAsync(list.NextPageLink);
-
-                resourceGroups.AddRange(list);
+                resourceGroups.Add(resourceGroup);
             }
 
             return resourceGroups;
@@ -127,25 +112,21 @@ namespace AppService.Acmebot.Internal
             return certificates;
         }
 
-        public static async Task<IList<Zone>> ListAllAsync(this IZonesOperations operations)
+        public static async Task<IList<Zone>> ListAllAsync(this ZonesOperations operations)
         {
             var zones = new List<Zone>();
 
-            var list = await operations.ListAsync();
+            var result = operations.ListAsync();
 
-            zones.AddRange(list);
-
-            while (list.NextPageLink != null)
+            await foreach (var zone in result)
             {
-                list = await operations.ListNextAsync(list.NextPageLink);
-
-                zones.AddRange(list);
+                zones.Add(zone);
             }
 
             return zones;
         }
 
-        public static async Task<RecordSet> GetOrDefaultAsync(this IRecordSetsOperations operations, string resourceGroupName, string zoneName, string relativeRecordSetName, RecordType recordType)
+        public static async Task<RecordSet> GetOrDefaultAsync(this RecordSetsOperations operations, string resourceGroupName, string zoneName, string relativeRecordSetName, RecordType recordType)
         {
             try
             {
