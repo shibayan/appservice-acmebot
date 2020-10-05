@@ -372,12 +372,7 @@ namespace AppService.Acmebot
 
                 foreach (var value in lookup)
                 {
-                    var txtRecord = new TxtRecord
-                    {
-                        Value = { value.DnsRecordValue }
-                    };
-
-                    recordSet.TxtRecords.Add(txtRecord);
+                    recordSet.TxtRecords.Add(new TxtRecord { Value = { value.DnsRecordValue } });
                 }
 
                 await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
