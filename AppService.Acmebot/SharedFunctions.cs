@@ -91,44 +91,48 @@ namespace AppService.Acmebot
             // 新しく ACME Order を作成する
             var orderDetails = await activity.Order(dnsNames);
 
-            // 複数の Authorizations を処理する
-            IList<AcmeChallengeResult> challengeResults;
-
-            // ACME Challenge を実行
-            if (useDns01Auth)
+            // 既に確認済みの場合は Challenge をスキップする
+            if (orderDetails.Payload.Status != "ready")
             {
-                challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
+                // 複数の Authorizations を処理する
+                IList<AcmeChallengeResult> challengeResults;
 
-                // DNS レコードの変更が伝搬するまで 10 秒遅延させる
-                await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), CancellationToken.None);
+                // ACME Challenge を実行
+                if (useDns01Auth)
+                {
+                    challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
 
-                // Azure DNS で正しくレコードが引けるか確認
-                await activity.CheckDnsChallenge(challengeResults);
+                    // DNS レコードの変更が伝搬するまで 10 秒遅延させる
+                    await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), CancellationToken.None);
+
+                    // Azure DNS で正しくレコードが引けるか確認
+                    await activity.CheckDnsChallenge(challengeResults);
+                }
+                else
+                {
+                    challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
+
+                    // HTTP で正しくアクセスできるか確認
+                    await activity.CheckHttpChallenge(challengeResults);
+                }
+
+                // ACME Answer を実行
+                await activity.AnswerChallenges(challengeResults);
+
+                // Order のステータスが ready になるまで 60 秒待機
+                await activity.CheckIsReady((orderDetails, challengeResults));
+
+                if (useDns01Auth)
+                {
+                    // 作成した DNS レコードを削除
+                    await activity.CleanupDnsChallenge(challengeResults);
+                }
             }
-            else
-            {
-                challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
-
-                // HTTP で正しくアクセスできるか確認
-                await activity.CheckHttpChallenge(challengeResults);
-            }
-
-            // ACME Answer を実行
-            await activity.AnswerChallenges(challengeResults);
-
-            // Order のステータスが ready になるまで 60 秒待機
-            await activity.CheckIsReady((orderDetails, challengeResults));
 
             // Order の最終処理を実行し PFX を作成
             var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
             var certificate = await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
-
-            if (useDns01Auth)
-            {
-                // 作成した DNS レコードを削除
-                await activity.CleanupDnsChallenge(challengeResults);
-            }
 
             return certificate;
         }
@@ -171,7 +175,7 @@ namespace AppService.Acmebot
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
             return certificates.Where(x => x.TagsFilter(IssuerName, _options.Endpoint))
-                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays < 30)
+                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays <= 30)
                                .ToArray();
         }
 
@@ -433,10 +437,10 @@ namespace AppService.Acmebot
 
             orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
-            if (orderDetails.Payload.Status == "pending")
+            if (orderDetails.Payload.Status == "pending" || orderDetails.Payload.Status == "processing")
             {
-                // pending の場合はリトライする
-                throw new RetriableActivityException("ACME domain validation is pending.");
+                // pending か processing の場合はリトライする
+                throw new RetriableActivityException($"ACME domain validation is {orderDetails.Payload.Status}. It will retry automatically.");
             }
 
             if (orderDetails.Payload.Status == "invalid")
