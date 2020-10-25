@@ -31,9 +31,16 @@ namespace AppService.Acmebot
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 
-            var resourceGroups = await activity.GetResourceGroups();
+            try
+            {
+                var resourceGroups = await activity.GetResourceGroups();
 
-            return resourceGroups.Select(x => new ResourceGroupInformation { Name = x.Name }).ToArray();
+                return resourceGroups.Select(x => new ResourceGroupInformation { Name = x.Name }).ToArray();
+            }
+            catch
+            {
+                return Array.Empty<ResourceGroupInformation>();
+            }
         }
 
         [FunctionName(nameof(GetResourceGroupsInformation_HttpStart))]
