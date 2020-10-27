@@ -25,7 +25,7 @@ namespace AppService.Acmebot.Models
         public string Name { get; set; }
 
         [JsonProperty("dnsNames")]
-        public IList<DnsNameInformation> DnsNames { get; set; }
+        public IReadOnlyList<DnsNameInformation> DnsNames { get; set; }
     }
 
     public class DnsNameInformation

@@ -15,38 +15,38 @@ namespace AppService.Acmebot.Contracts
 {
     public interface ISharedFunctions
     {
-        Task<IList<ResourceGroup>> GetResourceGroups(object input = null);
+        Task<IReadOnlyList<ResourceGroup>> GetResourceGroups(object input = null);
 
         Task<Site> GetSite((string, string, string) input);
 
-        Task<IList<Site>> GetSites((string, bool) input);
+        Task<IReadOnlyList<Site>> GetSites((string, bool) input);
 
-        Task<IList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
+        Task<IReadOnlyList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
 
-        Task<IList<Certificate>> GetAllCertificates(object input = null);
+        Task<IReadOnlyList<Certificate>> GetAllCertificates(object input = null);
 
-        Task<OrderDetails> Order(IList<string> dnsNames);
+        Task<OrderDetails> Order(IReadOnlyList<string> dnsNames);
 
         Task Http01Precondition(Site site);
 
-        Task<IList<AcmeChallengeResult>> Http01Authorization((Site, string[]) input);
+        Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization((Site, IReadOnlyList<string>) input);
 
         [RetryOptions("00:00:10", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckHttpChallenge(IList<AcmeChallengeResult> challengeResults);
+        Task CheckHttpChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        Task Dns01Precondition(IList<string> dnsNames);
+        Task Dns01Precondition(IReadOnlyList<string> dnsNames);
 
-        Task<IList<AcmeChallengeResult>> Dns01Authorization(string[] authorizationUrls);
+        Task<IReadOnlyList<AcmeChallengeResult>> Dns01Authorization(IReadOnlyList<string> authorizationUrls);
 
         [RetryOptions("00:00:10", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckDnsChallenge(IList<AcmeChallengeResult> challengeResults);
+        Task CheckDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        Task AnswerChallenges(IList<AcmeChallengeResult> challengeResults);
+        Task AnswerChallenges(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
         [RetryOptions("00:00:05", 12, HandlerType = typeof(RetryStrategy), HandlerMethodName = nameof(RetryStrategy.RetriableException))]
-        Task CheckIsReady((OrderDetails, IList<AcmeChallengeResult>) input);
+        Task CheckIsReady((OrderDetails, IReadOnlyList<AcmeChallengeResult>) input);
 
-        Task<(string, byte[])> FinalizeOrder((IList<string>, OrderDetails) input);
+        Task<(string, byte[])> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
 
         Task<Certificate> UploadCertificate((Site, string, byte[], bool) input);
 
@@ -56,8 +56,8 @@ namespace AppService.Acmebot.Contracts
 
         Task DeleteCertificate(Certificate certificate);
 
-        Task CleanupDnsChallenge(IList<AcmeChallengeResult> challengeResults);
+        Task CleanupDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        Task SendCompletedEvent((Site, DateTime?, string[]) input);
+        Task SendCompletedEvent((Site, DateTime?, IReadOnlyList<string>) input);
     }
 }

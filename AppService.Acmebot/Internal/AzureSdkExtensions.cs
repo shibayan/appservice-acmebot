@@ -73,7 +73,7 @@ namespace AppService.Acmebot.Internal
             return operations.RestartAsync(site.ResourceGroup, site.Name, true, cancellationToken: cancellationToken);
         }
 
-        public static async Task<IList<ResourceGroup>> ListAllAsync(this IResourceGroupsOperations operations)
+        public static async Task<IReadOnlyList<ResourceGroup>> ListAllAsync(this IResourceGroupsOperations operations)
         {
             var resourceGroups = new List<ResourceGroup>();
 
@@ -91,7 +91,7 @@ namespace AppService.Acmebot.Internal
             return resourceGroups;
         }
 
-        public static async Task<IList<Site>> ListByResourceGroupAllAsync(this IWebAppsOperations operations, string resourceGroupName)
+        public static async Task<IReadOnlyList<Site>> ListByResourceGroupAllAsync(this IWebAppsOperations operations, string resourceGroupName)
         {
             var sites = new List<Site>();
 
@@ -109,7 +109,7 @@ namespace AppService.Acmebot.Internal
             return sites;
         }
 
-        public static async Task<IList<Certificate>> ListAllAsync(this ICertificatesOperations operations)
+        public static async Task<IReadOnlyList<Certificate>> ListAllAsync(this ICertificatesOperations operations)
         {
             var certificates = new List<Certificate>();
 
@@ -127,7 +127,7 @@ namespace AppService.Acmebot.Internal
             return certificates;
         }
 
-        public static async Task<IList<Zone>> ListAllAsync(this IZonesOperations operations)
+        public static async Task<IReadOnlyList<Zone>> ListAllAsync(this IZonesOperations operations)
         {
             var zones = new List<Zone>();
 

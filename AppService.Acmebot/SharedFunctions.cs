@@ -95,7 +95,7 @@ namespace AppService.Acmebot
             if (orderDetails.Payload.Status != "ready")
             {
                 // 複数の Authorizations を処理する
-                IList<AcmeChallengeResult> challengeResults;
+                IReadOnlyList<AcmeChallengeResult> challengeResults;
 
                 // ACME Challenge を実行
                 if (useDns01Auth)
@@ -138,7 +138,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetResourceGroups))]
-        public Task<IList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+        public Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
         {
             return _resourceManagementClient.ResourceGroups.ListAllAsync();
         }
@@ -157,7 +157,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetSites))]
-        public async Task<IList<Site>> GetSites([ActivityTrigger] (string, bool) input)
+        public async Task<IReadOnlyList<Site>> GetSites([ActivityTrigger] (string, bool) input)
         {
             var (resourceGroupName, isRunningOnly) = input;
 
@@ -170,7 +170,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetExpiringCertificates))]
-        public async Task<IList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
+        public async Task<IReadOnlyList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
         {
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
@@ -180,13 +180,13 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetAllCertificates))]
-        public Task<IList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
+        public Task<IReadOnlyList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
         {
             return _webSiteManagementClient.Certificates.ListAllAsync();
         }
 
         [FunctionName(nameof(Order))]
-        public async Task<OrderDetails> Order([ActivityTrigger] IList<string> dnsNames)
+        public async Task<OrderDetails> Order([ActivityTrigger] IReadOnlyList<string> dnsNames)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -230,7 +230,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Http01Authorization))]
-        public async Task<IList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (Site, string[]) input)
+        public async Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (Site, IReadOnlyList<string>) input)
         {
             var (site, authorizationUrls) = input;
 
@@ -278,7 +278,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CheckHttpChallenge))]
-        public async Task CheckHttpChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
+        public async Task CheckHttpChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
         {
             foreach (var challengeResult in challengeResults)
             {
@@ -305,7 +305,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Dns01Precondition))]
-        public async Task Dns01Precondition([ActivityTrigger] IList<string> dnsNames)
+        public async Task Dns01Precondition([ActivityTrigger] IReadOnlyList<string> dnsNames)
         {
             // Azure DNS が存在するか確認
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
@@ -320,7 +320,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(Dns01Authorization))]
-        public async Task<IList<AcmeChallengeResult>> Dns01Authorization([ActivityTrigger] string[] authorizationUrls)
+        public async Task<IReadOnlyList<AcmeChallengeResult>> Dns01Authorization([ActivityTrigger] IReadOnlyList<string> authorizationUrls)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -381,7 +381,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CheckDnsChallenge))]
-        public async Task CheckDnsChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
+        public async Task CheckDnsChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
         {
             foreach (var challengeResult in challengeResults)
             {
@@ -417,7 +417,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(AnswerChallenges))]
-        public async Task AnswerChallenges([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
+        public async Task AnswerChallenges([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -429,7 +429,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CheckIsReady))]
-        public async Task CheckIsReady([ActivityTrigger] (OrderDetails, IList<AcmeChallengeResult>) input)
+        public async Task CheckIsReady([ActivityTrigger] (OrderDetails, IReadOnlyList<AcmeChallengeResult>) input)
         {
             var (orderDetails, challengeResults) = input;
 
@@ -467,7 +467,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(FinalizeOrder))]
-        public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IList<string>, OrderDetails) input)
+        public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
         {
             var (dnsNames, orderDetails) = input;
 
@@ -517,7 +517,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(CleanupDnsChallenge))]
-        public async Task CleanupDnsChallenge([ActivityTrigger] IList<AcmeChallengeResult> challengeResults)
+        public async Task CleanupDnsChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
         {
             // Azure DNS zone の一覧を取得する
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
@@ -568,7 +568,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(SendCompletedEvent))]
-        public Task SendCompletedEvent([ActivityTrigger] (Site, DateTime?, string[]) input)
+        public Task SendCompletedEvent([ActivityTrigger] (Site, DateTime?, IReadOnlyList<string>) input)
         {
             var (site, expirationDate, dnsNames) = input;
             var (appName, slotName) = site.SplitName();
