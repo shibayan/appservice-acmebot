@@ -27,7 +27,7 @@ namespace AppService.Acmebot
         }
 
         [FunctionName(nameof(GetResourceGroupsInformation))]
-        public async Task<IList<ResourceGroupInformation>> GetResourceGroupsInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public async Task<IReadOnlyList<ResourceGroupInformation>> GetResourceGroupsInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var activity = context.CreateActivityProxy<ISharedFunctions>();
 

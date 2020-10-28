@@ -31,7 +31,7 @@ namespace AppService.Acmebot
         private readonly IAzureEnvironment _environment;
 
         [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public async Task<IReadOnlyList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var resourceGroup = context.GetInput<string>();
 

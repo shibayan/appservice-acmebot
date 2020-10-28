@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -19,7 +20,7 @@ namespace AppService.Acmebot.Internal
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AcmebotOptions _options;
 
-        public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, string[] dnsNames)
+        public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, IEnumerable<string> dnsNames)
         {
             if (string.IsNullOrEmpty(_options.Webhook))
             {
