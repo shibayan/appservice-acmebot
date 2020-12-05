@@ -35,7 +35,7 @@ namespace AppService.Acmebot.Functions
         public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
                               AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                              ResourcesManagementClient resourceManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
+                              ResourcesManagementClient resourcesManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
                               ILogger<SharedActivity> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -45,7 +45,7 @@ namespace AppService.Acmebot.Functions
             _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
-            _resourceManagementClient = resourceManagementClient;
+            _resourcesManagementClient = resourcesManagementClient;
             _webhookInvoker = webhookInvoker;
             _options = options.Value;
             _logger = logger;
@@ -58,7 +58,7 @@ namespace AppService.Acmebot.Functions
         private readonly KuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
-        private readonly ResourcesManagementClient _resourceManagementClient;
+        private readonly ResourcesManagementClient _resourcesManagementClient;
         private readonly WebhookInvoker _webhookInvoker;
         private readonly AcmebotOptions _options;
         private readonly ILogger<SharedActivity> _logger;
@@ -68,7 +68,7 @@ namespace AppService.Acmebot.Functions
         [FunctionName(nameof(GetResourceGroups))]
         public Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
         {
-            return _resourceManagementClient.ResourceGroups.ListAllAsync();
+            return _resourcesManagementClient.ResourceGroups.ListAllAsync();
         }
 
         [FunctionName(nameof(GetSite))]
