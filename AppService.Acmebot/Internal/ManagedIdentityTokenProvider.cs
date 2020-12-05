@@ -11,7 +11,7 @@ namespace AppService.Acmebot.Internal
 {
     internal class ManagedIdentityTokenProvider : ITokenProvider
     {
-        public ManagedIdentityTokenProvider(IAzureEnvironment environment)
+        public ManagedIdentityTokenProvider(AzureEnvironment environment)
         {
             _environment = environment;
 
@@ -21,7 +21,7 @@ namespace AppService.Acmebot.Internal
             });
         }
 
-        private readonly IAzureEnvironment _environment;
+        private readonly AzureEnvironment _environment;
         private readonly TokenCredential _tokenCredential;
 
         public async Task<AuthenticationHeaderValue> GetAuthenticationHeaderAsync(CancellationToken cancellationToken)

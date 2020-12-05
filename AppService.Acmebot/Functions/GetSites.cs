@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
@@ -18,26 +17,26 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class GetSitesFunctions : HttpFunctionBase
+    public class GetSites : HttpFunctionBase
     {
-        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor, IAzureEnvironment environment)
+        public GetSites(IHttpContextAccessor httpContextAccessor, AzureEnvironment environment)
             : base(httpContextAccessor)
         {
             _environment = environment;
         }
 
-        private readonly IAzureEnvironment _environment;
+        private readonly AzureEnvironment _environment;
 
-        [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IReadOnlyList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        [FunctionName(nameof(GetSites) + "_" + nameof(Orchestrator))]
+        public async Task<IReadOnlyList<SiteItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var resourceGroup = context.GetInput<string>();
 
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedActivity>();
 
-            var result = new List<SiteInformation>();
+            var result = new List<SiteItem>();
 
             var certificates = await activity.GetAllCertificates();
 
@@ -46,7 +45,7 @@ namespace AppService.Acmebot
 
             foreach (var site in sites.ToLookup(x => x.SplitName().appName))
             {
-                var siteInformation = new SiteInformation { Name = site.Key, Slots = new List<SlotInformation>() };
+                var siteInformation = new SiteItem { Name = site.Key, Slots = new List<SlotItem>() };
 
                 foreach (var slot in site)
                 {
@@ -55,10 +54,10 @@ namespace AppService.Acmebot
                     var hostNameSslStates = slot.HostNameSslStates
                                                 .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
 
-                    var slotInformation = new SlotInformation
+                    var slotInformation = new SlotItem
                     {
                         Name = slotName ?? "production",
-                        DnsNames = hostNameSslStates.Select(x => new DnsNameInformation
+                        DnsNames = hostNameSslStates.Select(x => new DnsNameItem
                         {
                             Name = x.Name,
                             Issuer = certificates.FirstOrDefault(xs => xs.Thumbprint == x.Thumbprint)?.Issuer ?? "None"
@@ -80,9 +79,9 @@ namespace AppService.Acmebot
             return result;
         }
 
-        [FunctionName(nameof(GetSitesInformation_HttpStart))]
-        public async Task<IActionResult> GetSitesInformation_HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites/{resourceGroup}")] HttpRequest req,
+        [FunctionName(nameof(GetSites) + "_" + nameof(HttpStart))]
+        public async Task<IActionResult> HttpStart(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sites/{resourceGroup}")] HttpRequest req,
             string resourceGroup,
             [DurableClient] IDurableClient starter,
             ILogger log)
@@ -93,7 +92,7 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null, resourceGroup);
+            var instanceId = await starter.StartNewAsync(nameof(GetSites) + "_" + nameof(Orchestrator), null, resourceGroup);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 

@@ -3,15 +3,7 @@ using System.Collections.Generic;
 
 namespace AppService.Acmebot.Internal
 {
-    public interface IAzureEnvironment
-    {
-        Uri ActiveDirectory { get; }
-        Uri ResourceManager { get; }
-        string AppService { get; }
-        string TrafficManager { get; }
-    }
-
-    internal class AzureEnvironment : IAzureEnvironment
+    public class AzureEnvironment
     {
         public Uri ActiveDirectory { get; private set; }
         public Uri ResourceManager { get; private set; }

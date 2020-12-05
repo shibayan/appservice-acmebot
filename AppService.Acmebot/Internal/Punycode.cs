@@ -10,10 +10,5 @@ namespace AppService.Acmebot.Internal
         {
             return _idnMapping.GetAscii(unicode);
         }
-
-        public static string Decode(string ascii)
-        {
-            return _idnMapping.GetUnicode(ascii);
-        }
     }
 }

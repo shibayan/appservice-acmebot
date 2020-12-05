@@ -3,6 +3,7 @@
 ![Build](https://github.com/shibayan/appservice-acmebot/workflows/Build/badge.svg)
 [![Release](https://img.shields.io/github/release/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/releases/latest)
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
+[![Terraform Registry](https://img.shields.io/badge/terraform-registry-5c4ee5.svg)](https://registry.terraform.io/modules/shibayan/appservice-acmebot/azurerm/latest)
 
 This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
 
