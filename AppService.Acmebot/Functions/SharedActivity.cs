@@ -4,21 +4,17 @@ using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
 using System.Threading.Tasks;
 
 using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
 
-using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 using AppService.Acmebot.Options;
 
 using DnsClient;
-
-using DurableTask.TypedProxy;
 
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.Dns.Models;
@@ -31,15 +27,15 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class SharedFunctions : ISharedFunctions
+    public class SharedActivity : ISharedActivity
     {
-        public SharedFunctions(IHttpClientFactory httpClientFactory, IAzureEnvironment environment, LookupClient lookupClient,
-                               IAcmeProtocolClientFactory acmeProtocolClientFactory, IKuduClientFactory kuduClientFactory,
-                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                               ResourceManagementClient resourceManagementClient, WebhookClient webhookClient, IOptions<AcmebotOptions> options,
-                               ILogger<SharedFunctions> logger)
+        public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
+                              AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
+                              WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
+                              ResourceManagementClient resourceManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
+                              ILogger<SharedActivity> logger)
         {
             _httpClientFactory = httpClientFactory;
             _environment = environment;
@@ -49,93 +45,24 @@ namespace AppService.Acmebot
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
             _resourceManagementClient = resourceManagementClient;
-            _webhookClient = webhookClient;
+            _webhookInvoker = webhookInvoker;
             _options = options.Value;
             _logger = logger;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IAzureEnvironment _environment;
+        private readonly AzureEnvironment _environment;
         private readonly LookupClient _lookupClient;
-        private readonly IAcmeProtocolClientFactory _acmeProtocolClientFactory;
-        private readonly IKuduClientFactory _kuduClientFactory;
+        private readonly AcmeProtocolClientFactory _acmeProtocolClientFactory;
+        private readonly KuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
         private readonly ResourceManagementClient _resourceManagementClient;
-        private readonly WebhookClient _webhookClient;
+        private readonly WebhookInvoker _webhookInvoker;
         private readonly AcmebotOptions _options;
-        private readonly ILogger<SharedFunctions> _logger;
+        private readonly ILogger<SharedActivity> _logger;
 
         private const string IssuerName = "Acmebot";
-
-        [FunctionName(nameof(IssueCertificate))]
-        public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
-        {
-            var (site, dnsNames, forceDns01Challenge) = context.GetInput<(Site, string[], bool)>();
-
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
-
-            // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-            var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
-
-            // 前提条件をチェック
-            if (useDns01Auth)
-            {
-                await activity.Dns01Precondition(dnsNames);
-            }
-            else
-            {
-                await activity.Http01Precondition(site);
-            }
-
-            // 新しく ACME Order を作成する
-            var orderDetails = await activity.Order(dnsNames);
-
-            // 既に確認済みの場合は Challenge をスキップする
-            if (orderDetails.Payload.Status != "ready")
-            {
-                // 複数の Authorizations を処理する
-                IReadOnlyList<AcmeChallengeResult> challengeResults;
-
-                // ACME Challenge を実行
-                if (useDns01Auth)
-                {
-                    challengeResults = await activity.Dns01Authorization(orderDetails.Payload.Authorizations);
-
-                    // DNS レコードの変更が伝搬するまで 10 秒遅延させる
-                    await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(10), CancellationToken.None);
-
-                    // Azure DNS で正しくレコードが引けるか確認
-                    await activity.CheckDnsChallenge(challengeResults);
-                }
-                else
-                {
-                    challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
-
-                    // HTTP で正しくアクセスできるか確認
-                    await activity.CheckHttpChallenge(challengeResults);
-                }
-
-                // ACME Answer を実行
-                await activity.AnswerChallenges(challengeResults);
-
-                // Order のステータスが ready になるまで 60 秒待機
-                await activity.CheckIsReady((orderDetails, challengeResults));
-
-                if (useDns01Auth)
-                {
-                    // 作成した DNS レコードを削除
-                    await activity.CleanupDnsChallenge(challengeResults);
-                }
-            }
-
-            // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
-
-            var certificate = await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
-
-            return certificate;
-        }
 
         [FunctionName(nameof(GetResourceGroups))]
         public Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
@@ -573,7 +500,7 @@ namespace AppService.Acmebot
             var (site, expirationDate, dnsNames) = input;
             var (appName, slotName) = site.SplitName();
 
-            return _webhookClient.SendCompletedEventAsync(appName, slotName ?? "production", expirationDate, dnsNames);
+            return _webhookInvoker.SendCompletedEventAsync(appName, slotName ?? "production", expirationDate, dnsNames);
         }
 
         private static string ExtractResourceGroup(string resourceId)

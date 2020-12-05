@@ -2,22 +2,20 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Contracts;
-
 using DurableTask.TypedProxy;
 
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class PurgeCertificatesFunctions
+    public class PurgeCertificates
     {
-        [FunctionName(nameof(PurgeCertificates))]
-        public async Task PurgeCertificates([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Orchestrator))]
+        public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedActivity>();
 
             // 期限切れまで 30 日以内の証明書を取得する
             var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
@@ -59,14 +57,11 @@ namespace AppService.Acmebot
             }
         }
 
-        [FunctionName(nameof(PurgeCertificates_Timer))]
-        public async Task PurgeCertificates_Timer(
-            [TimerTrigger("0 0 6 * * 0")] TimerInfo timer,
-            [DurableClient] IDurableClient starter,
-            ILogger log)
+        [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Timer))]
+        public async Task Timer([TimerTrigger("0 0 6 * * 0")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates), null);
+            var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates) + "_" + nameof(Orchestrator));
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }

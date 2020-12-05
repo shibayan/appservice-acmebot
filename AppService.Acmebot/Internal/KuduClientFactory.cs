@@ -2,12 +2,7 @@
 
 namespace AppService.Acmebot.Internal
 {
-    public interface IKuduClientFactory
-    {
-        KuduClient CreateClient(string scmUrl, string userName, string password);
-    }
-
-    internal class KuduClientFactory : IKuduClientFactory
+    public class KuduClientFactory
     {
         public KuduClientFactory(IHttpClientFactory httpClientFactory)
         {

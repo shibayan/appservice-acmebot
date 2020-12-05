@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
@@ -18,24 +17,24 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class GetSitesFunctions : HttpFunctionBase
+    public class GetSites : HttpFunctionBase
     {
-        public GetSitesFunctions(IHttpContextAccessor httpContextAccessor, IAzureEnvironment environment)
+        public GetSites(IHttpContextAccessor httpContextAccessor, AzureEnvironment environment)
             : base(httpContextAccessor)
         {
             _environment = environment;
         }
 
-        private readonly IAzureEnvironment _environment;
+        private readonly AzureEnvironment _environment;
 
-        [FunctionName(nameof(GetSitesInformation))]
-        public async Task<IReadOnlyList<SiteInformation>> GetSitesInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        [FunctionName(nameof(GetSites) + "_" + nameof(Orchestrator))]
+        public async Task<IReadOnlyList<SiteInformation>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var resourceGroup = context.GetInput<string>();
 
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedActivity>();
 
             var result = new List<SiteInformation>();
 
@@ -80,8 +79,8 @@ namespace AppService.Acmebot
             return result;
         }
 
-        [FunctionName(nameof(GetSitesInformation_HttpStart))]
-        public async Task<IActionResult> GetSitesInformation_HttpStart(
+        [FunctionName(nameof(GetSites) + "_" + nameof(HttpStart))]
+        public async Task<IActionResult> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-sites/{resourceGroup}")] HttpRequest req,
             string resourceGroup,
             [DurableClient] IDurableClient starter,
@@ -93,7 +92,7 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(GetSitesInformation), null, resourceGroup);
+            var instanceId = await starter.StartNewAsync(nameof(GetSites) + "_" + nameof(Orchestrator), null, resourceGroup);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 

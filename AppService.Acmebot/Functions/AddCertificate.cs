@@ -1,7 +1,6 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
@@ -17,21 +16,21 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class AddCertificateFunctions : HttpFunctionBase
+    public class AddCertificate : HttpFunctionBase
     {
-        public AddCertificateFunctions(IHttpContextAccessor httpContextAccessor)
+        public AddCertificate(IHttpContextAccessor httpContextAccessor)
             : base(httpContextAccessor)
         {
         }
 
-        [FunctionName(nameof(AddCertificate))]
-        public async Task AddCertificate([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+        [FunctionName(nameof(AddCertificate) + "_" + nameof(Orchestrator))]
+        public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
         {
             var request = context.GetInput<AddCertificateRequest>();
 
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedActivity>();
 
             var site = await activity.GetSite((request.ResourceGroupName, request.AppName, request.SlotName));
 
@@ -51,6 +50,7 @@ namespace AppService.Acmebot
                 {
                     log.LogError($"{dnsName} is not found");
                 }
+
                 return;
             }
 
@@ -59,7 +59,7 @@ namespace AppService.Acmebot
             try
             {
                 // 証明書を発行し Azure にアップロード
-                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedFunctions.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
+                var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
                 // App Service のホスト名に証明書をセットする
                 foreach (var hostNameSslState in hostNameSslStates)
@@ -81,8 +81,8 @@ namespace AppService.Acmebot
             }
         }
 
-        [FunctionName(nameof(AddCertificate_HttpStart))]
-        public async Task<IActionResult> AddCertificate_HttpStart(
+        [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpStart))]
+        public async Task<IActionResult> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] AddCertificateRequest request,
             [DurableClient] IDurableClient starter,
             ILogger log)
@@ -102,11 +102,11 @@ namespace AppService.Acmebot
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return AcceptedAtFunction(nameof(AddCertificate_HttpPoll), new { instanceId }, null);
+            return AcceptedAtFunction(nameof(AddCertificate) + "_" + nameof(HttpPoll), new { instanceId }, null);
         }
 
-        [FunctionName(nameof(AddCertificate_HttpPoll))]
-        public async Task<IActionResult> AddCertificate_HttpPoll(
+        [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpPoll))]
+        public async Task<IActionResult> HttpPoll(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "add-certificate/{instanceId}")] HttpRequest req,
             string instanceId,
             [DurableClient] IDurableClient starter)
@@ -132,7 +132,7 @@ namespace AppService.Acmebot
                 status.RuntimeStatus == OrchestrationRuntimeStatus.Pending ||
                 status.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew)
             {
-                return AcceptedAtFunction(nameof(AddCertificate_HttpPoll), new { instanceId }, null);
+                return AcceptedAtFunction(nameof(AddCertificate) + "_" + nameof(HttpPoll), new { instanceId }, null);
             }
 
             return Ok();

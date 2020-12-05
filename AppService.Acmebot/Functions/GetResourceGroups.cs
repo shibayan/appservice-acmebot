@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Contracts;
 using AppService.Acmebot.Models;
 
 using Azure.WebJobs.Extensions.HttpApi;
@@ -17,19 +16,19 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class GetResourceGroupsFunctions : HttpFunctionBase
+    public class GetResourceGroups : HttpFunctionBase
     {
-        public GetResourceGroupsFunctions(IHttpContextAccessor httpContextAccessor)
+        public GetResourceGroups(IHttpContextAccessor httpContextAccessor)
             : base(httpContextAccessor)
         {
         }
 
-        [FunctionName(nameof(GetResourceGroupsInformation))]
-        public async Task<IReadOnlyList<ResourceGroupInformation>> GetResourceGroupsInformation([OrchestrationTrigger] IDurableOrchestrationContext context)
+        [FunctionName(nameof(GetResourceGroups) + "_" + nameof(Orchestrator))]
+        public async Task<IReadOnlyList<ResourceGroupInformation>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
-            var activity = context.CreateActivityProxy<ISharedFunctions>();
+            var activity = context.CreateActivityProxy<ISharedActivity>();
 
             try
             {
@@ -43,8 +42,8 @@ namespace AppService.Acmebot
             }
         }
 
-        [FunctionName(nameof(GetResourceGroupsInformation_HttpStart))]
-        public async Task<IActionResult> GetResourceGroupsInformation_HttpStart(
+        [FunctionName(nameof(GetResourceGroups) + "_" + nameof(HttpStart))]
+        public async Task<IActionResult> HttpStart(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-resource-groups")] HttpRequest req,
             [DurableClient] IDurableClient starter,
             ILogger log)
@@ -55,7 +54,7 @@ namespace AppService.Acmebot
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(GetResourceGroupsInformation), null);
+            var instanceId = await starter.StartNewAsync(nameof(GetResourceGroups) + "_" + nameof(Orchestrator));
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
