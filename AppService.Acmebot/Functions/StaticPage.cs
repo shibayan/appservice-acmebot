@@ -8,18 +8,18 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot.Functions
 {
-    public class StaticPageFunctions : HttpFunctionBase
+    public class StaticPage : HttpFunctionBase
     {
-        public StaticPageFunctions(IHttpContextAccessor httpContextAccessor)
+        public StaticPage(IHttpContextAccessor httpContextAccessor)
             : base(httpContextAccessor)
         {
         }
 
-        [FunctionName(nameof(AddCertificatePage))]
-        public IActionResult AddCertificatePage(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "static-page/add-certificate")] HttpRequest req,
+        [FunctionName(nameof(StaticPage) + "_" + nameof(AddCertificate))]
+        public IActionResult AddCertificate(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "static-page/add-certificate")] HttpRequest req,
             ILogger log)
         {
             if (!IsEasyAuthEnabled || !User.Identity.IsAuthenticated)

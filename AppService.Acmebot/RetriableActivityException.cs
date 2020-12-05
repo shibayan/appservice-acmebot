@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot
 {
     [Serializable]
     public class RetriableActivityException : Exception

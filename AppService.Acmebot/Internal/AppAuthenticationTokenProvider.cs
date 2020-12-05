@@ -9,13 +9,13 @@ namespace AppService.Acmebot.Internal
 {
     internal class AppAuthenticationTokenProvider : ITokenProvider
     {
-        public AppAuthenticationTokenProvider(IAzureEnvironment environment)
+        public AppAuthenticationTokenProvider(AzureEnvironment environment)
         {
             _environment = environment;
             _tokenProvider = new AzureServiceTokenProvider(azureAdInstance: _environment.ActiveDirectory);
         }
 
-        private readonly IAzureEnvironment _environment;
+        private readonly AzureEnvironment _environment;
         private readonly AzureServiceTokenProvider _tokenProvider;
 
         public async Task<AuthenticationHeaderValue> GetAuthenticationHeaderAsync(CancellationToken cancellationToken)

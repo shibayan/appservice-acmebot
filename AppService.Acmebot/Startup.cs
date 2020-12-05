@@ -7,6 +7,7 @@ using AppService.Acmebot.Options;
 
 using DnsClient;
 
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Azure.Management.Dns;
 using Microsoft.Azure.Management.ResourceManager;
@@ -53,6 +54,8 @@ namespace AppService.Acmebot
                        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                    });
 
+            builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer<Startup>>();
+
             builder.Services.AddSingleton(new LookupClient(new LookupClientOptions(NameServer.GooglePublicDns, NameServer.GooglePublicDns2)
             {
                 UseCache = false,
@@ -61,7 +64,7 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton<ITokenProvider, AppAuthenticationTokenProvider>();
 
-            builder.Services.AddSingleton<IAzureEnvironment>(provider =>
+            builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
 
@@ -71,7 +74,7 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<IAzureEnvironment>();
+                var environment = provider.GetRequiredService<AzureEnvironment>();
 
                 return new WebSiteManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
@@ -82,7 +85,7 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<IAzureEnvironment>();
+                var environment = provider.GetRequiredService<AzureEnvironment>();
 
                 return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
@@ -93,7 +96,7 @@ namespace AppService.Acmebot
             builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<IAzureEnvironment>();
+                var environment = provider.GetRequiredService<AzureEnvironment>();
 
                 return new ResourceManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
                 {
@@ -101,10 +104,10 @@ namespace AppService.Acmebot
                 };
             });
 
-            builder.Services.AddSingleton<IAcmeProtocolClientFactory, AcmeProtocolClientFactory>();
-            builder.Services.AddSingleton<IKuduClientFactory, KuduClientFactory>();
+            builder.Services.AddSingleton<AcmeProtocolClientFactory>();
+            builder.Services.AddSingleton<KuduClientFactory>();
 
-            builder.Services.AddSingleton<WebhookClient>();
+            builder.Services.AddSingleton<WebhookInvoker>();
             builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
         }
     }

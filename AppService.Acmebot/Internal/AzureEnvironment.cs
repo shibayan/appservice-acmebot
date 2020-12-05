@@ -2,15 +2,7 @@
 
 namespace AppService.Acmebot.Internal
 {
-    public interface IAzureEnvironment
-    {
-        string ActiveDirectory { get; set; }
-        string ResourceManager { get; set; }
-        string AppService { get; set; }
-        string TrafficManager { get; set; }
-    }
-
-    internal class AzureEnvironment : IAzureEnvironment
+    public class AzureEnvironment
     {
         public string ActiveDirectory { get; set; }
         public string ResourceManager { get; set; }
