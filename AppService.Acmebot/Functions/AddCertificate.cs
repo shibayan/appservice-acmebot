@@ -83,7 +83,7 @@ namespace AppService.Acmebot.Functions
 
         [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpStart))]
         public async Task<IActionResult> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "add-certificate")] AddCertificateRequest request,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "certificate")] AddCertificateRequest request,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
@@ -98,7 +98,7 @@ namespace AppService.Acmebot.Functions
             }
 
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(AddCertificate), request);
+            var instanceId = await starter.StartNewAsync(nameof(AddCertificate) + "_" + nameof(Orchestrator), request);
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
@@ -107,7 +107,7 @@ namespace AppService.Acmebot.Functions
 
         [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpPoll))]
         public async Task<IActionResult> HttpPoll(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "add-certificate/{instanceId}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "certificate/{instanceId}")] HttpRequest req,
             string instanceId,
             [DurableClient] IDurableClient starter)
         {

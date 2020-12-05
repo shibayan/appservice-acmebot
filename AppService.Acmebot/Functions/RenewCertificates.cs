@@ -120,7 +120,7 @@ namespace AppService.Acmebot.Functions
         public async Task Timer([TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
         {
             // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(RenewCertificates));
+            var instanceId = await starter.StartNewAsync(nameof(RenewCertificates) + "_" + nameof(Orchestrator));
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }

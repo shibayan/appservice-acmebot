@@ -26,7 +26,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(GetResourceGroups) + "_" + nameof(Orchestrator))]
-        public async Task<IReadOnlyList<ResourceGroupInformation>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
+        public async Task<IReadOnlyList<ResourceGroupItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
         {
             var activity = context.CreateActivityProxy<ISharedActivity>();
 
@@ -34,17 +34,17 @@ namespace AppService.Acmebot.Functions
             {
                 var resourceGroups = await activity.GetResourceGroups();
 
-                return resourceGroups.Select(x => new ResourceGroupInformation { Name = x.Name }).ToArray();
+                return resourceGroups.Select(x => new ResourceGroupItem { Name = x.Name }).ToArray();
             }
             catch
             {
-                return Array.Empty<ResourceGroupInformation>();
+                return Array.Empty<ResourceGroupItem>();
             }
         }
 
         [FunctionName(nameof(GetResourceGroups) + "_" + nameof(HttpStart))]
         public async Task<IActionResult> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "get-resource-groups")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "resource-groups")] HttpRequest req,
             [DurableClient] IDurableClient starter,
             ILogger log)
         {

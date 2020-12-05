@@ -179,7 +179,7 @@
           this.sitesLoading = true;
 
           try {
-            const response = await axios.get("/api/get-sites/" + newValue);
+            const response = await axios.get("/api/sites/" + newValue);
 
             this.$set(this, "sites", response.data);
           } catch (error) {
@@ -194,7 +194,7 @@
           this.resourceGroupsLoading = true;
 
           try {
-            const response = await axios.get("/api/get-resource-groups");
+            const response = await axios.get("/api/resource-groups");
 
             this.$set(this, "resourceGroups", response.data);
           } catch (error) {
@@ -225,7 +225,7 @@
           };
 
           try {
-            let response = await axios.post("/api/add-certificate", postData);
+            let response = await axios.post("/api/certificate", postData);
 
             while (true) {
               await delay(5000);
