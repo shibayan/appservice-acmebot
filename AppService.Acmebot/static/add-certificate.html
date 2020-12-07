@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>App Service Acmebot</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.8.2/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.1/css/bulma.min.css" integrity="sha512-ZRv40llEogRmoWgZwnsqke3HNzJ0kiI0+pcMgiz2bxO6Ew1DVBtWjVn0qjrXdT3+u+pSN36gLgmJiiQ3cQtyzA==" crossorigin="anonymous" />
   <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
 </head>
 <body>
@@ -132,37 +132,38 @@
       </div>
     </div>
   </section>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.11/vue.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.0.2/vue.global.prod.js" integrity="sha512-M8VjsuCj1iBzrwKloFNjvQBmFXT2oF0MWExoLGpQT2nEx5tq7CP+BhWGJdczT1LoWAhyqHh+LJ6ihHSVGyclHw==" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.0/axios.min.js" integrity="sha512-DZqqY3PiOvTP9HkjIWgjO6ouCbq+dxqWoJZ/Q+zPYNHmlnI2dQnbJ5bxAHpAMw+LXRm4D72EIRXzvcHQtE8/VQ==" crossorigin="anonymous"></script>
   <script>
     const delay = (millisecondsDelay) => {
       return new Promise(resolve => setTimeout(() => resolve(), millisecondsDelay));
     }
 
-    const app = new Vue({
-      el: '#app',
-      data: {
-        resourceGroups: [],
-        sites: [],
-        resourceGroupName: '',
-        appName: '',
-        slotName: '',
-        dnsNames: [],
-        useIpBasedSsl: false,
-        forceDns01Challenge: false,
-        resourceGroupsLoading: false,
-        sitesLoading: false,
-        sending: false
+    const app = {
+      data() {
+        return {
+          resourceGroups: [],
+          sites: [],
+          resourceGroupName: '',
+          appName: '',
+          slotName: '',
+          dnsNames: [],
+          useIpBasedSsl: false,
+          forceDns01Challenge: false,
+          resourceGroupsLoading: false,
+          sitesLoading: false,
+          sending: false
+        };
       },
       computed: {
-        selectedSite: function () {
+        selectedSite() {
           if (!this.sites) {
             return undefined;
           }
           const name = this.appName;
           return this.sites.find(function (x) { return x.name === name; });
         },
-        selectedSlot: function () {
+        selectedSlot() {
           if (!this.selectedSite) {
             return undefined;
           }
@@ -171,7 +172,7 @@
         }
       },
       watch: {
-        resourceGroupName: async function (newValue, _) {
+        async resourceGroupName(newValue, _) {
           if (!newValue) {
             return;
           }
@@ -181,7 +182,7 @@
           try {
             const response = await axios.get("/api/sites/" + newValue);
 
-            this.$set(this, "sites", response.data);
+            this.sites = response.data;
           } catch (error) {
             alert(error);
           }
@@ -190,20 +191,20 @@
         }
       },
       methods: {
-        load: async function () {
+        async load() {
           this.resourceGroupsLoading = true;
 
           try {
             const response = await axios.get("/api/resource-groups");
 
-            this.$set(this, "resourceGroups", response.data);
+            this.resourceGroups = response.data;
           } catch (error) {
             alert(error);
           }
 
           this.resourceGroupsLoading = false;
         },
-        reset: function () {
+        reset() {
           this.sites = [];
           this.resourceGroupName = '';
           this.appName = '';
@@ -212,7 +213,7 @@
           this.useIpBasedSsl = false;
           this.forceDns01Challenge = false;
         },
-        submit: async function () {
+        async submit() {
           this.sending = true;
 
           const postData = {
@@ -259,11 +260,12 @@
           this.sending = false;
         }
       },
-      beforeMount: function () {
+      beforeMount() {
         this.load();
       }
-    });
+    };
 
+    Vue.createApp(app).mount("#app");
   </script>
 </body>
 </html>
