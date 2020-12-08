@@ -1,10 +1,10 @@
-﻿using System;
-using System.Net.Http;
+﻿using System.Net.Http;
 
 using AppService.Acmebot;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Options;
 
+using Azure.Core;
 using Azure.Identity;
 using Azure.ResourceManager.Dns;
 using Azure.ResourceManager.Resources;
@@ -66,6 +66,16 @@ namespace AppService.Acmebot
 
             builder.Services.AddSingleton<ITokenProvider, ManagedIdentityTokenProvider>();
 
+            builder.Services.AddSingleton<TokenCredential>(provider =>
+            {
+                var environment = provider.GetRequiredService<AzureEnvironment>();
+
+                return new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    AuthorityHost = environment.ActiveDirectory
+                });
+            });
+
             builder.Services.AddSingleton(provider =>
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
@@ -88,11 +98,7 @@ namespace AppService.Acmebot
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
                 var environment = provider.GetRequiredService<AzureEnvironment>();
-
-                var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-                {
-                    AuthorityHost = environment.ActiveDirectory
-                });
+                var credential = provider.GetRequiredService<TokenCredential>();
 
                 return new DnsManagementClient(options.Value.SubscriptionId, environment.ResourceManager, credential);
             });
@@ -101,11 +107,7 @@ namespace AppService.Acmebot
             {
                 var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
                 var environment = provider.GetRequiredService<AzureEnvironment>();
-
-                var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-                {
-                    AuthorityHost = environment.ActiveDirectory
-                });
+                var credential = provider.GetRequiredService<TokenCredential>();
 
                 return new ResourcesManagementClient(environment.ResourceManager, options.Value.SubscriptionId, credential);
             });
