@@ -52,6 +52,8 @@ The Key Vault version can be used with services that support Key Vault certifica
   - [Let's Encrypt](https://letsencrypt.org/)
   - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
 
+![architectural diagram](docs/acmebot-diagram.svg)
+
 ## Requirements
 
 - Azure Subscription
