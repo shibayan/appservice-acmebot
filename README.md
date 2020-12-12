@@ -5,18 +5,18 @@
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 [![Terraform Registry](https://img.shields.io/badge/terraform-registry-5c4ee5.svg)](https://registry.terraform.io/modules/shibayan/appservice-acmebot/azurerm/latest)
 
-This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
+This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for Azure App Services.
 
 - Support for multiple App Services
 - Easy to deploy and configure
 - Highly reliable implementation
 - Ease of Monitoring (Application Insights, Webhook)
 
-You can manage multiple App Service certificates in a single application.
+You can add multiple certificates to a single App Service.
 
 ## Announcements
 
-### Upgrading to Acmebot v3
+### How to upgrade to Acmebot v3
 
 https://github.com/shibayan/appservice-acmebot/issues/138
 
@@ -26,7 +26,7 @@ If you need to use the certificate for a variety of services, consider using the
 
 https://github.com/shibayan/keyvault-acmebot
 
-The Key Vault version can be used with services that support Key Vault certificates such as App Service / Application Gateway / CDN / Front Door.
+The Key Vault version can be used with services that support Key Vault certificates, such as App Service / Application Gateway / CDN / Front Door.
 
 ## Table Of Contents
 
@@ -82,7 +82,7 @@ For Azure Government
   <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-### 2. Enabling App Service Authentication
+### 2. Enable App Service Authentication
 
 Open the `Authentication / Authorization` menu in Azure Portal and enable App Service authentication. Select the `Login with Azure Active Directory` as the action to perform if the request is not authenticated. We recommend using Azure Active Directory as your authentication provider, but it works with other providers as well, although it's not supported.
 
@@ -134,24 +134,23 @@ The default check timing is 00:00 UTC. If you need to change the time zone, use 
 
 The application is automatically updated so that you are always up to date with the latest version. If you explicitly need to deploy the latest version, restart the Azure Function.
 
+### In case you want to use your own web.config
 
-### The case where you want to use your own web.config
-
-You can prevent Acmebot from creating `web.config` by creating your own `web.config` and `configured` files in the `site/.well-known` directory.
+You can prevent Acmebot from creating a `web.config` by creating your own `web.config` and `configured` files in the `site/.well-known` directory.
 
 ## Troubleshooting
 
-**Causes Azure REST API error at GetSite or Dns01Precondition** error occurs
+### Azure REST API error at GetSite or Dns01Precondition error
 
-The role assignment to the target resource group may be incorrect or not yet reflected, and it may take up to 30 minutes for the IAM settings to take effect.
+The role assignment to the target resource group may be incorrect or not yet active. It may take up to 30 minutes for the IAM settings to take effect.
 
-**CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct** error occurs
+### CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct
 
 In order for the certificate to be created, the Acmebot needs to create a TXT DNS record for `_acme-challenge` in Azure DNS. This error occurs when the TXT record isn't being served. One cause of this may be that the nameservers for your domain may be pointing to the domain registrar, rather than Azure DNS. Make sure that you have properly delegated the domain to Azure DNS: [Host your domain in Azure DNS](https://docs.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
 
-**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code** error occurs
+### CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code
 
-It seems like URL rewrite error, so please try `inheritInChildApplications="false"` settings for web.config under wwwroot.
+This seems like an URL rewrite error. Try setting `inheritInChildApplications="false"` in the web.config under wwwroot.
 
 https://www.hanselman.com/blog/ChangingASPNETWebconfigInheritanceWhenMixingVersionsOfChildApplications.aspx
 
