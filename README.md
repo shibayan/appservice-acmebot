@@ -116,6 +116,28 @@ Access `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate` with a browser
 
 If the `Access control (IAM)` setting is not correct, nothing will be shown in the drop-down list.
 
+### Issuing a new certificate (REST API)
+
+To automate the adding of certicates, you can use Acmebot's REST API.
+
+```
+POST /api/certificate
+
+Content-Type: application/json
+x-functions-key: asd+YourFunctionKeyHere+fgh==
+
+{
+  "ResourceGroupName": "your-webapp-rg",
+  "AppName": "your-webapp",
+  "SlotName": "production",
+  "DnsNames": [
+    "example.com",
+    "www.example.com"
+  ]
+}
+```
+See also https://github.com/shibayan/keyvault-acmebot/wiki/REST-API
+
 ### Issuing a wildcard certificate or a certificate for Linux
 
 Because Azure DNS is required to issue wildcard certificates or certificates for Linux, assign the role of `DNS Zone Contributor` in the resource group containing the target DNS zone.
