@@ -52,7 +52,7 @@ The Key Vault version can be used with services that support Key Vault certifica
   - [Let's Encrypt](https://letsencrypt.org/)
   - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
 
-![architectural diagram](docs/acmebot-diagram.svg)
+[![architectural diagram](docs/acmebot-diagram.svg)](https://www.lucidchart.eu/documents/view/77879337-7889-41d9-bd2d-c3a184f9587b)
 
 ## Requirements
 
