@@ -138,11 +138,18 @@ namespace AppService.Acmebot.Functions
 
             var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
-            // 特殊なファイルが存在する場合は web.config の作成を行わない
-            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+            try
             {
-                // Answer 用ファイルを返すための Web.config を作成
-                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+                // 特殊なファイルが存在する場合は web.config の作成を行わない
+                if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+                {
+                    // Answer 用ファイルを返すための Web.config を作成
+                    await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
             }
 
             // .well-known を仮想アプリケーションとして追加
@@ -237,12 +244,13 @@ namespace AppService.Acmebot.Functions
             // Azure DNS が存在するか確認
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
-            foreach (var dnsName in dnsNames)
+            var notFoundZones = dnsNames.Where(x => zones.All(xs => !string.Equals(x, xs.Name, StringComparison.OrdinalIgnoreCase) && !x.EndsWith($".{xs.Name}", StringComparison.OrdinalIgnoreCase)))
+                                        .ToArray();
+
+            // マッチする DNS zone が見つからない DNS name があった場合はエラー
+            if (notFoundZones.Length > 0)
             {
-                if (!zones.Any(x => string.Equals(dnsName, x.Name, StringComparison.OrdinalIgnoreCase) || dnsName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase)))
-                {
-                    throw new InvalidOperationException($"Azure DNS zone \"{dnsName}\" is not found");
-                }
+                throw new PreconditionException($"DNS zone(s) are not found. {string.Join(",", notFoundZones)}");
             }
         }
 
