@@ -28,7 +28,17 @@ namespace AppService.Acmebot.Internal
 
             var response = await _httpClient.SendAsync(request);
 
-            return response.StatusCode == HttpStatusCode.OK;
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                return true;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+
+            throw new InvalidOperationException($"Failed to access SCM site. StatusCode = {response.StatusCode}, Url = {_scmUrl}");
         }
 
         public Task WriteFileAsync(string filePath, string content)
