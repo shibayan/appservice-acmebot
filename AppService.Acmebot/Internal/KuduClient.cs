@@ -38,7 +38,9 @@ namespace AppService.Acmebot.Internal
                 return false;
             }
 
-            throw new InvalidOperationException($"Failed to access SCM site. StatusCode = {response.StatusCode}, Url = {_scmUrl}");
+            response.EnsureSuccessStatusCode();
+
+            return false;
         }
 
         public Task WriteFileAsync(string filePath, string content)
