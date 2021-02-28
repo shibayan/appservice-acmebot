@@ -92,7 +92,7 @@ namespace AppService.Acmebot.Functions
                                               .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
                                               .ToArray();
 
-                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
+                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                     // 証明書を発行し Azure にアップロード
                     var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
@@ -117,7 +117,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(RenewCertificates) + "_" + nameof(Timer))]
-        public async Task Timer([TimerTrigger("0 0 0 * * 0")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+        public async Task Timer([TimerTrigger("0 0 0 * * 1,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync(nameof(RenewCertificates) + "_" + nameof(Orchestrator));
