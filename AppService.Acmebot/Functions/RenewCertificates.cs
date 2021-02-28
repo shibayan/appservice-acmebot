@@ -95,7 +95,7 @@ namespace AppService.Acmebot.Functions
                     var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                     // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
+                    var newCertificate = await context.CallSubOrchestratorWithRetryAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
 
                     foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                     {
@@ -124,5 +124,10 @@ namespace AppService.Acmebot.Functions
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }
+
+        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(6), 2)
+        {
+            Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
+        };
     }
 }
