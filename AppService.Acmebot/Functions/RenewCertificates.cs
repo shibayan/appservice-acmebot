@@ -92,6 +92,14 @@ namespace AppService.Acmebot.Functions
                                               .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
                                               .ToArray();
 
+                    // 更新対象の DNS 名が空の時はログを出して終了
+                    if (dnsNames.Length == 0)
+                    {
+                        log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", site.HostNames)}");
+
+                        continue;
+                    }
+
                     var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                     // 証明書を発行し Azure にアップロード
