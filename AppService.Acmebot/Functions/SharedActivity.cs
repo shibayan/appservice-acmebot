@@ -455,7 +455,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(FinalizeOrder))]
-        public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
+        public async Task<(OrderDetails, RSAParameters)> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
         {
             var (dnsNames, orderDetails) = input;
 
@@ -466,24 +466,54 @@ namespace AppService.Acmebot.Functions
             // Order の最終処理を実行し、証明書を作成
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
+            orderDetails = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
-            // 証明書をバイト配列としてダウンロード
-            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(finalize, _options.PreferredChain);
+            return (orderDetails, rsa.ExportParameters(true));
+        }
 
-            // 秘密鍵を含んだ形で X509Certificate2 を作成
-            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
+        [FunctionName(nameof(CheckIsValid))]
+        public async Task CheckIsValid([ActivityTrigger] OrderDetails orderDetails)
+        {
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            // PFX 形式としてエクスポート
-            return (x509Certificates[0].Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
+            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+
+            if (orderDetails.Payload.Status == "pending" || orderDetails.Payload.Status == "processing")
+            {
+                // pending か processing の場合はリトライする
+                throw new RetriableActivityException($"Finalize request is {orderDetails.Payload.Status}. It will retry automatically.");
+            }
+
+            if (orderDetails.Payload.Status == "invalid")
+            {
+                // invalid の場合は最初から実行が必要なので失敗させる
+                throw new InvalidOperationException("Finalize request is invalid. Required retry at first.");
+            }
         }
 
         [FunctionName(nameof(UploadCertificate))]
-        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[], bool) input)
+        public async Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, bool, OrderDetails, RSAParameters) input)
         {
-            var (site, certificateName, pfxBlob, forceDns01Challenge) = input;
+            var (site, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
 
-            return _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+
+            // 証明書をバイト配列としてダウンロード
+            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(orderDetails, _options.PreferredChain);
+
+            // 秘密鍵を含んだ形で X509Certificate2 を作成
+            var rsa = RSA.Create(rsaParameters);
+
+            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
+
+            // PFX 形式としてエクスポート
+            var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd");
+
+            var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
+
+            return await _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",

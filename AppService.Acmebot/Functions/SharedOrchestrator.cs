@@ -76,10 +76,18 @@ namespace AppService.Acmebot.Functions
                 }
             }
 
-            // Order の最終処理を実行し PFX を作成
-            var (thumbprint, pfxBlob) = await activity.FinalizeOrder((dnsNames, orderDetails));
+            // CSR を作成し Finalize を実行
+            var (finalize, rsaParameters) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
-            var certificate = await activity.UploadCertificate((site, $"{dnsNames[0]}-{thumbprint}", pfxBlob, forceDns01Challenge));
+            // Finalize の時点でステータスが valid の時点はスキップ
+            if (orderDetails.Payload.Status != "valid")
+            {
+                // Finalize 後のステータスが valid になるまで 60 秒待機
+                await activity.CheckIsValid(orderDetails);
+            }
+
+            // 証明書をダウンロードし App Service へアップロード
+            var certificate = await activity.UploadCertificate((site, dnsNames[0], forceDns01Challenge, finalize, rsaParameters));
 
             return certificate;
         }
