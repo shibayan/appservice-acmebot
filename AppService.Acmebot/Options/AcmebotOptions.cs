@@ -20,5 +20,7 @@ namespace AppService.Acmebot.Options
         public string Environment { get; set; } = "AzureCloud";
 
         public string PreferredChain { get; set; }
+
+        public ExternalAccountBindingOptions ExternalAccountBinding { get; set; }
     }
 }

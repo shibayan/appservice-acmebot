@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
@@ -46,9 +47,12 @@ namespace AppService.Acmebot.Functions
         [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
         Task CheckIsReady((OrderDetails, IReadOnlyList<AcmeChallengeResult>) input);
 
-        Task<(string, byte[])> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
+        Task<(OrderDetails, RSAParameters)> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
 
-        Task<Certificate> UploadCertificate((Site, string, byte[], bool) input);
+        [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
+        Task CheckIsValid(OrderDetails orderDetails);
+
+        Task<Certificate> UploadCertificate((Site, string, bool, OrderDetails, RSAParameters) input);
 
         Task UpdateSiteBinding(Site site);
 
