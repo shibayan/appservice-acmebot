@@ -69,7 +69,7 @@ namespace AppService.Acmebot.Internal
                     }
                 };
             }
-            else if (_options.Webhook.Contains("outlook.office.com"))
+            else if (_options.Webhook.Contains(".office.com"))
             {
                 model = new
                 {
@@ -116,7 +116,7 @@ namespace AppService.Acmebot.Internal
                     }
                 };
             }
-            else if (_options.Webhook.Contains("outlook.office.com"))
+            else if (_options.Webhook.Contains(".office.com"))
             {
                 model = new
                 {
