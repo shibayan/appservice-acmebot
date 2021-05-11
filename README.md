@@ -16,10 +16,6 @@ You can add multiple certificates to a single App Service.
 
 ## Announcements
 
-### How to upgrade to Acmebot v3
-
-https://github.com/shibayan/appservice-acmebot/issues/138
-
 ### Integration with Key Vault
 
 If you need to use the certificate for a variety of services, consider using the Key Vault version of Acmebot v3.
@@ -44,7 +40,7 @@ The Key Vault version can be used with services that support Key Vault certifica
 - Azure Web Apps (Linux) / Web App for Containers (Windows and Linux, requires Azure DNS)
 - Azure App Service Environment (Windows and Linux)
 - Issuing a certificate to the Deployment Slot
-- Issuing Certificates for Zone Apex Domains
+- Issuing certificates for Zone Apex Domains
 - Issuing certificates with SANs (subject alternative names) (one certificate for multiple domains)
 - Wildcard certificate (requires Azure DNS)
 - Support for multiple App Services in a single application
@@ -169,15 +165,15 @@ You can prevent Acmebot from creating a `web.config` by creating your own `web.c
 
 ## Troubleshooting
 
-### Azure REST API error at GetSite or Dns01Precondition error
+### Azure REST API error at `GetSite` or `Dns01Precondition` error
 
 The role assignment to the target resource group may be incorrect or not yet active. It may take up to 30 minutes for the IAM settings to take effect.
 
-### CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct
+### `CheckDnsChallenge` failed: _acme-challenge.{domain}.com value is not correct
 
 In order for the certificate to be created, the Acmebot needs to create a TXT DNS record for `_acme-challenge` in Azure DNS. This error occurs when the TXT record isn't being served. One cause of this may be that the nameservers for your domain may be pointing to the domain registrar, rather than Azure DNS. Make sure that you have properly delegated the domain to Azure DNS: [Host your domain in Azure DNS](https://docs.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
 
-### CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code
+### `CheckHttpChallenge` failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code
 
 This seems like an URL rewrite error. Try setting `inheritInChildApplications="false"` in the web.config under wwwroot.
 
