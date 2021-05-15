@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -76,6 +77,7 @@ namespace AppService.Acmebot.Internal
             return resourceGroups;
         }
 
+#if false
         public static async Task<IReadOnlyList<Site>> ListByResourceGroupAllAsync(this IWebAppsOperations operations, string resourceGroupName)
         {
             var sites = new List<Site>();
@@ -93,6 +95,41 @@ namespace AppService.Acmebot.Internal
 
             return sites;
         }
+#else
+        public static async Task<IReadOnlyList<Site>> ListByResourceGroupAllAsync(this IWebAppsOperations operations, string resourceGroupName)
+        {
+            var sites = new List<Site>();
+
+            var list = await operations.ListByResourceGroupAsync(resourceGroupName);
+
+            sites.AddRange(list);
+
+            while (list.NextPageLink != null)
+            {
+                list = await operations.ListByResourceGroupNextAsync(list.NextPageLink);
+
+                sites.AddRange(list);
+            }
+
+            var slots = new List<Site>();
+
+            foreach (var site in sites)
+            {
+                var listSlots = await operations.ListSlotsAsync(resourceGroupName, site.Name);
+
+                slots.AddRange(listSlots);
+
+                while (listSlots.NextPageLink != null)
+                {
+                    listSlots = await operations.ListSlotsNextAsync(listSlots.NextPageLink);
+
+                    slots.AddRange(listSlots);
+                }
+            }
+
+            return sites.Concat(slots).OrderBy(x => x.Name).ToArray();
+        }
+#endif
 
         public static async Task<IReadOnlyList<Certificate>> ListAllAsync(this ICertificatesOperations operations)
         {

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using ACMESharp.Authorizations;
 using ACMESharp.Crypto;
 using ACMESharp.Protocol;
+using ACMESharp.Protocol.Resources;
 
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
@@ -27,6 +28,8 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Newtonsoft.Json;
 
 namespace AppService.Acmebot.Functions
 {
@@ -139,11 +142,18 @@ namespace AppService.Acmebot.Functions
 
             var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
 
-            // 特殊なファイルが存在する場合は web.config の作成を行わない
-            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+            try
             {
-                // Answer 用ファイルを返すための Web.config を作成
-                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+                // 特殊なファイルが存在する場合は web.config の作成を行わない
+                if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+                {
+                    // Answer 用ファイルを返すための Web.config を作成
+                    await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
             }
 
             // .well-known を仮想アプリケーションとして追加
@@ -238,11 +248,56 @@ namespace AppService.Acmebot.Functions
             // Azure DNS が存在するか確認
             var zones = await _dnsManagementClient.Zones.ListAllAsync();
 
+            var foundZones = new HashSet<Zone>();
+            var zoneNotFoundDnsNames = new List<string>();
+
             foreach (var dnsName in dnsNames)
             {
-                if (!zones.Any(x => string.Equals(dnsName, x.Name, StringComparison.OrdinalIgnoreCase) || dnsName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase)))
+                var zone = zones.Where(x => string.Equals(dnsName, x.Name, StringComparison.OrdinalIgnoreCase) || dnsName.EndsWith($".{x.Name}", StringComparison.OrdinalIgnoreCase))
+                                .OrderByDescending(x => x.Name.Length)
+                                .FirstOrDefault();
+
+                // マッチする DNS zone が見つからない場合はエラー
+                if (zone == null)
                 {
-                    throw new InvalidOperationException($"Azure DNS zone \"{dnsName}\" is not found");
+                    zoneNotFoundDnsNames.Add(dnsName);
+                    continue;
+                }
+
+                foundZones.Add(zone);
+            }
+
+            if (zoneNotFoundDnsNames.Count > 0)
+            {
+                throw new PreconditionException($"DNS zone(s) are not found. DnsNames = {string.Join(",", zoneNotFoundDnsNames)}");
+            }
+
+            // DNS zone に移譲されている Name servers が正しいか検証
+            foreach (var zone in foundZones)
+            {
+                // DNS provider が Name servers を返していなければスキップ
+                if (zone.NameServers == null || zone.NameServers.Count == 0)
+                {
+                    continue;
+                }
+
+                // DNS provider が Name servers を返している場合は NS レコードを確認
+                var queryResult = await _lookupClient.QueryAsync(zone.Name, QueryType.NS);
+
+                // 最後の . が付いている場合があるので削除して統一
+                var expectedNameServers = zone.NameServers
+                                              .Select(x => x.TrimEnd('.'))
+                                              .ToArray();
+
+                var actualNameServers = queryResult.Answers
+                                                   .OfType<DnsClient.Protocol.NsRecord>()
+                                                   .Select(x => x.NSDName.Value.TrimEnd('.'))
+                                                   .ToArray();
+
+                // 処理対象の DNS zone から取得した NS と実際に引いた NS の値が一つも一致しない場合はエラー
+                if (!actualNameServers.Intersect(expectedNameServers, StringComparer.OrdinalIgnoreCase).Any())
+                {
+                    throw new PreconditionException($"The delegated name server is not correct. DNS zone = {zone.Name}, Expected = {string.Join(",", expectedNameServers)}, Actual = {string.Join(",", actualNameServers)}");
                 }
             }
         }
@@ -372,34 +427,40 @@ namespace AppService.Acmebot.Functions
             if (orderDetails.Payload.Status == "pending" || orderDetails.Payload.Status == "processing")
             {
                 // pending か processing の場合はリトライする
-                throw new RetriableActivityException($"ACME domain validation is {orderDetails.Payload.Status}. It will retry automatically.");
+                throw new RetriableActivityException($"ACME validation status is {orderDetails.Payload.Status}. It will retry automatically.");
             }
 
             if (orderDetails.Payload.Status == "invalid")
             {
-                object lastError = null;
+                var problems = new List<Problem>();
 
                 foreach (var challengeResult in challengeResults)
                 {
                     var challenge = await acmeProtocolClient.GetChallengeDetailsAsync(challengeResult.Url);
 
-                    if (challenge.Status != "invalid")
+                    if (challenge.Status != "invalid" || challenge.Error == null)
                     {
                         continue;
                     }
 
-                    _logger.LogError($"ACME domain validation error: {challenge.Error}");
+                    _logger.LogError($"ACME domain validation error: {JsonConvert.SerializeObject(challenge.Error)}");
 
-                    lastError = challenge.Error;
+                    problems.Add(challenge.Error);
+                }
+
+                // 全てのエラーが connection か dns 関係の場合は Orchestrator からリトライさせる
+                if (problems.All(x => x.Type == "urn:ietf:params:acme:error:connection" || x.Type == "urn:ietf:params:acme:error:dns"))
+                {
+                    throw new RetriableOrchestratorException("ACME validation status is invalid, but retriable error. It will retry automatically.");
                 }
 
                 // invalid の場合は最初から実行が必要なので失敗させる
-                throw new InvalidOperationException($"ACME domain validation is invalid. Required retry at first.\nLastError = {lastError}");
+                throw new InvalidOperationException($"ACME validation status is invalid. Required retry at first.\nLastError = {JsonConvert.SerializeObject(problems.Last())}");
             }
         }
 
         [FunctionName(nameof(FinalizeOrder))]
-        public async Task<(string, byte[])> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
+        public async Task<(OrderDetails, RSAParameters)> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
         {
             var (dnsNames, orderDetails) = input;
 
@@ -410,24 +471,54 @@ namespace AppService.Acmebot.Functions
             // Order の最終処理を実行し、証明書を作成
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
+            orderDetails = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
-            // 証明書をバイト配列としてダウンロード
-            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(finalize, _options.PreferredChain);
+            return (orderDetails, rsa.ExportParameters(true));
+        }
 
-            // 秘密鍵を含んだ形で X509Certificate2 を作成
-            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
+        [FunctionName(nameof(CheckIsValid))]
+        public async Task CheckIsValid([ActivityTrigger] OrderDetails orderDetails)
+        {
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-            // PFX 形式としてエクスポート
-            return (x509Certificates[0].Thumbprint, x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd"));
+            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+
+            if (orderDetails.Payload.Status == "pending" || orderDetails.Payload.Status == "processing")
+            {
+                // pending か processing の場合はリトライする
+                throw new RetriableActivityException($"Finalize request is {orderDetails.Payload.Status}. It will retry automatically.");
+            }
+
+            if (orderDetails.Payload.Status == "invalid")
+            {
+                // invalid の場合は最初から実行が必要なので失敗させる
+                throw new InvalidOperationException("Finalize request is invalid. Required retry at first.");
+            }
         }
 
         [FunctionName(nameof(UploadCertificate))]
-        public Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, byte[], bool) input)
+        public async Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, bool, OrderDetails, RSAParameters) input)
         {
-            var (site, certificateName, pfxBlob, forceDns01Challenge) = input;
+            var (site, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
 
-            return _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
+            var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
+
+            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+
+            // 証明書をバイト配列としてダウンロード
+            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(orderDetails, _options.PreferredChain);
+
+            // 秘密鍵を含んだ形で X509Certificate2 を作成
+            var rsa = RSA.Create(rsaParameters);
+
+            x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
+
+            // PFX 形式としてエクスポート
+            var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd");
+
+            var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
+
+            return await _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
             {
                 Location = site.Location,
                 Password = "P@ssw0rd",

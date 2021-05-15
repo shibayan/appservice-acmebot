@@ -92,10 +92,18 @@ namespace AppService.Acmebot.Functions
                                               .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
                                               .ToArray();
 
-                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
+                    // 更新対象の DNS 名が空の時はログを出して終了
+                    if (dnsNames.Length == 0)
+                    {
+                        log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", site.HostNames)}");
+
+                        continue;
+                    }
+
+                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                     // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
+                    var newCertificate = await context.CallSubOrchestratorWithRetryAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
 
                     foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                     {
@@ -117,12 +125,17 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(RenewCertificates) + "_" + nameof(Timer))]
-        public async Task Timer([TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+        public async Task Timer([TimerTrigger("0 0 0 * * 1,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync(nameof(RenewCertificates) + "_" + nameof(Orchestrator));
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }
+
+        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(12), 2)
+        {
+            Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
+        };
     }
 }

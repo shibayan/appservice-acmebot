@@ -19,7 +19,8 @@
       "type": "string",
       "allowedValues": [
         "https://acme-v02.api.letsencrypt.org/",
-        "https://api.buypass.com/acme/"
+        "https://api.buypass.com/acme/",
+        "https://acme.zerossl.com/v2/DV90/"
       ],
       "defaultValue": "https://acme-v02.api.letsencrypt.org/",
       "metadata": {
@@ -53,7 +54,8 @@
       },
       "properties": {
         "supportsHttpsTrafficOnly": true,
-        "allowBlobPublicAccess": false
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2"
       }
     },
     {
@@ -144,7 +146,9 @@
               "value": "[environment().name]"
             }
           ],
-          "clientAffinityEnabled": false
+          "clientAffinityEnabled": false,
+          "minTlsVersion": "1.2",
+          "scmMinTlsVersion": "1.2"
         },
         "ftpsState": "Disabled",
         "httpsOnly": true

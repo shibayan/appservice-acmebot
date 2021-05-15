@@ -5,20 +5,16 @@
 [![License](https://img.shields.io/github/license/shibayan/appservice-acmebot.svg)](https://github.com/shibayan/appservice-acmebot/blob/master/LICENSE)
 [![Terraform Registry](https://img.shields.io/badge/terraform-registry-5c4ee5.svg)](https://registry.terraform.io/modules/shibayan/appservice-acmebot/azurerm/latest)
 
-This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for the Azure App Service. We have started to solve the following issues
+This is an application that automates the issuance and renewal of ACME SSL/TLS certificates for Azure App Services.
 
 - Support for multiple App Services
 - Easy to deploy and configure
 - Highly reliable implementation
 - Ease of Monitoring (Application Insights, Webhook)
 
-You can manage multiple App Service certificates in a single application.
+You can add multiple certificates to a single App Service.
 
 ## Announcements
-
-### Upgrading to Acmebot v3
-
-https://github.com/shibayan/appservice-acmebot/issues/138
 
 ### Integration with Key Vault
 
@@ -26,7 +22,7 @@ If you need to use the certificate for a variety of services, consider using the
 
 https://github.com/shibayan/keyvault-acmebot
 
-The Key Vault version can be used with services that support Key Vault certificates such as App Service / Application Gateway / CDN / Front Door.
+The Key Vault version can be used with services that support Key Vault certificates, such as App Service / Application Gateway / CDN / Front Door.
 
 ## Table Of Contents
 
@@ -44,13 +40,16 @@ The Key Vault version can be used with services that support Key Vault certifica
 - Azure Web Apps (Linux) / Web App for Containers (Windows and Linux, requires Azure DNS)
 - Azure App Service Environment (Windows and Linux)
 - Issuing a certificate to the Deployment Slot
-- Issuing Certificates for Zone Apex Domains
+- Issuing certificates for Zone Apex Domains
 - Issuing certificates with SANs (subject alternative names) (one certificate for multiple domains)
 - Wildcard certificate (requires Azure DNS)
 - Support for multiple App Services in a single application
 - ACME-compliant Certification Authorities
   - [Let's Encrypt](https://letsencrypt.org/)
   - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
+  - [ZeroSSL](https://zerossl.com/features/acme/) (Requires EAB Credentials)
+
+[![architectural diagram](docs/acmebot-diagram.svg)](https://www.lucidchart.eu/documents/view/77879337-7889-41d9-bd2d-c3a184f9587b)
 
 ## Requirements
 
@@ -80,15 +79,21 @@ For Azure Government
   <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-### 2. Enabling App Service Authentication
+### 2. Enable App Service Authentication
 
-Open the `Authentication / Authorization` menu in Azure Portal and enable App Service authentication. Select the `Login with Azure Active Directory` as the action to perform if the request is not authenticated. We recommend using Azure Active Directory as your authentication provider, but it works with other providers as well, although it's not supported.
+You must enable Authentication on the Function App that is deployed as part of this application.
 
-![Enable App Service Authentication with AAD](https://user-images.githubusercontent.com/1356444/49693401-ecc7c400-fbb4-11e8-9ae1-5d376a4d8a05.png)
+In the Azure Portal, open the Function blade then select the `Authentication` menu and enable App Service authentication. Click on the `Add identity provider` button to display the screen for adding a new identity provider. If you select `Microsoft` as your Identity provider, the required settings will be automatically filled in for you. The default settings are fine.
 
-Select Azure Active Directory as the authentication provider, select `Express` as the management mode, and select OK.
+![Add an Identity provider](https://user-images.githubusercontent.com/1356444/117532648-79e00300-b023-11eb-8cf1-92a11ffb115a.png)
 
-![Create New Azure AD App](https://user-images.githubusercontent.com/1356444/49693412-6f508380-fbb5-11e8-81fb-6bbcbe47654e.png)
+Make sure that the App Service Authentication setting is set to `Require authentication`. The permissions can basically be left at the default settings.
+
+![App Service Authentication settings](https://user-images.githubusercontent.com/1356444/117532660-8c5a3c80-b023-11eb-8573-df2e418d5c2f.png)
+
+If you are using Sovereign Cloud, you may not be able to select Express. Enable authentication from the advanced settings with reference to the following document.
+
+https://docs.microsoft.com/en-us/azure/app-service/configure-authentication-provider-aad#-configure-with-advanced-settings
 
 Finally, you can save your previous settings to enable App Service authentication.
 
@@ -114,6 +119,28 @@ Access `https://YOUR-FUNCTIONS.azurewebsites.net/add-certificate` with a browser
 
 If the `Access control (IAM)` setting is not correct, nothing will be shown in the drop-down list.
 
+### Issuing a new certificate (REST API)
+
+To automate the adding of certicates, you can use Acmebot's REST API.
+
+```
+POST /api/certificate
+
+Content-Type: application/json
+x-functions-key: asd+YourFunctionKeyHere+fgh==
+
+{
+  "ResourceGroupName": "your-webapp-rg",
+  "AppName": "your-webapp",
+  "SlotName": "production",
+  "DnsNames": [
+    "example.com",
+    "www.example.com"
+  ]
+}
+```
+See also https://github.com/shibayan/keyvault-acmebot/wiki/REST-API
+
 ### Issuing a wildcard certificate or a certificate for Linux
 
 Because Azure DNS is required to issue wildcard certificates or certificates for Linux, assign the role of `DNS Zone Contributor` in the resource group containing the target DNS zone.
@@ -132,24 +159,23 @@ The default check timing is 00:00 UTC. If you need to change the time zone, use 
 
 The application is automatically updated so that you are always up to date with the latest version. If you explicitly need to deploy the latest version, restart the Azure Function.
 
+### In case you want to use your own web.config
 
-### The case where you want to use your own web.config
-
-You can prevent Acmebot from creating `web.config` by creating your own `web.config` and `configured` files in the `site/.well-known` directory.
+You can prevent Acmebot from creating a `web.config` by creating your own `web.config` and `configured` files in the `site/.well-known` directory.
 
 ## Troubleshooting
 
-**Causes Azure REST API error at GetSite or Dns01Precondition** error occurs
+### Azure REST API error at `GetSite` or `Dns01Precondition` error
 
-The role assignment to the target resource group may be incorrect or not yet reflected, and it may take up to 30 minutes for the IAM settings to take effect.
+The role assignment to the target resource group may be incorrect or not yet active. It may take up to 30 minutes for the IAM settings to take effect.
 
-**CheckDnsChallenge failed: _acme-challenge.{domain}.com value is not correct** error occurs
+### `CheckDnsChallenge` failed: _acme-challenge.{domain}.com value is not correct
 
 In order for the certificate to be created, the Acmebot needs to create a TXT DNS record for `_acme-challenge` in Azure DNS. This error occurs when the TXT record isn't being served. One cause of this may be that the nameservers for your domain may be pointing to the domain registrar, rather than Azure DNS. Make sure that you have properly delegated the domain to Azure DNS: [Host your domain in Azure DNS](https://docs.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns#delegate-the-domain)
 
-**CheckHttpChallenge failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code** error occurs
+### `CheckHttpChallenge` failed: http://{domain}/.well-known/acme-challenge/{challenge} is InternalServerError status code
 
-It seems like URL rewrite error, so please try `inheritInChildApplications="false"` settings for web.config under wwwroot.
+This seems like an URL rewrite error. Try setting `inheritInChildApplications="false"` in the web.config under wwwroot.
 
 https://www.hanselman.com/blog/ChangingASPNETWebconfigInheritanceWhenMixingVersionsOfChildApplications.aspx
 
