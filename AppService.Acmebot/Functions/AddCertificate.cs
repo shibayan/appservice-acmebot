@@ -87,7 +87,7 @@ namespace AppService.Acmebot.Functions
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!User.Identity.IsAuthenticated)
+            if (!User.IsAppAuthorized())
             {
                 return Unauthorized();
             }
