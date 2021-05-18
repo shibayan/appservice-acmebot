@@ -1,5 +1,7 @@
 ﻿using System;
 
+using AppService.Acmebot.Internal;
+
 using Azure.WebJobs.Extensions.HttpApi;
 
 using Microsoft.AspNetCore.Http;
@@ -22,7 +24,7 @@ namespace AppService.Acmebot.Functions
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "static-page/add-certificate")] HttpRequest req,
             ILogger log)
         {
-            if (!IsEasyAuthEnabled || !User.Identity.IsAuthenticated)
+            if (!IsEasyAuthEnabled || !User.IsAppAuthorized())
             {
                 return Forbid();
             }

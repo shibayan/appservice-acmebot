@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
 using Azure.WebJobs.Extensions.HttpApi;
@@ -48,7 +49,7 @@ namespace AppService.Acmebot.Functions
             [DurableClient] IDurableClient starter,
             ILogger log)
         {
-            if (!User.Identity.IsAuthenticated)
+            if (!User.IsAppAuthorized())
             {
                 return Unauthorized();
             }
