@@ -9,9 +9,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
     <PackageReference Include="Microsoft.Azure.Management.Dns" Version="3.0.1" />
     <PackageReference Include="Microsoft.Azure.Management.ResourceManager" Version="3.13.0-preview" />
-    <PackageReference Include="Microsoft.Azure.Management.WebSites" Version="3.1.0" />
+    <PackageReference Include="Microsoft.Azure.Management.WebSites" Version="3.1.1" />
     <PackageReference Include="Microsoft.Azure.Services.AppAuthentication" Version="1.6.1" />
-    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.DurableTask" Version="2.4.3" />
+    <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.DurableTask" Version="2.5.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="3.1.15" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.12" />
     <PackageReference Include="WebJobs.Extensions.HttpApi" Version="1.1.0" />
