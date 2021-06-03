@@ -5,20 +5,23 @@ using System.Threading.Tasks;
 
 using AppService.Acmebot.Options;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AppService.Acmebot.Internal
 {
     public class WebhookInvoker
     {
-        public WebhookInvoker(IHttpClientFactory httpClientFactory, IOptions<AcmebotOptions> options)
+        public WebhookInvoker(IHttpClientFactory httpClientFactory, IOptions<AcmebotOptions> options, ILogger<WebhookInvoker> logger)
         {
             _httpClientFactory = httpClientFactory;
             _options = options.Value;
+            _logger = logger;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AcmebotOptions _options;
+        private readonly ILogger<WebhookInvoker> _logger;
 
         public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, IEnumerable<string> dnsNames)
         {
@@ -141,7 +144,12 @@ namespace AppService.Acmebot.Internal
         {
             var httpClient = _httpClientFactory.CreateClient();
 
-            await httpClient.PostAsJsonAsync(_options.Webhook, model);
+            var response = await httpClient.PostAsJsonAsync(_options.Webhook, model);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning($"Failed invoke webhook. Status Code = {response.StatusCode}, Reason = {await response.Content.ReadAsStringAsync()}");
+            }
         }
     }
 }
