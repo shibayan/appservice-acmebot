@@ -6,6 +6,12 @@
         "route": "add-certificate"
       },
       "backendUri": "http://localhost/api/static-page/add-certificate"
+    },
+    "Root": {
+      "matchCondition": {
+        "route": "/"
+      },
+      "backendUri": "http://localhost/api/static-page/add-certificate"
     }
   }
 }
