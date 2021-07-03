@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Internal;
@@ -36,6 +37,12 @@ namespace AppService.Acmebot.Functions
                 return;
             }
 
+            // スロットリング対策として 60 秒以内でジッターを追加する
+            var jitter = (uint)context.NewGuid().GetHashCode() % 60;
+
+            await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
+
+            // リソースグループ単位で証明書の更新を行う
             var resourceGroups = await activity.GetResourceGroups();
 
             foreach (var resourceGroup in resourceGroups)
