@@ -140,7 +140,7 @@ namespace AppService.Acmebot.Functions
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }
 
-        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(12), 2)
+        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(3), 2)
         {
             Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
         };
