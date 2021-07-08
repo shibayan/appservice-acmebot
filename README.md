@@ -79,7 +79,21 @@ For Azure Government
   <img src="https://aka.ms/deploytoazurebutton" />
 </a>
 
-### 2. Enable App Service Authentication
+### 2. Add application settings
+
+Update the following configuration settings of the Function App:
+
+- `Acmebot:Webhook`
+  - Webhook destination URL (optional, Slack and Microsoft Teams are recommended)
+
+There are also additional settings that will be automatically created by App Service Acmebot:
+
+- `Acmebot:Endpoint`
+  - The ACME endpoint used to issue certificates
+- `Acmebot:Contacts`
+  - The email address (required) used in ACME account registration
+
+### 3. Enable App Service Authentication
 
 You must enable Authentication on the Function App that is deployed as part of this application.
 
@@ -97,7 +111,7 @@ https://docs.microsoft.com/en-us/azure/app-service/configure-authentication-prov
 
 Finally, you can save your previous settings to enable App Service authentication.
 
-### 3. Add access control (IAM) to the target resource group
+### 4. Add access control (IAM) to the target resource group
 
 Open the `Access control (IAM)` of the target resource group and assign the roles `Website Contributor` and `Web Plan Contributor` to the deployed application.
 
