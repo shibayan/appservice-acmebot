@@ -50,7 +50,7 @@ namespace AppService.Acmebot.Functions
         Task<(OrderDetails, RSAParameters)> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
 
         [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
-        Task CheckIsValid(OrderDetails orderDetails);
+        Task<OrderDetails> CheckIsValid(OrderDetails orderDetails);
 
         Task<Certificate> UploadCertificate((Site, string, bool, OrderDetails, RSAParameters) input);
 
