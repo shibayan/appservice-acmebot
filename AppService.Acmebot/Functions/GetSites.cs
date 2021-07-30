@@ -96,7 +96,7 @@ namespace AppService.Acmebot.Functions
 
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromSeconds(60));
+            return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(1), returnInternalServerErrorOnFailure: true);
         }
     }
 }
