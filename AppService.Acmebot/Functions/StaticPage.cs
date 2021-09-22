@@ -21,7 +21,7 @@ namespace AppService.Acmebot.Functions
 
         [FunctionName(nameof(StaticPage) + "_" + nameof(AddCertificate))]
         public IActionResult AddCertificate(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "static-page/add-certificate")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "add-certificate")] HttpRequest req,
             ILogger log)
         {
             if (!IsEasyAuthEnabled || !User.IsAppAuthorized())
