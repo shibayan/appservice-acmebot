@@ -49,7 +49,7 @@ The Key Vault version can be used with services that support Key Vault certifica
   - [Buypass Go SSL](https://www.buypass.com/ssl/resources/acme-free-ssl)
   - [ZeroSSL](https://zerossl.com/features/acme/) (Requires EAB Credentials)
 
-[![architectural diagram](docs/acmebot-diagram.svg)](https://www.lucidchart.eu/documents/view/77879337-7889-41d9-bd2d-c3a184f9587b)
+[![architectural diagram](docs/images/acmebot-diagram.svg)](https://www.lucidchart.eu/documents/view/77879337-7889-41d9-bd2d-c3a184f9587b)
 
 ## Requirements
 
@@ -61,23 +61,9 @@ The Key Vault version can be used with services that support Key Vault certifica
 
 ### 1. Deploy Acmebot
 
-For Azure Cloud
-
-<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://aka.ms/deploytoazurebutton" />
-</a>
-
-For Azure China
-
-<a href="https://portal.azure.cn/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://aka.ms/deploytoazurebutton" />
-</a>
-
-For Azure Government
-
-<a href="https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank">
-  <img src="https://aka.ms/deploytoazurebutton" />
-</a>
+| Azure (Public) | Azure China | Azure Government |
+| :---: | :---: | :---: |
+| <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank"><img src="https://aka.ms/deploytoazurebutton" /></a> | <a href="https://portal.azure.cn/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank"><img src="https://aka.ms/deploytoazurebutton" /></a> | <a href="https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fshibayan%2Fappservice-acmebot%2Fmaster%2Fazuredeploy.json" target="_blank"><img src="https://aka.ms/deploytoazurebutton" /></a> |
 
 ### 2. Add application settings
 
