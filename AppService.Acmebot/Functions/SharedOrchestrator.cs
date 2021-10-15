@@ -80,10 +80,10 @@ namespace AppService.Acmebot.Functions
             var (finalize, rsaParameters) = await activity.FinalizeOrder((dnsNames, orderDetails));
 
             // Finalize の時点でステータスが valid の時点はスキップ
-            if (orderDetails.Payload.Status != "valid")
+            if (finalize.Payload.Status != "valid")
             {
                 // Finalize 後のステータスが valid になるまで 60 秒待機
-                await activity.CheckIsValid(orderDetails);
+                finalize = await activity.CheckIsValid(finalize);
             }
 
             // 証明書をダウンロードし App Service へアップロード
