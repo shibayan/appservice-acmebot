@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Internal;
@@ -36,6 +37,12 @@ namespace AppService.Acmebot.Functions
                 return;
             }
 
+            // スロットリング対策として 120 秒以内でジッターを追加する
+            var jitter = (uint)context.NewGuid().GetHashCode() % 120;
+
+            await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
+
+            // リソースグループ単位で証明書の更新を行う
             var resourceGroups = await activity.GetResourceGroups();
 
             foreach (var resourceGroup in resourceGroups)
@@ -125,7 +132,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(RenewCertificates) + "_" + nameof(Timer))]
-        public async Task Timer([TimerTrigger("0 0 0 * * 1,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+        public async Task Timer([TimerTrigger("0 0 0 * * 1,3,5")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
         {
             // Function input comes from the request content.
             var instanceId = await starter.StartNewAsync(nameof(RenewCertificates) + "_" + nameof(Orchestrator));
@@ -133,7 +140,7 @@ namespace AppService.Acmebot.Functions
             log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
         }
 
-        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(12), 2)
+        private readonly RetryOptions _retryOptions = new RetryOptions(TimeSpan.FromHours(3), 2)
         {
             Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
         };

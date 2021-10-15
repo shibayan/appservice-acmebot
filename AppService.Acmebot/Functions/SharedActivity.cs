@@ -477,7 +477,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(CheckIsValid))]
-        public async Task CheckIsValid([ActivityTrigger] OrderDetails orderDetails)
+        public async Task<OrderDetails> CheckIsValid([ActivityTrigger] OrderDetails orderDetails)
         {
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -494,6 +494,8 @@ namespace AppService.Acmebot.Functions
                 // invalid の場合は最初から実行が必要なので失敗させる
                 throw new InvalidOperationException("Finalize request is invalid. Required retry at first.");
             }
+
+            return orderDetails;
         }
 
         [FunctionName(nameof(UploadCertificate))]
@@ -502,8 +504,6 @@ namespace AppService.Acmebot.Functions
             var (site, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
 
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
-
-            orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
 
             // 証明書をバイト配列としてダウンロード
             var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(orderDetails, _options.PreferredChain);
