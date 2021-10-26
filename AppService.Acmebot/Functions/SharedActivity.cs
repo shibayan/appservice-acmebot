@@ -489,6 +489,7 @@ namespace AppService.Acmebot.Functions
         }
 
         [FunctionName(nameof(UpdateHostNameSslState))]
+        [ExponentialBackoffRetry(20, "00:00:15", "01:00:00")]
         public async Task UpdateHostNameSslState([ActivityTrigger] (Site, HostNameSslState) input)
         {
             // URL and payload gauged from the "Try" feature on https://docs.microsoft.com/en-us/rest/api/appservice/web-apps/create-or-update-host-name-binding
@@ -523,6 +524,7 @@ namespace AppService.Acmebot.Functions
 
             if (!response.IsSuccessStatusCode)
             {
+
                 var msg = $"Operation returned an invalid status code '{response.StatusCode}'. URL: '{request.RequestUri.OriginalString}'. Payload: '{content}'";
                 throw new DefaultErrorResponseException(msg);
             }
