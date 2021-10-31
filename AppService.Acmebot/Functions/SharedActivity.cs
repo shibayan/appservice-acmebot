@@ -463,19 +463,20 @@ namespace AppService.Acmebot.Functions
             request.RequestUri = builder.Uri;
 
             var payload = new
+            {
+                location = site.Location,
+                properties = new
+                {
+                    pfxBlob = Convert.ToBase64String(pfxBlob),
+                    password = importCertOpts.Password
+                },
+                tags = new Dictionary<string, string>
                     {
-                        location = site.Location,
-                        properties = new {
-                            pfxBlob = Convert.ToBase64String(pfxBlob),
-                            password = importCertOpts.Password
-                        },
-                        tags = new Dictionary<string, string>
-                        {
-                            { "Issuer", IssuerName },
-                            { "Endpoint", _options.Endpoint },
-                            { "ForceDns01Challenge", forceDns01Challenge.ToString() }
-                        }
-                    };
+                        { "Issuer", IssuerName },
+                        { "Endpoint", _options.Endpoint },
+                        { "ForceDns01Challenge", forceDns01Challenge.ToString() }
+                    }
+            };
             var content = JsonConvert.SerializeObject(payload);
             _logger.LogInformation($"PUT {builder.Uri}: Payload length: {content.Length}");
             request.Content = new StringContent(content, System.Text.Encoding.UTF8);
@@ -513,7 +514,9 @@ namespace AppService.Acmebot.Functions
                 JsonConvert.SerializeObject(
                     new
                     {
-                        properties = new {
+                        properties =
+                        new
+                        {
                             sslState = "sniEnabled",
                             thumbprint = newState.Thumbprint
                         }
