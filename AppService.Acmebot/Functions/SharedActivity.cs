@@ -467,13 +467,13 @@ namespace AppService.Acmebot.Functions
                         location = site.Location,
                         properties = new {
                             pfxBlob = Convert.ToBase64String(pfxBlob),
-                            password = importCertOpts.Password,
-                            tags = new Dictionary<string, string>
-                            {
-                                { "Issuer", IssuerName },
-                                { "Endpoint", _options.Endpoint },
-                                { "ForceDns01Challenge", forceDns01Challenge.ToString() }
-                            }
+                            password = importCertOpts.Password
+                        },
+                        tags = new Dictionary<string, string>
+                        {
+                            { "Issuer", IssuerName },
+                            { "Endpoint", _options.Endpoint },
+                            { "ForceDns01Challenge", forceDns01Challenge.ToString() }
                         }
                     };
             var content = JsonConvert.SerializeObject(payload);
