@@ -19,9 +19,9 @@ namespace AppService.Acmebot.Functions
         {
         }
 
-        [FunctionName(nameof(StaticPage) + "_" + nameof(AddCertificate))]
-        public IActionResult AddCertificate(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "add-certificate")] HttpRequest req,
+        [FunctionName(nameof(StaticPage) + "_" + nameof(Serve))]
+        public IActionResult Serve(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "{*path}")] HttpRequest req,
             ILogger log)
         {
             if (!IsEasyAuthEnabled || !User.IsAppAuthorized())
@@ -29,7 +29,7 @@ namespace AppService.Acmebot.Functions
                 return Forbid();
             }
 
-            return File("static/add-certificate.html");
+            return LocalStaticApp();
         }
 
         private static bool IsEasyAuthEnabled => bool.TryParse(Environment.GetEnvironmentVariable("WEBSITE_AUTH_ENABLED"), out var result) && result;
