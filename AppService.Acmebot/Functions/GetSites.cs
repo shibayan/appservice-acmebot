@@ -81,7 +81,7 @@ namespace AppService.Acmebot.Functions
 
         [FunctionName(nameof(GetSites) + "_" + nameof(HttpStart))]
         public async Task<IActionResult> HttpStart(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "sites/{resourceGroup}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/sites/{resourceGroup}")] HttpRequest req,
             string resourceGroup,
             [DurableClient] IDurableClient starter,
             ILogger log)
