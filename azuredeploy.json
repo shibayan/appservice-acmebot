@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.4.1008.15138",
-      "templateHash": "6078787047416328312"
+      "version": "0.4.1124.51302",
+      "templateHash": "2391485556735650244"
     }
   },
   "parameters": {
@@ -35,7 +35,6 @@
       }
     }
   },
-  "functions": [],
   "variables": {
     "functionAppName": "[format('func-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
     "appServicePlanName": "[format('plan-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
@@ -138,7 +137,7 @@
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/v4/latest.zip"
+              "value": "https://stacmebotprod.blob.core.windows.net/appservice-acmebot/v4/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -165,8 +164,8 @@
               "value": "[environment().name]"
             }
           ],
-          "clientAffinityEnabled": false,
           "netFrameworkVersion": "v6.0",
+          "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "scmMinTlsVersion": "1.2"
         }
