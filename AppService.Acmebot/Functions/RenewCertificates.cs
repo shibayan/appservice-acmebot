@@ -85,27 +85,37 @@ namespace AppService.Acmebot.Functions
                 // 証明書単位で更新を行う
                 foreach (var certificate in certificates)
                 {
-                    log.LogInformation($"Subject name: {certificate.SubjectName}");
-
-                    // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
-                    var dnsNames = certificate.HostNames
-                                              .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
-                                              .ToArray();
-
-                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
-
-                    // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
-
-                    foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
+                    try
                     {
-                        hostNameSslState.Thumbprint = newCertificate.Thumbprint;
-                        hostNameSslState.ToUpdate = true;
-                        await activity.UpdateHostNameSslState((site, hostNameSslState));
-                    }
+                        log.LogInformation($"Subject name: {certificate.SubjectName}");
 
-                    // 証明書の更新が完了後に Webhook を送信する
-                    await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
+                        // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+                        var dnsNames = certificate.HostNames
+                                                  .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
+                                                  .ToArray();
+
+                        var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
+
+                        // 証明書を発行し Azure にアップロード
+                        var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
+
+                        foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
+                        {
+                            hostNameSslState.Thumbprint = newCertificate.Thumbprint;
+                            hostNameSslState.ToUpdate = true;
+                            await activity.UpdateHostNameSslState((site, hostNameSslState));
+                        }
+
+                        // 証明書の更新が完了後に Webhook を送信する
+                        await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
+                    }
+                    catch (Exception ex)
+                    {
+                        // Observed on a domain where the DNS setup had been changed to point to a completely different system.
+                        // Do not let individual renewal failures block other renewals.
+                        log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
+                        log.LogError(ex.Message);
+                    }
                 }
             }
             finally
