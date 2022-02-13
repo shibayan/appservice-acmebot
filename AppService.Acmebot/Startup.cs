@@ -21,6 +21,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Rest;
+using Azure.Storage.Blobs;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 
@@ -118,6 +119,15 @@ namespace AppService.Acmebot
                 });
 
                 return new CertificateClient(new Uri(options.Value.VaultBaseUrl), credential);
+            });
+
+            builder.Services.AddSingleton(provider =>
+            {
+                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+                var storageConnectionString = options.Value.StorageSasUri;
+                var sasUri = new Uri(storageConnectionString, UriKind.Absolute);
+
+                return new BlobContainerClient(sasUri);
             });
 
             builder.Services.AddSingleton<AcmeProtocolClientFactory>();

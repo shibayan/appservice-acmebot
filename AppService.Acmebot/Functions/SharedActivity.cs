@@ -29,9 +29,9 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Rest;
+using Azure.Storage.Blobs;
 
 using Newtonsoft.Json;
-
 
 namespace AppService.Acmebot.Functions
 {
@@ -41,7 +41,8 @@ namespace AppService.Acmebot.Functions
                               AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
                               ResourceManagementClient resourceManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
-                              ILogger<SharedActivity> logger, ITokenProvider tokenProvider, CertificateClient certificateClient)
+                              ILogger<SharedActivity> logger, ITokenProvider tokenProvider, CertificateClient certificateClient,
+                              BlobContainerClient blobContainerClient)
         {
             _httpClientFactory = httpClientFactory;
             _environment = environment;
@@ -56,6 +57,7 @@ namespace AppService.Acmebot.Functions
             _logger = logger;
             _credentials = new TokenCredentials(tokenProvider);
             _certificateClient = certificateClient;
+            _blobContainerClient = blobContainerClient;
         }
 
         private readonly IHttpClientFactory _httpClientFactory;
@@ -71,6 +73,7 @@ namespace AppService.Acmebot.Functions
         private readonly ILogger<SharedActivity> _logger;
         private readonly TokenCredentials _credentials;
         private readonly CertificateClient _certificateClient;
+        BlobContainerClient _blobContainerClient;
 
         private const string IssuerName = "Acmebot";
 
@@ -175,12 +178,12 @@ namespace AppService.Acmebot.Functions
             // 発行プロファイルを取得
             var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
 
-            var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
-
-            // Kudu API を使い、Answer 用のファイルを作成
+            // Use blob storage to avoid the Kudu-induced app service restarts
             foreach (var challengeResult in challengeResults)
             {
-                await kuduClient.WriteFileAsync(challengeResult.HttpResourcePath, challengeResult.HttpResourceValue);
+                var blobClient = _blobContainerClient.GetBlobClient(challengeResult.HttpResourcePath);
+                var content = new BinaryData(System.Text.Encoding.UTF8.GetBytes(challengeResult.HttpResourceValue));
+                await blobClient.UploadAsync(content);
             }
 
             return challengeResults;

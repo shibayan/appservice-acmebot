@@ -32,6 +32,13 @@
       "metadata": {
         "description": "Enter the base URL of an existing Key Vault. (ex. https://example.vault.azure.net)"
       }
+    },
+    "storageSasUri" : {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description" : "Enter the SAS storage URi where challenge-responses will be stored"
+      }
     }
   },
   "variables": {
@@ -43,6 +50,7 @@
     "mailAddress": "[parameters('mailAddress')]",
     "acmeEndpoint": "[parameters('acmeEndpoint')]",
     "vaultBaseUrl": "[parameters('keyVaultBaseUrl')]",
+    "storageSasUri": "[parameters('storageSasUri')]",
     "appInsightsEndpoints": {
       "AzureCloud": "applicationinsights.azure.com",
       "AzureChinaCloud": "applicationinsights.azure.cn",
@@ -150,6 +158,10 @@
             {
               "name": "Acmebot:VaultBaseUrl",
               "value": "[variables('vaultBaseUrl')]"
+            },
+            {
+              "name": "Acmebot:StorageSasUri",
+              "value": "[variables('storageSasUri')]"
             },
             {
               "name": "Acmebot:Environment",
