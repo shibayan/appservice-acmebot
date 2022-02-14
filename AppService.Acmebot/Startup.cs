@@ -7,6 +7,7 @@ using AppService.Acmebot.Options;
 
 using Azure.Identity;
 using Azure.Security.KeyVault.Certificates;
+using Azure.Storage.Blobs;
 
 using DnsClient;
 
@@ -21,7 +22,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Rest;
-using Azure.Storage.Blobs;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 

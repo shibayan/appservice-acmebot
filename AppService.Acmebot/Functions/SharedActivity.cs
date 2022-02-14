@@ -15,6 +15,7 @@ using AppService.Acmebot.Models;
 using AppService.Acmebot.Options;
 
 using Azure.Security.KeyVault.Certificates;
+using Azure.Storage.Blobs;
 
 using DnsClient;
 
@@ -29,7 +30,6 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Rest;
-using Azure.Storage.Blobs;
 
 using Newtonsoft.Json;
 
