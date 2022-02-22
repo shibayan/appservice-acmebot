@@ -175,15 +175,12 @@ namespace AppService.Acmebot.Functions
                 });
             }
 
-            // 発行プロファイルを取得
-            var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
-
             // Use blob storage to avoid the Kudu-induced app service restarts
             foreach (var challengeResult in challengeResults)
             {
                 var blobClient = _blobContainerClient.GetBlobClient(challengeResult.HttpResourcePath);
                 var content = new BinaryData(System.Text.Encoding.UTF8.GetBytes(challengeResult.HttpResourceValue));
-                await blobClient.UploadAsync(content);
+                await blobClient.UploadAsync(content, overwrite: true);
             }
 
             return challengeResults;
