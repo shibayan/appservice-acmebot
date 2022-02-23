@@ -390,11 +390,13 @@ namespace AppService.Acmebot.Functions
             var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
             orderDetails = await acmeProtocolClient.GetOrderDetailsAsync(orderDetails.OrderUrl, orderDetails);
+            var identifiers = orderDetails?.Payload?.Identifiers ?? Array.Empty<ACMESharp.Protocol.Resources.Identifier>();
+            var firstDomain = identifiers.Select(i => $" ({i.Value})").FirstOrDefault();
 
             if (orderDetails.Payload.Status == "pending" || orderDetails.Payload.Status == "processing")
             {
                 // pending か processing の場合はリトライする
-                throw new RetriableActivityException($"ACME domain validation is {orderDetails.Payload.Status}. It will retry automatically.");
+                throw new RetriableActivityException($"ACME domain validation{firstDomain} is {orderDetails.Payload.Status}. It will retry automatically.");
             }
 
             if (orderDetails.Payload.Status == "invalid")
@@ -416,7 +418,7 @@ namespace AppService.Acmebot.Functions
                 }
 
                 // invalid の場合は最初から実行が必要なので失敗させる
-                throw new InvalidOperationException($"ACME domain validation is invalid. Required retry at first.\nLastError = {lastError}");
+                throw new InvalidOperationException($"ACME domain validation{firstDomain} is invalid. Required retry at first.\nLastError = {lastError}");
             }
         }
 
