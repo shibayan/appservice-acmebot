@@ -106,7 +106,7 @@ namespace AppService.Acmebot.Functions
             var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
 
             return certificates.Where(x => x.TagsFilter(IssuerName, _options.Endpoint))
-                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays <= 30)
+                               .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays <= _options.RenewBeforeExpiry)
                                .ToArray();
         }
 
