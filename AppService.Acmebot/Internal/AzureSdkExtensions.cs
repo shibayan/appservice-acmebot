@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Azure.ResourceManager.Dns;
 using Azure.ResourceManager.Dns.Models;
 using Azure.ResourceManager.Resources;
-using Azure.ResourceManager.Resources.Models;
 
 using Microsoft.Azure.Management.WebSites;
 using Microsoft.Azure.Management.WebSites.Models;
@@ -63,11 +62,11 @@ namespace AppService.Acmebot.Internal
             return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);
         }
 
-        public static async Task<IReadOnlyList<ResourceGroup>> ListAllAsync(this ResourceGroupsOperations operations)
+        public static async Task<IReadOnlyList<ResourceGroup>> ListAllAsync(this ResourceGroupCollection operations)
         {
             var resourceGroups = new List<ResourceGroup>();
 
-            var result = operations.ListAsync();
+            var result = operations.GetAllAsync();
 
             await foreach (var resourceGroup in result)
             {

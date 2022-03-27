@@ -15,10 +15,10 @@ using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 using AppService.Acmebot.Options;
 
+using Azure.ResourceManager;
 using Azure.ResourceManager.Dns;
 using Azure.ResourceManager.Dns.Models;
 using Azure.ResourceManager.Resources;
-using Azure.ResourceManager.Resources.Models;
 
 using DnsClient;
 
@@ -38,7 +38,7 @@ namespace AppService.Acmebot.Functions
         public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
                               AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
                               WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                              ResourcesManagementClient resourcesManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
+                              ArmClient armClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
                               ILogger<SharedActivity> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -48,7 +48,7 @@ namespace AppService.Acmebot.Functions
             _kuduClientFactory = kuduClientFactory;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
-            _resourcesManagementClient = resourcesManagementClient;
+            _armClient = armClient;
             _webhookInvoker = webhookInvoker;
             _options = options.Value;
             _logger = logger;
@@ -61,7 +61,7 @@ namespace AppService.Acmebot.Functions
         private readonly KuduClientFactory _kuduClientFactory;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
-        private readonly ResourcesManagementClient _resourcesManagementClient;
+        private readonly ArmClient _armClient;
         private readonly WebhookInvoker _webhookInvoker;
         private readonly AcmebotOptions _options;
         private readonly ILogger<SharedActivity> _logger;
@@ -69,9 +69,11 @@ namespace AppService.Acmebot.Functions
         private const string IssuerName = "Acmebot";
 
         [FunctionName(nameof(GetResourceGroups))]
-        public Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+        public async Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
         {
-            return _resourcesManagementClient.ResourceGroups.ListAllAsync();
+            var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+            return await subscription.GetResourceGroups().ListAllAsync();
         }
 
         [FunctionName(nameof(GetSite))]

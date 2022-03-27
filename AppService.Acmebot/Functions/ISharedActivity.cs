@@ -7,7 +7,7 @@ using ACMESharp.Protocol;
 
 using AppService.Acmebot.Models;
 
-using Azure.ResourceManager.Resources.Models;
+using Azure.ResourceManager.Resources;
 
 using DurableTask.TypedProxy;
 

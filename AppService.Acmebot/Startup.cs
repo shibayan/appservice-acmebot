@@ -6,8 +6,8 @@ using AppService.Acmebot.Options;
 
 using Azure.Core;
 using Azure.Identity;
+using Azure.ResourceManager;
 using Azure.ResourceManager.Dns;
-using Azure.ResourceManager.Resources;
 
 using DnsClient;
 
@@ -101,7 +101,7 @@ namespace AppService.Acmebot
                 var environment = provider.GetRequiredService<AzureEnvironment>();
                 var credential = provider.GetRequiredService<TokenCredential>();
 
-                return new ResourcesManagementClient(environment.ResourceManager, options.Value.SubscriptionId, credential);
+                return new ArmClient(credential, options.Value.SubscriptionId, environment.ResourceManager);
             });
 
             builder.Services.AddSingleton<AcmeProtocolClientFactory>();

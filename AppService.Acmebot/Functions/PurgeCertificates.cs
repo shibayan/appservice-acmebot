@@ -38,7 +38,7 @@ namespace AppService.Acmebot.Functions
             foreach (var resourceGroup in resourceGroups)
             {
                 // App Service を取得
-                var sites = await activity.GetSites((resourceGroup.Name, false));
+                var sites = await activity.GetSites((resourceGroup.Data.Name, false));
 
                 // App Service にバインド済み証明書のサムプリントを取得
                 var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
