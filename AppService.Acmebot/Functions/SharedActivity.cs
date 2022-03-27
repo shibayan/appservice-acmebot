@@ -69,7 +69,7 @@ namespace AppService.Acmebot.Functions
         private const string IssuerName = "Acmebot";
 
         [FunctionName(nameof(GetResourceGroups))]
-        public async Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+        public async Task<IReadOnlyList<string>> GetResourceGroups([ActivityTrigger] object input = null)
         {
             var subscription = await _armClient.GetDefaultSubscriptionAsync();
 

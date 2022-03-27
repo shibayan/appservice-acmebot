@@ -48,7 +48,7 @@ namespace AppService.Acmebot.Functions
             foreach (var resourceGroup in resourceGroups)
             {
                 // App Service を取得
-                var sites = await activity.GetSites((resourceGroup.Data.Name, true));
+                var sites = await activity.GetSites((resourceGroup, true));
 
                 // サイト単位で証明書の更新を行う
                 foreach (var site in sites)

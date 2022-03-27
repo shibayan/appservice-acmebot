@@ -62,15 +62,15 @@ namespace AppService.Acmebot.Internal
             return operations.CreateOrUpdateAsync(site.ResourceGroup, site.Name, site, cancellationToken);
         }
 
-        public static async Task<IReadOnlyList<ResourceGroup>> ListAllAsync(this ResourceGroupCollection operations)
+        public static async Task<IReadOnlyList<string>> ListAllAsync(this ResourceGroupCollection operations)
         {
-            var resourceGroups = new List<ResourceGroup>();
+            var resourceGroups = new List<string>();
 
-            var result = operations.GetAllAsync();
+            var list = operations.GetAllAsync();
 
-            await foreach (var resourceGroup in result)
+            await foreach (var resourceGroup in list)
             {
-                resourceGroups.Add(resourceGroup);
+                resourceGroups.Add(resourceGroup.Data.Name);
             }
 
             return resourceGroups;

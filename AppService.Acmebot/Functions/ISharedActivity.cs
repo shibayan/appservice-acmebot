@@ -17,7 +17,7 @@ namespace AppService.Acmebot.Functions
 {
     public interface ISharedActivity
     {
-        Task<IReadOnlyList<ResourceGroup>> GetResourceGroups(object input = null);
+        Task<IReadOnlyList<string>> GetResourceGroups(object input = null);
 
         Task<Site> GetSite((string, string, string) input);
 
