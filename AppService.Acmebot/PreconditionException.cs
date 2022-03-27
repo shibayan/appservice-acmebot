@@ -1,28 +1,27 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot;
+
+[Serializable]
+public class PreconditionException : Exception
 {
-    [Serializable]
-    public class PreconditionException : Exception
+    public PreconditionException()
     {
-        public PreconditionException()
-        {
-        }
+    }
 
-        public PreconditionException(string message)
-            : base(message)
-        {
-        }
+    public PreconditionException(string message)
+        : base(message)
+    {
+    }
 
-        public PreconditionException(string message, Exception inner)
-            : base(message, inner)
-        {
-        }
+    public PreconditionException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
 
-        protected PreconditionException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-        }
+    protected PreconditionException(SerializationInfo info, StreamingContext context)
+        : base(info, context)
+    {
     }
 }

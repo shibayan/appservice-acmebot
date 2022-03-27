@@ -2,14 +2,13 @@
 
 using Newtonsoft.Json;
 
-namespace AppService.Acmebot.Models
-{
-    public class SiteItem
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
+namespace AppService.Acmebot.Models;
 
-        [JsonProperty("slots")]
-        public IList<SlotItem> Slots { get; set; }
-    }
+public class SiteItem
+{
+    [JsonProperty("name")]
+    public string Name { get; set; }
+
+    [JsonProperty("slots")]
+    public IList<SlotItem> Slots { get; set; }
 }

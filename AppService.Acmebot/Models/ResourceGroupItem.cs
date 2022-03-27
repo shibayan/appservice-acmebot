@@ -1,10 +1,9 @@
 ﻿using Newtonsoft.Json;
 
-namespace AppService.Acmebot.Models
+namespace AppService.Acmebot.Models;
+
+public class ResourceGroupItem
 {
-    public class ResourceGroupItem
-    {
-        [JsonProperty("name")]
-        public string Name { get; set; }
-    }
+    [JsonProperty("name")]
+    public string Name { get; set; }
 }

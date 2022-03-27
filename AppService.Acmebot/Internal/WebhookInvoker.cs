@@ -11,37 +11,37 @@ using Microsoft.Extensions.Options;
 
 using Newtonsoft.Json;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot.Internal;
+
+public class WebhookInvoker
 {
-    public class WebhookInvoker
+    public WebhookInvoker(IHttpClientFactory httpClientFactory, IOptions<AcmebotOptions> options, ILogger<WebhookInvoker> logger)
     {
-        public WebhookInvoker(IHttpClientFactory httpClientFactory, IOptions<AcmebotOptions> options, ILogger<WebhookInvoker> logger)
+        _httpClientFactory = httpClientFactory;
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AcmebotOptions _options;
+    private readonly ILogger<WebhookInvoker> _logger;
+
+    public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, IEnumerable<string> dnsNames)
+    {
+        if (string.IsNullOrEmpty(_options.Webhook))
         {
-            _httpClientFactory = httpClientFactory;
-            _options = options.Value;
-            _logger = logger;
+            return Task.CompletedTask;
         }
 
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly AcmebotOptions _options;
-        private readonly ILogger<WebhookInvoker> _logger;
+        object model;
 
-        public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, IEnumerable<string> dnsNames)
+        if (_options.Webhook.Contains("hooks.slack.com"))
         {
-            if (string.IsNullOrEmpty(_options.Webhook))
+            model = new
             {
-                return Task.CompletedTask;
-            }
-
-            object model;
-
-            if (_options.Webhook.Contains("hooks.slack.com"))
-            {
-                model = new
+                username = "Acmebot",
+                attachments = new[]
                 {
-                    username = "Acmebot",
-                    attachments = new[]
-                    {
                         new
                         {
                             text = "A new certificate has been issued.",
@@ -73,46 +73,46 @@ namespace AppService.Acmebot.Internal
                             }
                         }
                     }
-                };
-            }
-            else if (_options.Webhook.Contains(".office.com"))
+            };
+        }
+        else if (_options.Webhook.Contains(".office.com"))
+        {
+            model = new
             {
-                model = new
-                {
-                    title = "Acmebot",
-                    text = $"A new certificate has been issued.\n\n**App Name**: {appName}\n\n**Slot Name**: {slotName}\n\n**Expiration Date**: {expirationDate}\n\n**DNS Names**: {string.Join(", ", dnsNames)}",
-                    themeColor = "2EB886"
-                };
-            }
-            else
+                title = "Acmebot",
+                text = $"A new certificate has been issued.\n\n**App Name**: {appName}\n\n**Slot Name**: {slotName}\n\n**Expiration Date**: {expirationDate}\n\n**DNS Names**: {string.Join(", ", dnsNames)}",
+                themeColor = "2EB886"
+            };
+        }
+        else
+        {
+            model = new
             {
-                model = new
-                {
-                    appName,
-                    slotName,
-                    dnsNames
-                };
-            }
-
-            return SendEventAsync(model);
+                appName,
+                slotName,
+                dnsNames
+            };
         }
 
-        public Task SendFailedEventAsync(string functionName, string reason)
+        return SendEventAsync(model);
+    }
+
+    public Task SendFailedEventAsync(string functionName, string reason)
+    {
+        if (string.IsNullOrEmpty(_options.Webhook))
         {
-            if (string.IsNullOrEmpty(_options.Webhook))
-            {
-                return Task.CompletedTask;
-            }
+            return Task.CompletedTask;
+        }
 
-            object model;
+        object model;
 
-            if (_options.Webhook.Contains("hooks.slack.com"))
+        if (_options.Webhook.Contains("hooks.slack.com"))
+        {
+            model = new
             {
-                model = new
+                username = "Acmebot",
+                attachments = new[]
                 {
-                    username = "Acmebot",
-                    attachments = new[]
-                    {
                         new
                         {
                             title = functionName,
@@ -120,41 +120,40 @@ namespace AppService.Acmebot.Internal
                             color = "danger"
                         }
                     }
-                };
-            }
-            else if (_options.Webhook.Contains(".office.com"))
+            };
+        }
+        else if (_options.Webhook.Contains(".office.com"))
+        {
+            model = new
             {
-                model = new
-                {
-                    title = "Acmebot",
-                    text = $"**{functionName}**\n\n**Reason**\n\n{reason}",
-                    themeColor = "A30200"
-                };
-            }
-            else
+                title = "Acmebot",
+                text = $"**{functionName}**\n\n**Reason**\n\n{reason}",
+                themeColor = "A30200"
+            };
+        }
+        else
+        {
+            model = new
             {
-                model = new
-                {
-                    functionName,
-                    reason
-                };
-            }
-
-            return SendEventAsync(model);
+                functionName,
+                reason
+            };
         }
 
-        private async Task SendEventAsync(object model)
+        return SendEventAsync(model);
+    }
+
+    private async Task SendEventAsync(object model)
+    {
+        var httpClient = _httpClientFactory.CreateClient();
+
+        var content = new StringContent(JsonConvert.SerializeObject(model), Encoding.UTF8, "application/json");
+
+        var response = await httpClient.PostAsync(_options.Webhook, content);
+
+        if (!response.IsSuccessStatusCode)
         {
-            var httpClient = _httpClientFactory.CreateClient();
-
-            var content = new StringContent(JsonConvert.SerializeObject(model), Encoding.UTF8, "application/json");
-
-            var response = await httpClient.PostAsync(_options.Webhook, content);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning($"Failed invoke webhook. Status Code = {response.StatusCode}, Reason = {await response.Content.ReadAsStringAsync()}");
-            }
+            _logger.LogWarning($"Failed invoke webhook. Status Code = {response.StatusCode}, Reason = {await response.Content.ReadAsStringAsync()}");
         }
     }
 }

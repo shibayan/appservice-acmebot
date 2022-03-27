@@ -1,20 +1,20 @@
 ﻿using System.Collections.Generic;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot.Internal;
+
+public class AzureEnvironment
 {
-    public class AzureEnvironment
+    public string ActiveDirectory { get; set; }
+    public string ResourceManager { get; set; }
+    public string AppService { get; set; }
+    public string TrafficManager { get; set; }
+
+    public static AzureEnvironment Get(string name)
     {
-        public string ActiveDirectory { get; set; }
-        public string ResourceManager { get; set; }
-        public string AppService { get; set; }
-        public string TrafficManager { get; set; }
+        return _environments[name];
+    }
 
-        public static AzureEnvironment Get(string name)
-        {
-            return _environments[name];
-        }
-
-        private static readonly Dictionary<string, AzureEnvironment> _environments = new Dictionary<string, AzureEnvironment>
+    private static readonly Dictionary<string, AzureEnvironment> _environments = new Dictionary<string, AzureEnvironment>
         {
             {
                 "AzureCloud", new AzureEnvironment
@@ -44,5 +44,4 @@ namespace AppService.Acmebot.Internal
                 }
             }
         };
-    }
 }

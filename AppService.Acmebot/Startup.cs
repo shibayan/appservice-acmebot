@@ -21,86 +21,85 @@ using Microsoft.Rest;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 
-namespace AppService.Acmebot
+namespace AppService.Acmebot;
+
+public class Startup : FunctionsStartup
 {
-    public class Startup : FunctionsStartup
+    public override void Configure(IFunctionsHostBuilder builder)
     {
-        public override void Configure(IFunctionsHostBuilder builder)
+        // Add Options
+        var context = builder.GetContext();
+
+        var section = context.Configuration.GetSection("Acmebot");
+
+        builder.Services.AddOptions<AcmebotOptions>()
+               .Bind(section.Exists() ? section : context.Configuration.GetSection("LetsEncrypt"))
+               .ValidateDataAnnotations();
+
+        // Add Services
+        builder.Services.Replace(ServiceDescriptor.Transient(typeof(IOptionsFactory<>), typeof(OptionsFactory<>)));
+
+        builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("InSecure")
+               .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+               {
+                   ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+               });
+
+        builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer<Startup>>();
+
+        builder.Services.AddSingleton(new LookupClient(new LookupClientOptions(NameServer.GooglePublicDns, NameServer.GooglePublicDns2)
         {
-            // Add Options
-            var context = builder.GetContext();
+            UseCache = false,
+            UseRandomNameServer = true
+        }));
 
-            var section = context.Configuration.GetSection("Acmebot");
+        builder.Services.AddSingleton<ITokenProvider, AppAuthenticationTokenProvider>();
 
-            builder.Services.AddOptions<AcmebotOptions>()
-                   .Bind(section.Exists() ? section : context.Configuration.GetSection("LetsEncrypt"))
-                   .ValidateDataAnnotations();
+        builder.Services.AddSingleton(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
 
-            // Add Services
-            builder.Services.Replace(ServiceDescriptor.Transient(typeof(IOptionsFactory<>), typeof(OptionsFactory<>)));
+            return AzureEnvironment.Get(options.Value.Environment);
+        });
 
-            builder.Services.AddHttpClient();
-            builder.Services.AddHttpClient("InSecure")
-                   .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-                   {
-                       ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                   });
+        builder.Services.AddSingleton(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+            var environment = provider.GetRequiredService<AzureEnvironment>();
 
-            builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer<Startup>>();
-
-            builder.Services.AddSingleton(new LookupClient(new LookupClientOptions(NameServer.GooglePublicDns, NameServer.GooglePublicDns2)
+            return new WebSiteManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
             {
-                UseCache = false,
-                UseRandomNameServer = true
-            }));
+                SubscriptionId = options.Value.SubscriptionId
+            };
+        });
 
-            builder.Services.AddSingleton<ITokenProvider, AppAuthenticationTokenProvider>();
+        builder.Services.AddSingleton(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+            var environment = provider.GetRequiredService<AzureEnvironment>();
 
-            builder.Services.AddSingleton(provider =>
+            return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
             {
-                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+                SubscriptionId = options.Value.SubscriptionId
+            };
+        });
 
-                return AzureEnvironment.Get(options.Value.Environment);
-            });
+        builder.Services.AddSingleton(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
+            var environment = provider.GetRequiredService<AzureEnvironment>();
 
-            builder.Services.AddSingleton(provider =>
+            return new ResourceManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
             {
-                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<AzureEnvironment>();
+                SubscriptionId = options.Value.SubscriptionId
+            };
+        });
 
-                return new WebSiteManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
-                {
-                    SubscriptionId = options.Value.SubscriptionId
-                };
-            });
+        builder.Services.AddSingleton<AcmeProtocolClientFactory>();
+        builder.Services.AddSingleton<KuduClientFactory>();
 
-            builder.Services.AddSingleton(provider =>
-            {
-                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<AzureEnvironment>();
-
-                return new DnsManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
-                {
-                    SubscriptionId = options.Value.SubscriptionId
-                };
-            });
-
-            builder.Services.AddSingleton(provider =>
-            {
-                var options = provider.GetRequiredService<IOptions<AcmebotOptions>>();
-                var environment = provider.GetRequiredService<AzureEnvironment>();
-
-                return new ResourceManagementClient(new Uri(environment.ResourceManager), new TokenCredentials(provider.GetRequiredService<ITokenProvider>()))
-                {
-                    SubscriptionId = options.Value.SubscriptionId
-                };
-            });
-
-            builder.Services.AddSingleton<AcmeProtocolClientFactory>();
-            builder.Services.AddSingleton<KuduClientFactory>();
-
-            builder.Services.AddSingleton<WebhookInvoker>();
-            builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
-        }
+        builder.Services.AddSingleton<WebhookInvoker>();
+        builder.Services.AddSingleton<ILifeCycleNotificationHelper, WebhookLifeCycleNotification>();
     }
 }
