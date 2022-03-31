@@ -18,7 +18,6 @@ using AppService.Acmebot.Options;
 using Azure.ResourceManager;
 using Azure.ResourceManager.Dns;
 using Azure.ResourceManager.Dns.Models;
-using Azure.ResourceManager.Resources;
 
 using DnsClient;
 
@@ -37,18 +36,17 @@ namespace AppService.Acmebot.Functions
     {
         public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
                               AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
-                              WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                              ArmClient armClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
-                              ILogger<SharedActivity> logger)
+                              ArmClient armClient, WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
+                              WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options, ILogger<SharedActivity> logger)
         {
             _httpClientFactory = httpClientFactory;
             _environment = environment;
             _lookupClient = lookupClient;
             _acmeProtocolClientFactory = acmeProtocolClientFactory;
             _kuduClientFactory = kuduClientFactory;
+            _armClient = armClient;
             _webSiteManagementClient = webSiteManagementClient;
             _dnsManagementClient = dnsManagementClient;
-            _armClient = armClient;
             _webhookInvoker = webhookInvoker;
             _options = options.Value;
             _logger = logger;
@@ -59,9 +57,9 @@ namespace AppService.Acmebot.Functions
         private readonly LookupClient _lookupClient;
         private readonly AcmeProtocolClientFactory _acmeProtocolClientFactory;
         private readonly KuduClientFactory _kuduClientFactory;
+        private readonly ArmClient _armClient;
         private readonly WebSiteManagementClient _webSiteManagementClient;
         private readonly DnsManagementClient _dnsManagementClient;
-        private readonly ArmClient _armClient;
         private readonly WebhookInvoker _webhookInvoker;
         private readonly AcmebotOptions _options;
         private readonly ILogger<SharedActivity> _logger;
