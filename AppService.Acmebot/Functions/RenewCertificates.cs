@@ -37,8 +37,8 @@ namespace AppService.Acmebot.Functions
                 return;
             }
 
-            // スロットリング対策として 120 秒以内でジッターを追加する
-            var jitter = (uint)context.NewGuid().GetHashCode() % 120;
+            // スロットリング対策として 600 秒以内でジッターを追加する
+            var jitter = (uint)context.NewGuid().GetHashCode() % 600;
 
             await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
 
