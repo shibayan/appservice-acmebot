@@ -15,14 +15,16 @@ using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 using AppService.Acmebot.Options;
 
+using Azure.Core;
+using Azure.ResourceManager;
+using Azure.ResourceManager.AppService;
+using Azure.ResourceManager.AppService.Models;
+using Azure.ResourceManager.Dns;
+using Azure.ResourceManager.Dns.Models;
+using Azure.ResourceManager.Resources;
+
 using DnsClient;
 
-using Microsoft.Azure.Management.Dns;
-using Microsoft.Azure.Management.Dns.Models;
-using Microsoft.Azure.Management.ResourceManager;
-using Microsoft.Azure.Management.ResourceManager.Models;
-using Microsoft.Azure.Management.WebSites;
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
@@ -36,18 +38,16 @@ public class SharedActivity : ISharedActivity
 {
     public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
                           AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
-                          WebSiteManagementClient webSiteManagementClient, DnsManagementClient dnsManagementClient,
-                          ResourceManagementClient resourceManagementClient, WebhookInvoker webhookInvoker, IOptions<AcmebotOptions> options,
-                          ILogger<SharedActivity> logger)
+                          ArmClient armClient, DnsManagementClient dnsManagementClient, WebhookInvoker webhookInvoker,
+                          IOptions<AcmebotOptions> options, ILogger<SharedActivity> logger)
     {
         _httpClientFactory = httpClientFactory;
         _environment = environment;
         _lookupClient = lookupClient;
         _acmeProtocolClientFactory = acmeProtocolClientFactory;
         _kuduClientFactory = kuduClientFactory;
-        _webSiteManagementClient = webSiteManagementClient;
+        _armClient = armClient;
         _dnsManagementClient = dnsManagementClient;
-        _resourceManagementClient = resourceManagementClient;
         _webhookInvoker = webhookInvoker;
         _options = options.Value;
         _logger = logger;
@@ -58,9 +58,8 @@ public class SharedActivity : ISharedActivity
     private readonly LookupClient _lookupClient;
     private readonly AcmeProtocolClientFactory _acmeProtocolClientFactory;
     private readonly KuduClientFactory _kuduClientFactory;
-    private readonly WebSiteManagementClient _webSiteManagementClient;
+    private readonly ArmClient _armClient;
     private readonly DnsManagementClient _dnsManagementClient;
-    private readonly ResourceManagementClient _resourceManagementClient;
     private readonly WebhookInvoker _webhookInvoker;
     private readonly AcmebotOptions _options;
     private readonly ILogger<SharedActivity> _logger;
@@ -68,30 +67,48 @@ public class SharedActivity : ISharedActivity
     private const string IssuerName = "Acmebot";
 
     [FunctionName(nameof(GetResourceGroups))]
-    public Task<IReadOnlyList<ResourceGroup>> GetResourceGroups([ActivityTrigger] object input = null)
+    public async Task<IReadOnlyList<string>> GetResourceGroups([ActivityTrigger] object input = null)
     {
-        return _resourceManagementClient.ResourceGroups.ListAllAsync();
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        return await subscription.GetResourceGroups().ListAllAsync();
     }
 
     [FunctionName(nameof(GetSite))]
-    public Task<Site> GetSite([ActivityTrigger] (string, string, string) input)
+    public async Task<WebSiteData> GetSite([ActivityTrigger] (string, string, string) input)
     {
         var (resourceGroupName, appName, slotName) = input;
 
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
         if (slotName != "production")
         {
-            return _webSiteManagementClient.WebApps.GetSlotAsync(resourceGroupName, appName, slotName);
-        }
+            var id = SiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName, slotName);
 
-        return _webSiteManagementClient.WebApps.GetAsync(resourceGroupName, appName);
+            SiteSlotResource siteSlot = await _armClient.GetSiteSlotResource(id).GetAsync();
+
+            return siteSlot.Data;
+        }
+        else
+        {
+            var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName);
+
+            WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
+
+            return webSite.Data;
+        }
     }
 
     [FunctionName(nameof(GetSites))]
-    public async Task<IReadOnlyList<Site>> GetSites([ActivityTrigger] (string, bool) input)
+    public async Task<IReadOnlyList<WebSiteData>> GetSites([ActivityTrigger] (string, bool) input)
     {
         var (resourceGroupName, isRunningOnly) = input;
 
-        var sites = await _webSiteManagementClient.WebApps.ListByResourceGroupAllAsync(resourceGroupName);
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(resourceGroupName);
+
+        var sites = await resourceGroup.GetWebSites().ListAllAsync();
 
         return sites.Where(x => !isRunningOnly || x.State == "Running")
                     .Where(x => x.HostNames.Any(xs => !xs.EndsWith(_environment.AppService) && !xs.EndsWith(_environment.TrafficManager)))
@@ -100,19 +117,23 @@ public class SharedActivity : ISharedActivity
     }
 
     [FunctionName(nameof(GetExpiringCertificates))]
-    public async Task<IReadOnlyList<Certificate>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
+    public async Task<IReadOnlyList<CertificateData>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
     {
-        var certificates = await _webSiteManagementClient.Certificates.ListAllAsync();
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        var certificates = await subscription.ListAllCertificatesAsync();
 
         return certificates.Where(x => x.TagsFilter(IssuerName, _options.Endpoint))
-                           .Where(x => (x.ExpirationDate.Value - currentDateTime).TotalDays <= _options.RenewBeforeExpiry)
+                           .Where(x => (x.ExpirationOn.Value - currentDateTime).TotalDays <= _options.RenewBeforeExpiry)
                            .ToArray();
     }
 
     [FunctionName(nameof(GetAllCertificates))]
-    public Task<IReadOnlyList<Certificate>> GetAllCertificates([ActivityTrigger] object input)
+    public async Task<IReadOnlyList<CertificateData>> GetAllCertificates([ActivityTrigger] object input)
     {
-        return _webSiteManagementClient.Certificates.ListAllAsync();
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        return await subscription.ListAllCertificatesAsync();
     }
 
     [FunctionName(nameof(Order))]
@@ -124,12 +145,14 @@ public class SharedActivity : ISharedActivity
     }
 
     [FunctionName(nameof(Http01Precondition))]
-    public async Task Http01Precondition([ActivityTrigger] Site site)
+    public async Task Http01Precondition([ActivityTrigger] ResourceIdentifier id)
     {
-        var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
+        var webSite = _armClient.GetWebSiteResource(id);
+
+        WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
         // 既に .well-known が仮想アプリケーションとして追加されているか確認
-        var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
         if (virtualApplication != null)
         {
@@ -137,9 +160,9 @@ public class SharedActivity : ISharedActivity
         }
 
         // 発行プロファイルを取得
-        var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
+        var credentials = await webSite.GetPublishingCredentialsAsync(Azure.WaitUntil.Completed);
 
-        var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
 
         try
         {
@@ -156,20 +179,22 @@ public class SharedActivity : ISharedActivity
         }
 
         // .well-known を仮想アプリケーションとして追加
-        config.VirtualApplications.Add(new VirtualApplication
+        config.Data.VirtualApplications.Add(new VirtualApplication
         {
             VirtualPath = "/.well-known",
             PhysicalPath = "site\\.well-known",
             PreloadEnabled = false
         });
 
-        await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+        await config.UpdateAsync(config.Data);
     }
 
     [FunctionName(nameof(Http01Authorization))]
-    public async Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (Site, IReadOnlyList<string>) input)
+    public async Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (ResourceIdentifier, IReadOnlyList<string>) input)
     {
-        var (site, authorizationUrls) = input;
+        var (id, authorizationUrls) = input;
+
+        var webSite = _armClient.GetWebSiteResource(id);
 
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -201,9 +226,9 @@ public class SharedActivity : ISharedActivity
         }
 
         // 発行プロファイルを取得
-        var credentials = await _webSiteManagementClient.WebApps.ListPublishingCredentialsAsync(site);
+        var credentials = await webSite.GetPublishingCredentialsAsync(Azure.WaitUntil.Completed);
 
-        var kuduClient = _kuduClientFactory.CreateClient(site.ScmSiteUrl(), credentials.PublishingUserName, credentials.PublishingPassword);
+        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
 
         // Kudu API を使い、Answer 用のファイルを作成
         foreach (var challengeResult in challengeResults)
@@ -354,7 +379,11 @@ public class SharedActivity : ISharedActivity
 
             // TXT レコードに TTL と値をセットする
             recordSet.TTL = 60;
-            recordSet.TxtRecords = lookup.Select(x => new TxtRecord(new[] { x.DnsRecordValue })).ToArray();
+
+            foreach (var value in lookup)
+            {
+                recordSet.TxtRecords.Add(new TxtRecord { Value = { value.DnsRecordValue } });
+            }
 
             await _dnsManagementClient.RecordSets.CreateOrUpdateAsync(resourceGroup, zone.Name, acmeDnsRecordName, RecordType.TXT, recordSet);
         }
@@ -494,9 +523,9 @@ public class SharedActivity : ISharedActivity
     }
 
     [FunctionName(nameof(UploadCertificate))]
-    public async Task<Certificate> UploadCertificate([ActivityTrigger] (Site, string, bool, OrderDetails, RSAParameters) input)
+    public async Task<CertificateData> UploadCertificate([ActivityTrigger] (ResourceIdentifier, string, bool, OrderDetails, RSAParameters) input)
     {
-        var (site, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
+        var (id, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
 
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
@@ -513,25 +542,38 @@ public class SharedActivity : ISharedActivity
 
         var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
 
-        return await _webSiteManagementClient.Certificates.CreateOrUpdateAsync(site.ResourceGroup, certificateName, new Certificate
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
+
+        ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(webSite.Data.ResourceGroup);
+
+        var certificateCollection = resourceGroup.GetCertificates();
+
+        var result = await certificateCollection.CreateOrUpdateAsync(Azure.WaitUntil.Completed, certificateName, new CertificateData(webSite.Data.Location)
         {
-            Location = site.Location,
             Password = "P@ssw0rd",
             PfxBlob = pfxBlob,
-            ServerFarmId = site.ServerFarmId,
-            Tags = new Dictionary<string, string>
-                {
-                    { "Issuer", IssuerName },
-                    { "Endpoint", _options.Endpoint },
-                    { "ForceDns01Challenge", forceDns01Challenge.ToString() }
-                }
+            ServerFarmId = webSite.Data.ServerFarmId,
+            Tags =
+            {
+                { "Issuer", IssuerName },
+                { "Endpoint", _options.Endpoint },
+                { "ForceDns01Challenge", forceDns01Challenge.ToString() }
+            }
         });
+
+        return result.Value.Data;
     }
 
     [FunctionName(nameof(UpdateSiteBinding))]
-    public Task UpdateSiteBinding([ActivityTrigger] Site site)
+    public async Task UpdateSiteBinding([ActivityTrigger] ResourceIdentifier id)
     {
-        return _webSiteManagementClient.WebApps.CreateOrUpdateAsync(site);
+        WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
+
+        var sitePatch = new SitePatchResource();
+
+        await webSite.UpdateAsync(sitePatch);
     }
 
     [FunctionName(nameof(CleanupDnsChallenge))]
@@ -559,12 +601,14 @@ public class SharedActivity : ISharedActivity
     }
 
     [FunctionName(nameof(CleanupVirtualApplication))]
-    public async Task CleanupVirtualApplication([ActivityTrigger] Site site)
+    public async Task CleanupVirtualApplication([ActivityTrigger] ResourceIdentifier id)
     {
-        var config = await _webSiteManagementClient.WebApps.GetConfigurationAsync(site);
+        var webSite = _armClient.GetWebSiteResource(id);
+
+        WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
         // 既に .well-known が仮想アプリケーションとして追加されているか確認
-        var virtualApplication = config.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
         if (virtualApplication == null)
         {
@@ -572,21 +616,21 @@ public class SharedActivity : ISharedActivity
         }
 
         // 作成した仮想アプリケーションを削除
-        config.VirtualApplications.Remove(virtualApplication);
+        config.Data.VirtualApplications.Remove(virtualApplication);
 
-        await _webSiteManagementClient.WebApps.UpdateConfigurationAsync(site, config);
+        await config.UpdateAsync(config.Data);
     }
 
     [FunctionName(nameof(DeleteCertificate))]
-    public Task DeleteCertificate([ActivityTrigger] Certificate certificate)
+    public Task DeleteCertificate([ActivityTrigger] ResourceIdentifier id)
     {
-        var resourceGroup = ExtractResourceGroup(certificate.Id);
+        var certificateResource = _armClient.GetCertificateResource(id);
 
-        return _webSiteManagementClient.Certificates.DeleteAsync(resourceGroup, certificate.Name);
+        return certificateResource.DeleteAsync(Azure.WaitUntil.Completed);
     }
 
     [FunctionName(nameof(SendCompletedEvent))]
-    public Task SendCompletedEvent([ActivityTrigger] (Site, DateTime?, IReadOnlyList<string>) input)
+    public Task SendCompletedEvent([ActivityTrigger] (WebSiteData, DateTimeOffset?, IReadOnlyList<string>) input)
     {
         var (site, expirationDate, dnsNames) = input;
         var (appName, slotName) = site.SplitName();

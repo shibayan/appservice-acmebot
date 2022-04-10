@@ -9,20 +9,20 @@ namespace AppService.Acmebot.Internal;
 
 public class KuduClient
 {
-    public KuduClient(HttpClient httpClient, string scmUrl, string userName, string password)
+    public KuduClient(HttpClient httpClient, Uri scmUri)
     {
         _httpClient = httpClient;
-        _scmUrl = scmUrl;
-        _basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}"));
+        _scmHost = scmUri.Host;
+        _basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes(scmUri.UserInfo));
     }
 
     private readonly HttpClient _httpClient;
-    private readonly string _scmUrl;
+    private readonly string _scmHost;
     private readonly string _basicAuth;
 
     public async Task<bool> ExistsFileAsync(string filePath)
     {
-        var request = new HttpRequestMessage(HttpMethod.Head, $"https://{_scmUrl}/api/vfs/site/{filePath}");
+        var request = new HttpRequestMessage(HttpMethod.Head, $"https://{_scmHost}/api/vfs/site/{filePath}");
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
 
@@ -45,7 +45,7 @@ public class KuduClient
 
     public Task WriteFileAsync(string filePath, string content)
     {
-        var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmUrl}/api/vfs/site/{filePath}");
+        var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmHost}/api/vfs/site/{filePath}");
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
         request.Headers.IfMatch.Add(EntityTagHeaderValue.Any);

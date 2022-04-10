@@ -26,7 +26,7 @@ public class WebhookInvoker
     private readonly AcmebotOptions _options;
     private readonly ILogger<WebhookInvoker> _logger;
 
-    public Task SendCompletedEventAsync(string appName, string slotName, DateTime? expirationDate, IEnumerable<string> dnsNames)
+    public Task SendCompletedEventAsync(string appName, string slotName, DateTimeOffset? expirationDate, IEnumerable<string> dnsNames)
     {
         if (string.IsNullOrEmpty(_options.Webhook))
         {

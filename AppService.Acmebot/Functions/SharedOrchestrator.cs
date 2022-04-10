@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 
 using AppService.Acmebot.Models;
 
+using Azure.ResourceManager.AppService;
+
 using DurableTask.TypedProxy;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
@@ -16,9 +17,9 @@ namespace AppService.Acmebot.Functions;
 public class SharedOrchestrator
 {
     [FunctionName(nameof(IssueCertificate))]
-    public async Task<Certificate> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
+    public async Task<CertificateData> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
     {
-        var (site, dnsNames, forceDns01Challenge) = context.GetInput<(Site, string[], bool)>();
+        var (site, dnsNames, forceDns01Challenge) = context.GetInput<(WebSiteData, string[], bool)>();
 
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
@@ -32,7 +33,7 @@ public class SharedOrchestrator
         }
         else
         {
-            await activity.Http01Precondition(site);
+            await activity.Http01Precondition(site.Id);
         }
 
         // 新しく ACME Order を作成する
@@ -57,7 +58,7 @@ public class SharedOrchestrator
             }
             else
             {
-                challengeResults = await activity.Http01Authorization((site, orderDetails.Payload.Authorizations));
+                challengeResults = await activity.Http01Authorization((site.Id, orderDetails.Payload.Authorizations));
 
                 // HTTP で正しくアクセスできるか確認
                 await activity.CheckHttpChallenge(challengeResults);
@@ -87,7 +88,7 @@ public class SharedOrchestrator
         }
 
         // 証明書をダウンロードし App Service へアップロード
-        var certificate = await activity.UploadCertificate((site, dnsNames[0], forceDns01Challenge, finalize, rsaParameters));
+        var certificate = await activity.UploadCertificate((site.Id, dnsNames[0], forceDns01Challenge, finalize, rsaParameters));
 
         return certificate;
     }

@@ -4,13 +4,14 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
+using Azure.ResourceManager.AppService;
+using Azure.ResourceManager.AppService.Models;
 using Azure.WebJobs.Extensions.HttpApi;
 
 using DurableTask.TypedProxy;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -59,25 +60,25 @@ public class AddCertificate : HttpFunctionBase
         try
         {
             // 証明書を発行し Azure にアップロード
-            var certificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
+            var certificate = await context.CallSubOrchestratorAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
             // App Service のホスト名に証明書をセットする
             foreach (var hostNameSslState in hostNameSslStates)
             {
                 hostNameSslState.Thumbprint = certificate.Thumbprint;
-                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IpBasedEnabled : SslState.SniEnabled;
+                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IPBasedEnabled : SslState.SniEnabled;
                 hostNameSslState.ToUpdate = true;
             }
 
-            await activity.UpdateSiteBinding(site);
+            await activity.UpdateSiteBinding(site.Id);
 
             // 証明書の更新が完了後に Webhook を送信する
-            await activity.SendCompletedEvent((site, certificate.ExpirationDate, asciiDnsNames));
+            await activity.SendCompletedEvent((site, certificate.ExpirationOn, asciiDnsNames));
         }
         finally
         {
             // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(site);
+            await activity.CleanupVirtualApplication(site.Id);
         }
     }
 
@@ -111,7 +112,7 @@ public class AddCertificate : HttpFunctionBase
         string instanceId,
         [DurableClient] IDurableClient starter)
     {
-        if (!User.Identity.IsAuthenticated)
+        if (!User.IsAppAuthorized())
         {
             return Unauthorized();
         }
@@ -128,9 +129,7 @@ public class AddCertificate : HttpFunctionBase
             return Problem(status.Output.ToString());
         }
 
-        if (status.RuntimeStatus == OrchestrationRuntimeStatus.Running ||
-            status.RuntimeStatus == OrchestrationRuntimeStatus.Pending ||
-            status.RuntimeStatus == OrchestrationRuntimeStatus.ContinuedAsNew)
+        if (status.RuntimeStatus is OrchestrationRuntimeStatus.Running or OrchestrationRuntimeStatus.Pending or OrchestrationRuntimeStatus.ContinuedAsNew)
         {
             return AcceptedAtFunction(nameof(AddCertificate) + "_" + nameof(HttpPoll), new { instanceId }, null);
         }
