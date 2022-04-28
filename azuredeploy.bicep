@@ -2,6 +2,9 @@
 @maxLength(14)
 param appNamePrefix string
 
+@description('The location of the function app that you wish to create.')
+param location string = resourceGroup().location
+
 @description('Email address for ACME account.')
 param mailAddress string
 
@@ -26,7 +29,7 @@ var appInsightsEndpoints = {
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2021-06-01' = {
   name: storageAccountName
-  location: resourceGroup().location
+  location: location
   kind: 'Storage'
   sku: {
     name: 'Standard_LRS'
@@ -40,7 +43,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-06-01' = {
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2021-02-01' = {
   name: appServicePlanName
-  location: resourceGroup().location
+  location: location
   sku: {
     name: 'Y1'
     tier: 'Dynamic'
@@ -51,7 +54,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-02-01' = {
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
   name: workspaceName
-  location: resourceGroup().location
+  location: location
   properties: {
     sku: {
       name: 'PerGB2018'
@@ -62,7 +65,7 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: appInsightsName
-  location: resourceGroup().location
+  location: location
   kind: 'web'
   tags: {
     'hidden-link:${resourceGroup().id}/providers/Microsoft.Web/sites/${functionAppName}': 'Resource'
@@ -75,7 +78,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 resource functionApp 'Microsoft.Web/sites@2021-02-01' = {
   name: functionAppName
-  location: resourceGroup().location
+  location: location
   kind: 'functionapp'
   identity: {
     type: 'SystemAssigned'
@@ -139,4 +142,5 @@ resource functionApp 'Microsoft.Web/sites@2021-02-01' = {
 }
 
 output functionAppName string = functionApp.name
-output identity object = functionApp.identity
+output principalId string = functionApp.identity.principalId
+output tenantId string = functionApp.identity.tenantId
