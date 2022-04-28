@@ -27,8 +27,11 @@ jobs:
       id: setup_version
       run: echo ::set-output name=version::${GITHUB_REF/refs\/tags\/v/}
 
-    - name: Publish Functions
+    - name: Publish Function app
       run: dotnet publish -c Release -r win-x86 --self-contained false -o ./dist -p:Version=${{ steps.setup_version.outputs.version }} AppService.Acmebot
+
+    - name: Zip Function app
+      run: 7z a -mx=9 latest.zip ./dist/*
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
