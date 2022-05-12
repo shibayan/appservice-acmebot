@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.4.1318.3566",
-      "templateHash": "15439664005565524494"
+      "version": "0.6.11.53198",
+      "templateHash": "6933657116689082934"
     }
   },
   "parameters": {
@@ -14,6 +14,13 @@
       "maxLength": 14,
       "metadata": {
         "description": "The name of the function app that you wish to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The location of the function app that you wish to create."
       }
     },
     "mailAddress": {
@@ -52,7 +59,7 @@
       "type": "Microsoft.Storage/storageAccounts",
       "apiVersion": "2021-06-01",
       "name": "[variables('storageAccountName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "kind": "Storage",
       "sku": {
         "name": "Standard_LRS"
@@ -67,7 +74,7 @@
       "type": "Microsoft.Web/serverfarms",
       "apiVersion": "2021-02-01",
       "name": "[variables('appServicePlanName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "sku": {
         "name": "Y1",
         "tier": "Dynamic",
@@ -79,7 +86,7 @@
       "type": "Microsoft.OperationalInsights/workspaces",
       "apiVersion": "2021-06-01",
       "name": "[variables('workspaceName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "properties": {
         "sku": {
           "name": "PerGB2018"
@@ -91,7 +98,7 @@
       "type": "Microsoft.Insights/components",
       "apiVersion": "2020-02-02",
       "name": "[variables('appInsightsName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "kind": "web",
       "tags": {
         "[format('hidden-link:{0}/providers/Microsoft.Web/sites/{1}', resourceGroup().id, variables('functionAppName'))]": "Resource"
@@ -108,7 +115,7 @@
       "type": "Microsoft.Web/sites",
       "apiVersion": "2021-02-01",
       "name": "[variables('functionAppName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "kind": "functionapp",
       "identity": {
         "type": "SystemAssigned"
@@ -137,11 +144,11 @@
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "https://stacmebotprod.blob.core.windows.net/appservice-acmebot/v4/latest.zip"
+              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/v3/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~4"
+              "value": "~3"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
@@ -164,7 +171,6 @@
               "value": "[environment().name]"
             }
           ],
-          "netFrameworkVersion": "v6.0",
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "scmMinTlsVersion": "1.2"
@@ -182,9 +188,13 @@
       "type": "string",
       "value": "[variables('functionAppName')]"
     },
-    "identity": {
-      "type": "object",
-      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-02-01', 'full').identity]"
+    "principalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-02-01', 'full').identity.principalId]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-02-01', 'full').identity.tenantId]"
     }
   }
 }
