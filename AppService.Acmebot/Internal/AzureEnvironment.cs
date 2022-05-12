@@ -1,48 +1,50 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
-namespace AppService.Acmebot.Internal
+using Azure.ResourceManager;
+
+namespace AppService.Acmebot.Internal;
+
+public class AzureEnvironment
 {
-    public class AzureEnvironment
+    public Uri ActiveDirectory { get; init; }
+    public ArmEnvironment ResourceManager { get; init; }
+    public string AppService { get; init; }
+    public string TrafficManager { get; init; }
+
+    public static AzureEnvironment Get(string name) => s_environments[name];
+
+    private static readonly Dictionary<string, AzureEnvironment> s_environments = new()
     {
-        public string ActiveDirectory { get; set; }
-        public string ResourceManager { get; set; }
-        public string AppService { get; set; }
-        public string TrafficManager { get; set; }
-
-        public static AzureEnvironment Get(string name)
         {
-            return _environments[name];
-        }
-
-        private static readonly Dictionary<string, AzureEnvironment> _environments = new Dictionary<string, AzureEnvironment>
-        {
+            "AzureCloud",
+            new AzureEnvironment
             {
-                "AzureCloud", new AzureEnvironment
-                {
-                    ActiveDirectory = "https://login.microsoftonline.com",
-                    ResourceManager = "https://management.azure.com",
-                    AppService = ".azurewebsites.net",
-                    TrafficManager = ".trafficmanager.net"
-                }
-            },
-            {
-                "AzureChinaCloud", new AzureEnvironment
-                {
-                    ActiveDirectory = "https://login.chinacloudapi.cn",
-                    ResourceManager = "https://management.chinacloudapi.cn",
-                    AppService = ".chinacloudsites.cn",
-                    TrafficManager = ".trafficmanager.cn"
-                }
-            },
-            {
-                "AzureUSGovernment", new AzureEnvironment
-                {
-                    ActiveDirectory = "https://login.microsoftonline.us",
-                    ResourceManager = "https://management.usgovcloudapi.net",
-                    AppService = ".azurewebsites.us",
-                    TrafficManager = ".usgovtrafficmanager.net"
-                }
+                ActiveDirectory = new Uri("https://login.microsoftonline.com"),
+                ResourceManager = ArmEnvironment.AzurePublicCloud,
+                AppService = ".azurewebsites.net",
+                TrafficManager = ".trafficmanager.net"
             }
-        };
-    }
+        },
+        {
+            "AzureChinaCloud",
+            new AzureEnvironment
+            {
+                ActiveDirectory = new Uri("https://login.chinacloudapi.cn"),
+                ResourceManager = ArmEnvironment.AzureChina,
+                AppService = ".chinacloudsites.cn",
+                TrafficManager = ".trafficmanager.cn"
+            }
+        },
+        {
+            "AzureUSGovernment",
+            new AzureEnvironment
+            {
+                ActiveDirectory = new Uri("https://login.microsoftonline.us"),
+                ResourceManager = ArmEnvironment.AzureGovernment,
+                AppService = ".azurewebsites.us",
+                TrafficManager = ".usgovtrafficmanager.net"
+            }
+        }
+    };
 }

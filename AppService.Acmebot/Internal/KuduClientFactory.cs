@@ -1,21 +1,21 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot.Internal;
+
+public class KuduClientFactory
 {
-    public class KuduClientFactory
+    public KuduClientFactory(IHttpClientFactory httpClientFactory)
     {
-        public KuduClientFactory(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        _httpClientFactory = httpClientFactory;
+    }
 
-        private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-        public KuduClient CreateClient(string scmUrl, string userName, string password)
-        {
-            var httpClient = _httpClientFactory.CreateClient();
+    public KuduClient CreateClient(Uri scmUri)
+    {
+        var httpClient = _httpClientFactory.CreateClient();
 
-            return new KuduClient(httpClient, scmUrl, userName, password);
-        }
+        return new KuduClient(httpClient, scmUri);
     }
 }
