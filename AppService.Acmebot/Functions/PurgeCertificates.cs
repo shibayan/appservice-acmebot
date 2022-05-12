@@ -22,7 +22,7 @@ public class PurgeCertificates
 
         foreach (var certificate in certificates)
         {
-            log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationDate}");
+            log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationOn}");
         }
 
         // 対象となる証明書がない場合は終わる
@@ -38,7 +38,7 @@ public class PurgeCertificates
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var sites = await activity.GetSites((resourceGroup.Name, false));
+            var sites = await activity.GetSites((resourceGroup, false));
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
@@ -49,7 +49,7 @@ public class PurgeCertificates
             // バインドされていない証明書を削除
             foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
             {
-                tasks.Add(activity.DeleteCertificate(certificate));
+                tasks.Add(activity.DeleteCertificate(certificate.Id));
             }
 
             // アクティビティの完了を待つ

@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 
 using AppService.Acmebot.Internal;
 
+using Azure.ResourceManager.AppService;
+
 using DurableTask.TypedProxy;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
@@ -24,17 +25,17 @@ public class RenewCertificates
         // 期限切れまで 30 日以内の証明書を取得する
         var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
 
-        foreach (var certificate in certificates)
-        {
-            log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationDate}");
-        }
-
         // 更新対象となる証明書がない場合は終わる
         if (certificates.Count == 0)
         {
             log.LogInformation("Certificates are not found");
 
             return;
+        }
+
+        foreach (var certificate in certificates)
+        {
+            log.LogInformation($"Expiring certificate : {certificate.SubjectName} - {certificate.ExpirationOn}");
         }
 
         // スロットリング対策として 600 秒以内でジッターを追加する
@@ -48,7 +49,7 @@ public class RenewCertificates
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var sites = await activity.GetSites((resourceGroup.Name, true));
+            var sites = await activity.GetSites((resourceGroup, true));
 
             // サイト単位で証明書の更新を行う
             foreach (var site in sites)
@@ -81,7 +82,7 @@ public class RenewCertificates
     [FunctionName(nameof(RenewCertificates) + "_" + nameof(SubOrchestrator))]
     public async Task SubOrchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
     {
-        var (site, certificates) = context.GetInput<(Site, Certificate[])>();
+        var (site, certificates) = context.GetInput<(WebSiteData, CertificateData[])>();
 
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
@@ -110,7 +111,7 @@ public class RenewCertificates
                 var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                 // 証明書を発行し Azure にアップロード
-                var newCertificate = await context.CallSubOrchestratorWithRetryAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
+                var newCertificate = await context.CallSubOrchestratorWithRetryAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
 
                 foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
                 {
@@ -118,16 +119,16 @@ public class RenewCertificates
                     hostNameSslState.ToUpdate = true;
                 }
 
-                await activity.UpdateSiteBinding(site);
+                await activity.UpdateSiteBinding(site.Id);
 
                 // 証明書の更新が完了後に Webhook を送信する
-                await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
+                await activity.SendCompletedEvent((site, newCertificate.ExpirationOn, dnsNames));
             }
         }
         finally
         {
             // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(site);
+            await activity.CleanupVirtualApplication(site.Id);
         }
     }
 

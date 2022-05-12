@@ -35,7 +35,7 @@ public class GetResourceGroups : HttpFunctionBase
         {
             var resourceGroups = await activity.GetResourceGroups();
 
-            return resourceGroups.Select(x => new ResourceGroupItem { Name = x.Name }).ToArray();
+            return resourceGroups.Select(x => new ResourceGroupItem { Name = x }).ToArray();
         }
         catch
         {

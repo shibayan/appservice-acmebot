@@ -4,13 +4,13 @@
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.6.0" />
+    <PackageReference Include="Azure.ResourceManager.AppService" Version="1.0.0-beta.2" />
+    <PackageReference Include="Azure.ResourceManager.Dns" Version="1.0.0-preview.1" />
+    <PackageReference Include="Azure.ResourceManager.Resources" Version="1.0.0" />
     <PackageReference Include="DnsClient" Version="1.6.0" />
     <PackageReference Include="DurableTask.TypedProxy" Version="2.2.1" />
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.1.0" />
-    <PackageReference Include="Microsoft.Azure.Management.Dns" Version="3.0.1" />
-    <PackageReference Include="Microsoft.Azure.Management.ResourceManager" Version="3.17.3-preview" />
-    <PackageReference Include="Microsoft.Azure.Management.WebSites" Version="3.1.2" />
-    <PackageReference Include="Microsoft.Azure.Services.AppAuthentication" Version="1.6.2" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.DurableTask" Version="2.7.1" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.1.0" />
