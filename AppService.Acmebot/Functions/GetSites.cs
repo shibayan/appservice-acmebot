@@ -30,33 +30,31 @@ public class GetSites : HttpFunctionBase
     private readonly AzureEnvironment _environment;
 
     [FunctionName(nameof(GetSites) + "_" + nameof(Orchestrator))]
-    public async Task<IReadOnlyList<SiteItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
+    public async Task<IReadOnlyList<WebSiteItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
     {
         var resourceGroup = context.GetInput<string>();
 
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
-        var result = new List<SiteItem>();
+        var result = new List<WebSiteItem>();
 
         var certificates = await activity.GetAllCertificates();
 
         // App Service を取得
         var sites = await activity.GetSites((resourceGroup, true));
 
-        foreach (var site in sites.ToLookup(x => x.SplitName().appName))
+        foreach (var site in sites.ToLookup(x => x.Name))
         {
-            var siteInformation = new SiteItem { Name = site.Key, Slots = new List<SlotItem>() };
+            var siteInformation = new WebSiteItem { Name = site.Key, Slots = new List<WebSiteItem>() };
 
             foreach (var slot in site)
             {
-                var (_, slotName) = slot.SplitName();
-
-                var hostNameSslStates = slot.HostNameSslStates
+                var hostNameSslStates = slot.HostNames
                                             .Where(x => !x.Name.EndsWith(_environment.AppService) && !x.Name.EndsWith(_environment.TrafficManager));
 
-                var slotInformation = new SlotItem
+                var slotInformation = new WebSiteItem
                 {
-                    Name = slotName ?? "production",
+                    Name = slot.SlotName,
                     DnsNames = hostNameSslStates.Select(x => new DnsNameItem
                     {
                         Name = x.Name,

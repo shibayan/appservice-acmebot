@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 
 using Azure.ResourceManager.AppService;
 using Azure.ResourceManager.Dns;
-using Azure.ResourceManager.Dns.Models;
 using Azure.ResourceManager.Resources;
 
 namespace AppService.Acmebot.Internal;
@@ -52,30 +51,18 @@ internal static class AzureSdkExtensions
         return certificates;
     }
 
-    public static async Task<IReadOnlyList<Zone>> ListAllAsync(this ZonesOperations operations)
+    public static async Task<IReadOnlyList<DnsZoneResource>> ListAllDnsZonesAsync(this SubscriptionResource subscription)
     {
-        var zones = new List<Zone>();
+        var dnsZones = new List<DnsZoneResource>();
 
-        var result = operations.ListAsync();
+        var result = subscription.GetDnsZonesByDnszoneAsync();
 
-        await foreach (var zone in result)
+        await foreach (var dnsZone in result)
         {
-            zones.Add(zone);
+            dnsZones.Add(dnsZone);
         }
 
-        return zones;
-    }
-
-    public static async Task<RecordSet> GetOrDefaultAsync(this RecordSetsOperations operations, string resourceGroupName, string zoneName, string relativeRecordSetName, RecordType recordType)
-    {
-        try
-        {
-            return await operations.GetAsync(resourceGroupName, zoneName, relativeRecordSetName, recordType);
-        }
-        catch
-        {
-            return null;
-        }
+        return dnsZones;
     }
 
     public static (string appName, string slotName) SplitName(this WebSiteData webSite)

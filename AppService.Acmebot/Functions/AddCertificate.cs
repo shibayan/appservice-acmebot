@@ -41,7 +41,7 @@ public class AddCertificate : HttpFunctionBase
             return;
         }
 
-        var hostNameSslStates = site.HostNameSslStates
+        var hostNameSslStates = site.HostNames
                                     .Where(x => request.DnsNames.Contains(x.Name))
                                     .ToArray();
 
@@ -63,14 +63,7 @@ public class AddCertificate : HttpFunctionBase
             var certificate = await context.CallSubOrchestratorAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
             // App Service のホスト名に証明書をセットする
-            foreach (var hostNameSslState in hostNameSslStates)
-            {
-                hostNameSslState.Thumbprint = certificate.Thumbprint;
-                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IPBasedEnabled : SslState.SniEnabled;
-                hostNameSslState.ToUpdate = true;
-            }
-
-            await activity.UpdateSiteBinding(site.Id);
+            await activity.UpdateSiteBinding((site.Id, request.DnsNames, certificate.Thumbprint, request.UseIpBasedSsl));
 
             // 証明書の更新が完了後に Webhook を送信する
             await activity.SendCompletedEvent((site, certificate.ExpirationOn, asciiDnsNames));

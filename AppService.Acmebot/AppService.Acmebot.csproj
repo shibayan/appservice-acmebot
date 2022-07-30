@@ -6,7 +6,7 @@
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.6.0" />
     <PackageReference Include="Azure.ResourceManager.AppService" Version="1.0.0-beta.3" />
-    <PackageReference Include="Azure.ResourceManager.Dns" Version="1.0.0-preview.1" />
+    <PackageReference Include="Azure.ResourceManager.Dns" Version="1.0.0-beta.1" />
     <PackageReference Include="Azure.ResourceManager.Resources" Version="1.2.0" />
     <PackageReference Include="DnsClient" Version="1.6.1" />
     <PackageReference Include="DurableTask.TypedProxy" Version="2.2.1" />

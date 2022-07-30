@@ -41,7 +41,7 @@ public class PurgeCertificates
             var sites = await activity.GetSites((resourceGroup, false));
 
             // App Service にバインド済み証明書のサムプリントを取得
-            var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
+            var boundCertificates = sites.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint))
                                          .ToArray();
 
             var tasks = new List<Task>();

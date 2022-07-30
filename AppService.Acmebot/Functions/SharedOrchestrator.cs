@@ -17,7 +17,7 @@ namespace AppService.Acmebot.Functions;
 public class SharedOrchestrator
 {
     [FunctionName(nameof(IssueCertificate))]
-    public async Task<CertificateData> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
+    public async Task<CertificateItem> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
     {
         var (site, dnsNames, forceDns01Challenge) = context.GetInput<(WebSiteData, string[], bool)>();
 
