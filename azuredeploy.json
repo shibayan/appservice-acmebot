@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.6.11.53198",
-      "templateHash": "1532464454121793133"
+      "version": "0.9.1.41621",
+      "templateHash": "9860264142527018733"
     }
   },
   "parameters": {
@@ -77,10 +77,9 @@
       "location": "[parameters('location')]",
       "sku": {
         "name": "Y1",
-        "tier": "Dynamic",
-        "size": "Y1",
-        "family": "Y"
-      }
+        "tier": "Dynamic"
+      },
+      "properties": {}
     },
     {
       "type": "Microsoft.OperationalInsights/workspaces",

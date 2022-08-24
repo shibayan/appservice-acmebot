@@ -47,9 +47,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   sku: {
     name: 'Y1'
     tier: 'Dynamic'
-    size: 'Y1'
-    family: 'Y'
   }
+  properties: {}
 }
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
