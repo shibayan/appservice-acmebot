@@ -5,7 +5,6 @@ using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
 using Azure.ResourceManager.AppService;
-using Azure.ResourceManager.AppService.Models;
 using Azure.WebJobs.Extensions.HttpApi;
 
 using DurableTask.TypedProxy;

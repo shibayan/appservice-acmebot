@@ -86,7 +86,11 @@ public class SharedActivity : ISharedActivity
 
             SiteSlotResource siteSlot = await _armClient.GetSiteSlotResource(id).GetAsync();
 
-            return new WebSiteItem { };
+            return new WebSiteItem
+            {
+                Id = siteSlot.Id,
+                Name = siteSlot.Data.Name
+            };
         }
         else
         {
@@ -152,6 +156,13 @@ public class SharedActivity : ISharedActivity
 
             certificates.Add(new CertificateItem
             {
+                Id = certificate.Id,
+                ExpirationOn = certificate.Data.ExpirationOn.Value,
+                HostNames = certificate.Data.HostNames.ToArray(),
+                Issuer = certificate.Data.Issuer,
+                SubjectName = certificate.Data.SubjectName,
+                Tags = certificate.Data.Tags,
+                Thumbprint = certificate.Data.Thumbprint
             });
         }
 
@@ -169,6 +180,13 @@ public class SharedActivity : ISharedActivity
         {
             certificates.Add(new CertificateItem
             {
+                Id = certificate.Id,
+                ExpirationOn = certificate.Data.ExpirationOn.Value,
+                HostNames = certificate.Data.HostNames.ToArray(),
+                Issuer = certificate.Data.Issuer,
+                SubjectName = certificate.Data.SubjectName,
+                Tags = certificate.Data.Tags,
+                Thumbprint = certificate.Data.Thumbprint
             });
         }
 
