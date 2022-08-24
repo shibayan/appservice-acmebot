@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.9.1.41621",
-      "templateHash": "9860264142527018733"
+      "templateHash": "9556437516569446987"
     }
   },
   "parameters": {
@@ -72,7 +72,7 @@
     },
     {
       "type": "Microsoft.Web/serverfarms",
-      "apiVersion": "2021-03-01",
+      "apiVersion": "2022-03-01",
       "name": "[variables('appServicePlanName')]",
       "location": "[parameters('location')]",
       "sku": {
@@ -112,7 +112,7 @@
     },
     {
       "type": "Microsoft.Web/sites",
-      "apiVersion": "2021-03-01",
+      "apiVersion": "2022-03-01",
       "name": "[variables('functionAppName')]",
       "location": "[parameters('location')]",
       "kind": "functionapp",
@@ -189,11 +189,11 @@
     },
     "principalId": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-03-01', 'full').identity.principalId]"
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2022-03-01', 'full').identity.principalId]"
     },
     "tenantId": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-03-01', 'full').identity.tenantId]"
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2022-03-01', 'full').identity.tenantId]"
     }
   }
 }
