@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
-using Azure.ResourceManager.AppService;
 using Azure.WebJobs.Extensions.HttpApi;
 
 using DurableTask.TypedProxy;
@@ -59,7 +58,7 @@ public class AddCertificate : HttpFunctionBase
         try
         {
             // 証明書を発行し Azure にアップロード
-            var certificate = await context.CallSubOrchestratorAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
+            var certificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
             // App Service のホスト名に証明書をセットする
             await activity.UpdateSiteBinding((site.Id, request.DnsNames, certificate.Thumbprint, request.UseIpBasedSsl));

@@ -82,9 +82,9 @@ public class SharedActivity : ISharedActivity
 
         if (slotName != "production")
         {
-            var id = SiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName, slotName);
+            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName, slotName);
 
-            SiteSlotResource siteSlot = await _armClient.GetSiteSlotResource(id).GetAsync();
+            WebSiteSlotResource siteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
 
             return new WebSiteItem
             {
@@ -98,7 +98,11 @@ public class SharedActivity : ISharedActivity
 
             WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
 
-            return new WebSiteItem { };
+            return new WebSiteItem
+            {
+                Id = webSite.Id,
+                Name = webSite.Data.Name
+            };
         }
     }
 
@@ -142,14 +146,14 @@ public class SharedActivity : ISharedActivity
 
         var certificates = new List<CertificateItem>();
 
-        await foreach (var certificate in subscription.GetCertificatesAsync())
+        await foreach (var certificate in subscription.GetAppCertificatesAsync())
         {
             if (!certificate.Data.TagsFilter(IssuerName, _options.Endpoint))
             {
                 continue;
             }
 
-            if ((certificate.Data.ExpirationOn.Value - currentDateTime).TotalDays > _options.RenewBeforeExpiry)
+            if ((certificate.Data.ExpireOn.Value - currentDateTime).TotalDays > _options.RenewBeforeExpiry)
             {
                 continue;
             }
@@ -157,7 +161,7 @@ public class SharedActivity : ISharedActivity
             certificates.Add(new CertificateItem
             {
                 Id = certificate.Id,
-                ExpirationOn = certificate.Data.ExpirationOn.Value,
+                ExpirationOn = certificate.Data.ExpireOn.Value,
                 HostNames = certificate.Data.HostNames.ToArray(),
                 Issuer = certificate.Data.Issuer,
                 SubjectName = certificate.Data.SubjectName,
@@ -176,12 +180,12 @@ public class SharedActivity : ISharedActivity
 
         var certificates = new List<CertificateItem>();
 
-        await foreach (var certificate in subscription.GetCertificatesAsync())
+        await foreach (var certificate in subscription.GetAppCertificatesAsync())
         {
             certificates.Add(new CertificateItem
             {
                 Id = certificate.Id,
-                ExpirationOn = certificate.Data.ExpirationOn.Value,
+                ExpirationOn = certificate.Data.ExpireOn.Value,
                 HostNames = certificate.Data.HostNames.ToArray(),
                 Issuer = certificate.Data.Issuer,
                 SubjectName = certificate.Data.SubjectName,
@@ -240,7 +244,7 @@ public class SharedActivity : ISharedActivity
         {
             VirtualPath = "/.well-known",
             PhysicalPath = "site\\.well-known",
-            PreloadEnabled = false
+            IsPreloadEnabled = false
         });
 
         await config.UpdateAsync(config.Data);
@@ -433,16 +437,16 @@ public class SharedActivity : ISharedActivity
             var acmeDnsRecordName = dnsRecordName.Replace($".{dnsZone.Data.Name}", "", StringComparison.OrdinalIgnoreCase);
 
             // TXT レコードに TTL と値をセットする
-            var recordSets = dnsZone.GetRecordSetTxts();
+            var recordSets = dnsZone.GetTxtRecords();
 
-            var recordSet = new TxtRecordSetData
+            var recordSet = new TxtRecordData
             {
-                TTL = 60
+                TtlInSeconds = 60
             };
 
             foreach (var value in lookup)
             {
-                recordSet.TxtRecords.Add(new TxtRecord { Value = { value.DnsRecordValue } });
+                recordSet.TxtRecords.Add(new TxtRecordInfo { Values = { value.DnsRecordValue } });
             }
 
             await recordSets.CreateOrUpdateAsync(WaitUntil.Completed, acmeDnsRecordName, recordSet);
@@ -608,13 +612,13 @@ public class SharedActivity : ISharedActivity
 
         ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(webSite.Data.ResourceGroup);
 
-        var certificateCollection = resourceGroup.GetCertificates();
+        var certificateCollection = resourceGroup.GetAppCertificates();
 
-        var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new CertificateData(webSite.Data.Location)
+        var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new AppCertificateData(webSite.Data.Location)
         {
             Password = "P@ssw0rd",
             PfxBlob = pfxBlob,
-            ServerFarmId = webSite.Data.ServerFarmId,
+            ServerFarmId = new ResourceIdentifier(webSite.Data.AppServicePlanId),
             Tags =
             {
                 { "Issuer", IssuerName },
@@ -633,14 +637,14 @@ public class SharedActivity : ISharedActivity
 
         WebSiteResource webSite = await _armClient.GetWebSiteResource(new ResourceIdentifier(id)).GetAsync();
 
-        var sitePatch = new SitePatchResource();
+        var sitePatch = new SitePatchInfo();
 
         foreach (var hostNameSslState in webSite.Data.HostNameSslStates)
         {
             if (dnsNames.Contains(Punycode.Encode(hostNameSslState.Name)))
             {
                 hostNameSslState.Thumbprint = thumbprint;
-                hostNameSslState.ToUpdate = true;
+                hostNameSslState.IsToUpdate = true;
 
                 if (useIpBasedSsl.HasValue)
                 {
@@ -674,7 +678,7 @@ public class SharedActivity : ISharedActivity
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = dnsRecordName.Replace($".{dnsZone.Data.Name}", "", StringComparison.OrdinalIgnoreCase);
 
-            RecordSetTxtResource recordSet = await dnsZone.GetRecordSetTxtAsync(acmeDnsRecordName);
+            TxtRecordResource recordSet = await dnsZone.GetTxtRecordAsync(acmeDnsRecordName);
 
             await recordSet.DeleteAsync(WaitUntil.Completed);
         }
@@ -704,7 +708,7 @@ public class SharedActivity : ISharedActivity
     [FunctionName(nameof(DeleteCertificate))]
     public Task DeleteCertificate([ActivityTrigger] string id)
     {
-        var certificateResource = _armClient.GetCertificateResource(new ResourceIdentifier(id));
+        var certificateResource = _armClient.GetAppCertificateResource(new ResourceIdentifier(id));
 
         return certificateResource.DeleteAsync(WaitUntil.Completed);
     }

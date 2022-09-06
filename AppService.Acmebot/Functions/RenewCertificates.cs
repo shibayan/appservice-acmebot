@@ -5,8 +5,6 @@ using System.Threading.Tasks;
 
 using AppService.Acmebot.Models;
 
-using Azure.ResourceManager.AppService;
-
 using DurableTask.TypedProxy;
 
 using Microsoft.Azure.WebJobs;
@@ -111,7 +109,7 @@ public class RenewCertificates
                 var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                 // 証明書を発行し Azure にアップロード
-                var newCertificate = await context.CallSubOrchestratorWithRetryAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
+                var newCertificate = await context.CallSubOrchestratorWithRetryAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (site, dnsNames, forceDns01Challenge));
 
                 await activity.UpdateSiteBinding((site.Id, dnsNames, newCertificate.Thumbprint, null));
 

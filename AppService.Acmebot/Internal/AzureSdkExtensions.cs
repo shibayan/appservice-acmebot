@@ -37,11 +37,11 @@ internal static class AzureSdkExtensions
         return sites;
     }
 
-    public static async Task<IReadOnlyList<CertificateData>> ListAllCertificatesAsync(this SubscriptionResource subscription)
+    public static async Task<IReadOnlyList<AppCertificateData>> ListAllCertificatesAsync(this SubscriptionResource subscription)
     {
-        var certificates = new List<CertificateData>();
+        var certificates = new List<AppCertificateData>();
 
-        var result = subscription.GetCertificatesAsync();
+        var result = subscription.GetAppCertificatesAsync();
 
         await foreach (var certificate in result)
         {

@@ -4,7 +4,7 @@ namespace AppService.Acmebot.Internal;
 
 internal static class CertificateExtensions
 {
-    public static bool TagsFilter(this CertificateData certificate, string issuer, string endpoint)
+    public static bool TagsFilter(this AppCertificateData certificate, string issuer, string endpoint)
     {
         var tags = certificate.Tags;
 
