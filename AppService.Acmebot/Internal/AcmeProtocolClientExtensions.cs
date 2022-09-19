@@ -6,14 +6,17 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Internal
 {
     internal static class AcmeProtocolClientExtensions
     {
         public static async Task<X509Certificate2Collection> GetOrderCertificateAsync(this AcmeProtocolClient acmeProtocolClient, OrderDetails order,
-                                                                                      string preferredChain, CancellationToken cancel = default)
+                                                                                      string preferredChain, ILogger log, CancellationToken cancel = default)
         {
+            log.LogInformation($"GetOrderCertificateAsync - preferred chain: '{preferredChain}'");
+
             IEnumerable<string> linkHeaders;
             X509Certificate2Collection defaultX509Certificates;
 
@@ -21,13 +24,24 @@ namespace AppService.Acmebot.Internal
             {
                 defaultX509Certificates = await resp.Content.ReadAsCertificatesAsync();
 
+                foreach (var x509Cert in defaultX509Certificates) {
+                    log.LogInformation($"GetOrderCertificateAsync - cert from default chain has Subject '{x509Cert.Subject}' and Issuer {x509Cert.Issuer}");
+                }
+
+                foreach (var header in resp.Headers) {
+                    var values = String.Join(";", header.Value);
+                    log.LogInformation($"GetOrderCertificateAsync - htttp response header: '{header.Key}' -> '{values}'");
+                }
+                linkHeaders = resp.Headers.GetValues("Link");
+                foreach (var linkHeader in linkHeaders) {
+                    log.LogInformation($"GetOrderCertificateAsync - link: '{linkHeader}'");
+                }
+                
                 // 証明書チェーンが未指定の場合は即返す
                 if (preferredChain == null)
                 {
                     return defaultX509Certificates;
                 }
-
-                linkHeaders = resp.Headers.GetValues("Link");
             }
 
             foreach (var linkHeader in linkHeaders)
@@ -46,6 +60,9 @@ namespace AppService.Acmebot.Internal
                 using (var resp = await acmeProtocolClient.GetAsync(url.Value, cancel))
                 {
                     var x509Certificates = await resp.Content.ReadAsCertificatesAsync();
+                    foreach (var x509Cert in x509Certificates) {
+                        log.LogInformation($"GetOrderCertificateAsync - cert from alternate chain has Subject '{x509Cert.Subject}' and Issuer {x509Cert.Issuer}");
+                    }
 
                     // 指定された証明書チェーンに一致する場合は返す
                     if (x509Certificates.Find(X509FindType.FindByIssuerName, preferredChain, false).Count > 0)
@@ -54,6 +71,8 @@ namespace AppService.Acmebot.Internal
                     }
                 }
             }
+
+            log.LogInformation($"GetOrderCertificateAsync - found no alternate issuers matching preferred chain '{preferredChain}', falling back to default");
 
             // マッチする証明書チェーンが存在しない場合はデフォルトを返す
             return defaultX509Certificates;

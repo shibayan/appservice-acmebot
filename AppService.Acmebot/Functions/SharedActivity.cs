@@ -437,7 +437,7 @@ namespace AppService.Acmebot.Functions
             var finalize = await acmeProtocolClient.FinalizeOrderAsync(orderDetails.Payload.Finalize, csr);
 
             // 証明書をバイト配列としてダウンロード
-            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(finalize, _options.PreferredChain);
+            var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(finalize, _options.PreferredChain, _logger);
 
             // 秘密鍵を含んだ形で X509Certificate2 を作成
             x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
