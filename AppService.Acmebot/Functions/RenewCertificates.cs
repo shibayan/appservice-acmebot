@@ -47,31 +47,36 @@ public class RenewCertificates
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var webSites = await activity.GetWebSites((resourceGroup.Name, true));
+            var webSites = await activity.GetWebSites(resourceGroup.Name);
 
             // サイト単位で証明書の更新を行う
             foreach (var webSite in webSites)
             {
-                // 期限切れが近い証明書がバインドされているか確認
-                var boundCertificates = certificates.Where(x => webSite.HostNames.Any(xs => xs.Thumbprint == x.Thumbprint))
-                                                    .ToArray();
+                var webSiteSlots = await activity.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
 
-                // 対象となる証明書が存在しない場合はスキップ
-                if (boundCertificates.Length == 0)
+                foreach (var webSiteSlot in webSiteSlots.Prepend(webSite).Where(x => x.IsRunning))
                 {
-                    continue;
-                }
+                    // 期限切れが近い証明書がバインドされているか確認
+                    var boundCertificates = certificates.Where(x => webSiteSlot.HostNames.Any(xs => xs.Thumbprint == x.Thumbprint))
+                                                        .ToArray();
 
-                try
-                {
-                    // 証明書の更新処理を開始
-                    await context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", (webSite, boundCertificates));
-                }
-                catch (Exception ex)
-                {
-                    // 失敗した場合はログに詳細を書き出して続きを実行する
-                    log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
-                    log.LogError(ex.Message);
+                    // 対象となる証明書が存在しない場合はスキップ
+                    if (boundCertificates.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        // 証明書の更新処理を開始
+                        await context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", (webSiteSlot, boundCertificates));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 失敗した場合はログに詳細を書き出して続きを実行する
+                        log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
+                        log.LogError(ex.Message);
+                    }
                 }
             }
         }

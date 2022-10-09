@@ -23,6 +23,12 @@ public class WebSiteItem
     [JsonProperty("hostNames")]
     public IReadOnlyList<HostNameItem> HostNames { get; set; }
 
+    [JsonProperty("isRunning")]
+    public bool IsRunning { get; set; }
+
+    [JsonProperty("hasCustomDomain")]
+    public bool HasCustomDomain { get; set; }
+
     public static WebSiteItem Create(WebSiteData webSiteData, AzureEnvironment environment)
     {
         var index = webSiteData.Name.IndexOf('/');
@@ -35,7 +41,9 @@ public class WebSiteItem
             HostNames = webSiteData.HostNameSslStates
                                    .Where(x => !x.Name.EndsWith(environment.AppService) && !x.Name.EndsWith(environment.TrafficManager))
                                    .Select(x => new HostNameItem { Name = x.Name, Thumbprint = x.Thumbprint?.ToString() })
-                                   .ToArray()
+                                   .ToArray(),
+            IsRunning = webSiteData.State == "Running",
+            HasCustomDomain = webSiteData.HostNames.Any(x => !x.EndsWith(environment.AppService) && !x.EndsWith(environment.TrafficManager))
         };
     }
 }

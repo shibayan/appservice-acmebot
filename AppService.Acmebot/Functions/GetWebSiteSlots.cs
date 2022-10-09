@@ -37,9 +37,9 @@ public class GetWebSiteSlots : HttpFunctionBase
 
         // App Service を取得
         var site = await activity.GetWebSite((resourceGroupName, webSiteName, "production"));
-        var sites = await activity.GetWebSiteSlots((resourceGroupName, webSiteName, true));
+        var sites = await activity.GetWebSiteSlots((resourceGroupName, webSiteName));
 
-        var webSites = sites.Prepend(site).ToArray();
+        var webSites = sites.Prepend(site).Where(x => x.IsRunning && x.HasCustomDomain).ToArray();
 
         foreach (var hostName in webSites.SelectMany(x => x.HostNames))
         {

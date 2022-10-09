@@ -37,7 +37,7 @@ public class PurgeCertificates
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var webSites = await activity.GetWebSites((resourceGroup.Name, false));
+            var webSites = await activity.GetWebSites(resourceGroup.Name);
 
             // App Service にバインド済み証明書のサムプリントを取得
             var boundCertificates = webSites.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint))

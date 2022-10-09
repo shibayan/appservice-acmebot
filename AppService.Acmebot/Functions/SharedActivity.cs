@@ -106,10 +106,8 @@ public class SharedActivity : ISharedActivity
     }
 
     [FunctionName(nameof(GetWebSites))]
-    public async Task<IReadOnlyList<WebSiteItem>> GetWebSites([ActivityTrigger] (string, bool) input)
+    public async Task<IReadOnlyList<WebSiteItem>> GetWebSites([ActivityTrigger] string resourceGroupName)
     {
-        var (resourceGroupName, isRunningOnly) = input;
-
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
         ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(resourceGroupName);
@@ -118,16 +116,6 @@ public class SharedActivity : ISharedActivity
 
         await foreach (var webSite in resourceGroup.GetWebSites().GetAllAsync())
         {
-            if (isRunningOnly && webSite.Data.State != "Running")
-            {
-                continue;
-            }
-
-            if (webSite.Data.HostNames.All(xs => xs.EndsWith(_environment.AppService) || xs.EndsWith(_environment.TrafficManager)))
-            {
-                continue;
-            }
-
             webSites.Add(WebSiteItem.Create(webSite.Data, _environment));
         }
 
@@ -136,9 +124,9 @@ public class SharedActivity : ISharedActivity
 
 
     [FunctionName(nameof(GetWebSiteSlots))]
-    public async Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots([ActivityTrigger] (string, string, bool) input)
+    public async Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots([ActivityTrigger] (string, string) input)
     {
-        var (resourceGroupName, webSiteName, isRunningOnly) = input;
+        var (resourceGroupName, webSiteName) = input;
 
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
@@ -150,16 +138,6 @@ public class SharedActivity : ISharedActivity
 
         await foreach (var webSiteSlot in webSite.GetWebSiteSlots().GetAllAsync())
         {
-            if (isRunningOnly && webSiteSlot.Data.State != "Running")
-            {
-                continue;
-            }
-
-            if (webSiteSlot.Data.HostNames.All(xs => xs.EndsWith(_environment.AppService) || xs.EndsWith(_environment.TrafficManager)))
-            {
-                continue;
-            }
-
             webSites.Add(WebSiteItem.Create(webSiteSlot.Data, _environment));
         }
 

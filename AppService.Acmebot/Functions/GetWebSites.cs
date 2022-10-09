@@ -35,7 +35,7 @@ public class GetWebSites : HttpFunctionBase
         try
         {
             // App Service を取得
-            return await activity.GetWebSites((resourceGroupName, true));
+            return await activity.GetWebSites(resourceGroupName);
         }
         catch
         {

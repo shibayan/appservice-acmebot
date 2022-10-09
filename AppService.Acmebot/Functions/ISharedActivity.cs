@@ -17,9 +17,9 @@ public interface ISharedActivity
 
     Task<WebSiteItem> GetWebSite((string, string, string) input);
 
-    Task<IReadOnlyList<WebSiteItem>> GetWebSites((string, bool) input);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSites(string resourceGroupName);
 
-    Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots((string, string, bool) input);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots((string, string) input);
 
     Task<IReadOnlyList<CertificateItem>> GetExpiringCertificates(DateTime currentDateTime);
 
