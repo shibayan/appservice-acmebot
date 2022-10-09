@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 
 using DurableTask.TypedProxy;
@@ -12,7 +11,7 @@ namespace AppService.Acmebot.Functions;
 
 public class PurgeCertificates
 {
-    [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Orchestrator))]
+    [FunctionName($"{nameof(PurgeCertificates)}_{nameof(Orchestrator)}")]
     public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
     {
         var activity = context.CreateActivityProxy<ISharedActivity>();
@@ -38,30 +37,25 @@ public class PurgeCertificates
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var sites = await activity.GetSites((resourceGroup, false));
+            var webSites = await activity.GetWebSites((resourceGroup.Name, false));
 
             // App Service にバインド済み証明書のサムプリントを取得
-            var boundCertificates = sites.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint))
-                                         .ToArray();
-
-            var tasks = new List<Task>();
+            var boundCertificates = webSites.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint))
+                                            .ToArray();
 
             // バインドされていない証明書を削除
-            foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
-            {
-                tasks.Add(activity.DeleteCertificate(certificate.Id));
-            }
+            var tasks = certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)).Select(x => activity.DeleteCertificate(x.Id));
 
             // アクティビティの完了を待つ
             await Task.WhenAll(tasks);
         }
     }
 
-    [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Timer))]
+    [FunctionName($"{nameof(PurgeCertificates)}_{nameof(Timer)}")]
     public async Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
     {
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates) + "_" + nameof(Orchestrator));
+        var instanceId = await starter.StartNewAsync($"{nameof(PurgeCertificates)}_{nameof(Orchestrator)}");
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
     }

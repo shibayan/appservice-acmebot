@@ -66,48 +66,47 @@ public class SharedActivity : ISharedActivity
     private const string IssuerName = "Acmebot";
 
     [FunctionName(nameof(GetResourceGroups))]
-    public async Task<IReadOnlyList<string>> GetResourceGroups([ActivityTrigger] object input = null)
+    public async Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups([ActivityTrigger] object input = null)
     {
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
-        return await subscription.GetResourceGroups().ListAllAsync();
+        var resourceGroups = new List<ResourceGroupItem>();
+
+        await foreach (var resourceGroup in subscription.GetResourceGroups().GetAllAsync())
+        {
+            resourceGroups.Add(ResourceGroupItem.Create(resourceGroup.Data));
+        }
+
+        return resourceGroups;
     }
 
-    [FunctionName(nameof(GetSite))]
-    public async Task<WebSiteItem> GetSite([ActivityTrigger] (string, string, string) input)
+    [FunctionName(nameof(GetWebSite))]
+    public async Task<WebSiteItem> GetWebSite([ActivityTrigger] (string, string, string) input)
     {
-        var (resourceGroupName, appName, slotName) = input;
+        var (resourceGroupName, webSiteName, slotName) = input;
 
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
         if (slotName != "production")
         {
-            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName, slotName);
+            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName, slotName);
 
             WebSiteSlotResource siteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
 
-            return new WebSiteItem
-            {
-                Id = siteSlot.Id,
-                Name = siteSlot.Data.Name
-            };
+            return WebSiteItem.Create(siteSlot.Data, _environment);
         }
         else
         {
-            var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, appName);
+            var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName);
 
             WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
 
-            return new WebSiteItem
-            {
-                Id = webSite.Id,
-                Name = webSite.Data.Name
-            };
+            return WebSiteItem.Create(webSite.Data, _environment);
         }
     }
 
-    [FunctionName(nameof(GetSites))]
-    public async Task<IReadOnlyList<WebSiteItem>> GetSites([ActivityTrigger] (string, bool) input)
+    [FunctionName(nameof(GetWebSites))]
+    public async Task<IReadOnlyList<WebSiteItem>> GetWebSites([ActivityTrigger] (string, bool) input)
     {
         var (resourceGroupName, isRunningOnly) = input;
 
@@ -129,11 +128,39 @@ public class SharedActivity : ISharedActivity
                 continue;
             }
 
-            webSites.Add(new WebSiteItem
+            webSites.Add(WebSiteItem.Create(webSite.Data, _environment));
+        }
+
+        return webSites;
+    }
+
+
+    [FunctionName(nameof(GetWebSiteSlots))]
+    public async Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots([ActivityTrigger] (string, string, bool) input)
+    {
+        var (resourceGroupName, webSiteName, isRunningOnly) = input;
+
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(resourceGroupName);
+
+        WebSiteResource webSite = await resourceGroup.GetWebSiteAsync(webSiteName);
+
+        var webSites = new List<WebSiteItem>();
+
+        await foreach (var webSiteSlot in webSite.GetWebSiteSlots().GetAllAsync())
+        {
+            if (isRunningOnly && webSiteSlot.Data.State != "Running")
             {
-                Id = webSite.Id,
-                Name = webSite.Data.Name
-            });
+                continue;
+            }
+
+            if (webSiteSlot.Data.HostNames.All(xs => xs.EndsWith(_environment.AppService) || xs.EndsWith(_environment.TrafficManager)))
+            {
+                continue;
+            }
+
+            webSites.Add(WebSiteItem.Create(webSiteSlot.Data, _environment));
         }
 
         return webSites;
@@ -158,16 +185,7 @@ public class SharedActivity : ISharedActivity
                 continue;
             }
 
-            certificates.Add(new CertificateItem
-            {
-                Id = certificate.Id,
-                ExpirationOn = certificate.Data.ExpireOn.Value,
-                HostNames = certificate.Data.HostNames.ToArray(),
-                Issuer = certificate.Data.Issuer,
-                SubjectName = certificate.Data.SubjectName,
-                Tags = certificate.Data.Tags,
-                Thumbprint = certificate.Data.Thumbprint
-            });
+            certificates.Add(CertificateItem.Create(certificate.Data));
         }
 
         return certificates;
@@ -182,16 +200,7 @@ public class SharedActivity : ISharedActivity
 
         await foreach (var certificate in subscription.GetAppCertificatesAsync())
         {
-            certificates.Add(new CertificateItem
-            {
-                Id = certificate.Id,
-                ExpirationOn = certificate.Data.ExpireOn.Value,
-                HostNames = certificate.Data.HostNames.ToArray(),
-                Issuer = certificate.Data.Issuer,
-                SubjectName = certificate.Data.SubjectName,
-                Tags = certificate.Data.Tags,
-                Thumbprint = certificate.Data.Thumbprint
-            });
+            certificates.Add(CertificateItem.Create(certificate.Data));
         }
 
         return certificates;
@@ -627,7 +636,7 @@ public class SharedActivity : ISharedActivity
             }
         });
 
-        return new CertificateItem { };
+        return CertificateItem.Create(result.Value.Data);
     }
 
     [FunctionName(nameof(UpdateSiteBinding))]
@@ -643,12 +652,12 @@ public class SharedActivity : ISharedActivity
         {
             if (dnsNames.Contains(Punycode.Encode(hostNameSslState.Name)))
             {
-                hostNameSslState.Thumbprint = thumbprint;
-                hostNameSslState.IsToUpdate = true;
+                hostNameSslState.Thumbprint = new BinaryData(thumbprint);
+                hostNameSslState.ToUpdate = true;
 
                 if (useIpBasedSsl.HasValue)
                 {
-                    hostNameSslState.SslState = useIpBasedSsl.Value ? SslState.IPBasedEnabled : SslState.SniEnabled;
+                    hostNameSslState.SslState = useIpBasedSsl.Value ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
                 }
             }
 

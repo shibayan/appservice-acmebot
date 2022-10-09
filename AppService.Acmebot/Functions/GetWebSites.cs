@@ -18,32 +18,35 @@ using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Functions;
 
-public class GetResourceGroups : HttpFunctionBase
+public class GetWebSites : HttpFunctionBase
 {
-    public GetResourceGroups(IHttpContextAccessor httpContextAccessor)
+    public GetWebSites(IHttpContextAccessor httpContextAccessor)
         : base(httpContextAccessor)
     {
     }
 
-    [FunctionName($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}")]
-    public async Task<IReadOnlyList<ResourceGroupItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
+    [FunctionName($"{nameof(GetWebSites)}_{nameof(Orchestrator)}")]
+    public async Task<IReadOnlyList<WebSiteItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
     {
+        var resourceGroupName = context.GetInput<string>();
+
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
         try
         {
-            // リソースグループを取得
-            return await activity.GetResourceGroups();
+            // App Service を取得
+            return await activity.GetWebSites((resourceGroupName, true));
         }
         catch
         {
-            return Array.Empty<ResourceGroupItem>();
+            return Array.Empty<WebSiteItem>();
         }
     }
 
-    [FunctionName($"{nameof(GetResourceGroups)}_{nameof(HttpStart)}")]
+    [FunctionName($"{nameof(GetWebSites)}_{nameof(HttpStart)}")]
     public async Task<IActionResult> HttpStart(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/group")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/group/{resourceGroupName}/site")] HttpRequest req,
+        string resourceGroupName,
         [DurableClient] IDurableClient starter,
         ILogger log)
     {
@@ -53,7 +56,7 @@ public class GetResourceGroups : HttpFunctionBase
         }
 
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}");
+        var instanceId = await starter.StartNewAsync($"{nameof(GetWebSites)}_{nameof(Orchestrator)}", null, resourceGroupName);
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 

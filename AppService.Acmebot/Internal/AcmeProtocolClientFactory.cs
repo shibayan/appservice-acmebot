@@ -121,7 +121,7 @@ public class AcmeProtocolClientFactory
 
     private static TState LoadState<TState>(string path)
     {
-        var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
+        var fullPath = Environment.ExpandEnvironmentVariables($@"%HOME%\.acme\{path}");
 
         if (!File.Exists(fullPath))
         {
@@ -135,7 +135,7 @@ public class AcmeProtocolClientFactory
 
     private static void SaveState<TState>(TState value, string path)
     {
-        var fullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
+        var fullPath = Environment.ExpandEnvironmentVariables($@"%HOME%\.acme\{path}");
         var directoryPath = Path.GetDirectoryName(fullPath);
 
         if (!Directory.Exists(directoryPath))

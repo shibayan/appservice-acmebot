@@ -13,11 +13,13 @@ namespace AppService.Acmebot.Functions;
 
 public interface ISharedActivity
 {
-    Task<IReadOnlyList<string>> GetResourceGroups(object input = null);
+    Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups(object input = null);
 
-    Task<WebSiteItem> GetSite((string, string, string) input);
+    Task<WebSiteItem> GetWebSite((string, string, string) input);
 
-    Task<IReadOnlyList<WebSiteItem>> GetSites((string, bool) input);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSites((string, bool) input);
+
+    Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots((string, string, bool) input);
 
     Task<IReadOnlyList<CertificateItem>> GetExpiringCertificates(DateTime currentDateTime);
 

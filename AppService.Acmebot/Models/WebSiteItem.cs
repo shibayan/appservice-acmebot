@@ -1,4 +1,9 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
+
+using AppService.Acmebot.Internal;
+
+using Azure.ResourceManager.AppService;
 
 using Newtonsoft.Json;
 
@@ -18,9 +23,19 @@ public class WebSiteItem
     [JsonProperty("hostNames")]
     public IReadOnlyList<HostNameItem> HostNames { get; set; }
 
-    [JsonProperty("dnsNames")]
-    public IReadOnlyList<DnsNameItem> DnsNames { get; set; }
+    public static WebSiteItem Create(WebSiteData webSiteData, AzureEnvironment environment)
+    {
+        var index = webSiteData.Name.IndexOf('/');
 
-    [JsonProperty("slots")]
-    public IList<WebSiteItem> Slots { get; set; }
+        return new WebSiteItem
+        {
+            Id = webSiteData.Id,
+            Name = index == -1 ? webSiteData.Name : webSiteData.Name[..index],
+            SlotName = index == -1 ? "production" : webSiteData.Name[(index + 1)..],
+            HostNames = webSiteData.HostNameSslStates
+                                   .Where(x => !x.Name.EndsWith(environment.AppService) && !x.Name.EndsWith(environment.TrafficManager))
+                                   .Select(x => new HostNameItem { Name = x.Name, Thumbprint = x.Thumbprint?.ToString() })
+                                   .ToArray()
+        };
+    }
 }

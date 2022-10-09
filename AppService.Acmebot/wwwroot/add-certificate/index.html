@@ -33,13 +33,13 @@
         </div>
         <div class="field is-horizontal">
           <div class="field-label is-normal">
-            <label class="label">App Name</label>
+            <label class="label">App Service</label>
           </div>
           <div class="field-body">
             <div class="field">
               <div class="control">
                 <div class="select" :class="{ 'is-loading': sitesLoading }">
-                  <select v-model="appName">
+                  <select v-model="webSiteName">
                     <option disabled value="">Please select one</option>
                     <option v-for="site in sites" :value="site.name">{{ site.name }}</option>
                   </select>
@@ -55,10 +55,10 @@
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': sitesLoading }">
+                <div class="select" :class="{ 'is-loading': slotsLoading }">
                   <select v-model="slotName">
                     <option disabled value="">Please select one</option>
-                    <option v-for="slot in (selectedSite || {}).slots">{{ slot.name }}</option>
+                    <option v-for="webSite in slots">{{ webSite.slotName }}</option>
                   </select>
                 </div>
               </div>
@@ -74,7 +74,7 @@
               <div class="control">
                 <div class="select is-multiple">
                   <select multiple v-model="dnsNames">
-                    <option v-for="dnsName in (selectedSlot || {}).dnsNames" :value="dnsName.name">{{ dnsName.name }} ({{ dnsName.issuer }})</option>
+                    <option v-for="hostName in (selectedSlot || {}).hostNames" :value="hostName.name">{{ hostName.name }} ({{ hostName.issuer }})</option>
                   </select>
                 </div>
               </div>
@@ -144,31 +144,26 @@
         return {
           resourceGroups: [],
           sites: [],
+          slots: [],
           resourceGroupName: '',
-          appName: '',
+          webSiteName: '',
           slotName: '',
           dnsNames: [],
           useIpBasedSsl: false,
           forceDns01Challenge: false,
           resourceGroupsLoading: false,
           sitesLoading: false,
+          slotsLoading: false,
           sending: false
         };
       },
       computed: {
-        selectedSite() {
-          if (!this.sites) {
-            return undefined;
-          }
-          const name = this.appName;
-          return this.sites.find(function (x) { return x.name === name; });
-        },
         selectedSlot() {
-          if (!this.selectedSite) {
+          if (!this.slots) {
             return undefined;
           }
           const name = this.slotName;
-          return this.selectedSite.slots.find(function (x) { return x.name === name; });
+          return this.slots.find(function (x) { return x.slotName === name; });
         }
       },
       watch: {
@@ -180,7 +175,7 @@
           this.sitesLoading = true;
 
           try {
-            const response = await axios.get("/api/sites/" + newValue);
+            const response = await axios.get(`/api/group/${newValue}/site`);
 
             this.sites = response.data;
           } catch (error) {
@@ -188,6 +183,23 @@
           }
 
           this.sitesLoading = false;
+        },
+        async webSiteName(newValue, _) {
+          if (!newValue) {
+            return;
+          }
+
+          this.slotsLoading = true;
+
+          try {
+            const response = await axios.get(`/api/group/${this.resourceGroupName}/site/${newValue}/slot`);
+
+            this.slots = response.data;
+          } catch (error) {
+            alert(error.response.data.output);
+          }
+
+          this.slotsLoading = false;
         }
       },
       methods: {
@@ -195,7 +207,7 @@
           this.resourceGroupsLoading = true;
 
           try {
-            const response = await axios.get("/api/resource-groups");
+            const response = await axios.get("/api/group");
 
             this.resourceGroups = response.data;
           } catch (error) {
@@ -206,8 +218,9 @@
         },
         reset() {
           this.sites = [];
+          this.slots = [];
           this.resourceGroupName = '';
-          this.appName = '';
+          this.webSiteName = '';
           this.slotName = '';
           this.dnsNames = [];
           this.useIpBasedSsl = false;
@@ -218,7 +231,7 @@
 
           const postData = {
             resourceGroupName: this.resourceGroupName,
-            appName: this.appName,
+            webSiteName: this.webSiteName,
             slotName: this.slotName,
             dnsNames: this.dnsNames,
             useIpBasedSsl: this.useIpBasedSsl,

@@ -10,16 +10,12 @@ namespace AppService.Acmebot.Functions;
 
 public class PurgeInstanceHistory
 {
-    [FunctionName(nameof(PurgeInstanceHistory) + "_" + nameof(Timer))]
+    [FunctionName($"{nameof(PurgeInstanceHistory)}_{nameof(Timer)}")]
     public Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] IDurableClient starter)
     {
         return starter.PurgeInstanceHistoryAsync(
             DateTime.MinValue,
             DateTime.UtcNow.AddMonths(-1),
-            new[]
-            {
-                    OrchestrationStatus.Completed,
-                    OrchestrationStatus.Failed
-            });
+            new[] { OrchestrationStatus.Completed, OrchestrationStatus.Failed });
     }
 }

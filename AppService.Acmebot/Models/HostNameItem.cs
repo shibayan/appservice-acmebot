@@ -9,4 +9,7 @@ public class HostNameItem
 
     [JsonProperty("thumbprint")]
     public string Thumbprint { get; set; }
+
+    [JsonProperty("issuer")]
+    public string Issuer { get; set; }
 }

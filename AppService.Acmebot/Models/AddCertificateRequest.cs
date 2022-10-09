@@ -9,7 +9,7 @@ public class AddCertificateRequest : IValidatableObject
     public string ResourceGroupName { get; set; }
 
     [Required]
-    public string AppName { get; set; }
+    public string WebSiteName { get; set; }
 
     [Required]
     public string SlotName { get; set; }
