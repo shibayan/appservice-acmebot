@@ -14,6 +14,9 @@ public class WebSiteItem
     [JsonProperty("id")]
     public string Id { get; set; }
 
+    [JsonProperty("kind")]
+    public string Kind { get; set; }
+
     [JsonProperty("name")]
     public string Name { get; set; }
 
@@ -36,6 +39,7 @@ public class WebSiteItem
         return new WebSiteItem
         {
             Id = webSiteData.Id,
+            Kind = webSiteData.Kind,
             Name = index == -1 ? webSiteData.Name : webSiteData.Name[..index],
             SlotName = index == -1 ? "production" : webSiteData.Name[(index + 1)..],
             HostNames = webSiteData.HostNameSslStates

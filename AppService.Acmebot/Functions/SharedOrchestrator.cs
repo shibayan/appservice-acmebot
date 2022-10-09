@@ -5,8 +5,6 @@ using System.Threading.Tasks;
 
 using AppService.Acmebot.Models;
 
-using Azure.ResourceManager.AppService;
-
 using DurableTask.TypedProxy;
 
 using Microsoft.Azure.WebJobs;
@@ -19,12 +17,12 @@ public class SharedOrchestrator
     [FunctionName(nameof(IssueCertificate))]
     public async Task<CertificateItem> IssueCertificate([OrchestrationTrigger] IDurableOrchestrationContext context)
     {
-        var (site, dnsNames, forceDns01Challenge) = context.GetInput<(WebSiteData, string[], bool)>();
+        var (webSite, dnsNames, forceDns01Challenge) = context.GetInput<(WebSiteItem, string[], bool)>();
 
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
         // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
-        var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || site.Kind.Contains("container") || site.Kind.Contains("linux");
+        var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || webSite.Kind.Contains("container") || webSite.Kind.Contains("linux");
 
         // 前提条件をチェック
         if (useDns01Auth)
@@ -33,7 +31,7 @@ public class SharedOrchestrator
         }
         else
         {
-            await activity.Http01Precondition(site.Id);
+            await activity.Http01Precondition(webSite.Id);
         }
 
         // 新しく ACME Order を作成する
@@ -58,7 +56,7 @@ public class SharedOrchestrator
             }
             else
             {
-                challengeResults = await activity.Http01Authorization((site.Id, orderDetails.Payload.Authorizations));
+                challengeResults = await activity.Http01Authorization((webSite.Id, orderDetails.Payload.Authorizations));
 
                 // HTTP で正しくアクセスできるか確認
                 await activity.CheckHttpChallenge(challengeResults);
@@ -88,7 +86,7 @@ public class SharedOrchestrator
         }
 
         // 証明書をダウンロードし App Service へアップロード
-        var certificate = await activity.UploadCertificate((site.Id, dnsNames[0], forceDns01Challenge, finalize, rsaParameters));
+        var certificate = await activity.UploadCertificate((webSite.Id, dnsNames[0], forceDns01Challenge, finalize, rsaParameters));
 
         return certificate;
     }

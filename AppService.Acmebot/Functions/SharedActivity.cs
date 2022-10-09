@@ -91,9 +91,9 @@ public class SharedActivity : ISharedActivity
         {
             var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName, slotName);
 
-            WebSiteSlotResource siteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
+            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
 
-            return WebSiteItem.Create(siteSlot.Data, _environment);
+            return WebSiteItem.Create(webSiteSlot.Data, _environment);
         }
         else
         {
@@ -130,9 +130,9 @@ public class SharedActivity : ISharedActivity
 
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
-        ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(resourceGroupName);
+        var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName);
 
-        WebSiteResource webSite = await resourceGroup.GetWebSiteAsync(webSiteName);
+        var webSite = _armClient.GetWebSiteResource(id);
 
         var webSites = new List<WebSiteItem>();
 
@@ -242,8 +242,6 @@ public class SharedActivity : ISharedActivity
     {
         var (id, authorizationUrls) = input;
 
-        var webSite = _armClient.GetWebSiteResource(new ResourceIdentifier(id));
-
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
         var challengeResults = new List<AcmeChallengeResult>();
@@ -274,6 +272,8 @@ public class SharedActivity : ISharedActivity
         }
 
         // 発行プロファイルを取得
+        var webSite = _armClient.GetWebSiteResource(new ResourceIdentifier(id));
+
         var credentials = await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed);
 
         var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
