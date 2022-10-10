@@ -87,21 +87,21 @@ public class SharedActivity : ISharedActivity
 
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
-        if (slotName != "production")
-        {
-            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName, slotName);
-
-            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
-
-            return WebSiteItem.Create(webSiteSlot.Data, _environment);
-        }
-        else
+        if (slotName == "production")
         {
             var id = WebSiteResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName);
 
             WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
 
             return WebSiteItem.Create(webSite.Data, _environment);
+        }
+        else
+        {
+            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName, slotName);
+
+            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
+
+            return WebSiteItem.Create(webSiteSlot.Data, _environment);
         }
     }
 
@@ -197,6 +197,18 @@ public class SharedActivity : ISharedActivity
     {
         var resourceId = new ResourceIdentifier(id);
 
+        if (resourceId.ResourceType == WebSiteResource.ResourceType)
+        {
+            await Http01Precondition_WebSite(resourceId);
+        }
+        else
+        {
+            await Http01Precondition_WebSiteSlot(resourceId);
+        }
+    }
+
+    private async Task Http01Precondition_WebSite(ResourceIdentifier resourceId)
+    {
         var webSite = _armClient.GetWebSiteResource(resourceId);
 
         WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
@@ -211,6 +223,50 @@ public class SharedActivity : ISharedActivity
 
         // 発行プロファイルを取得
         var credentials = await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed);
+
+        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
+
+        try
+        {
+            // 特殊なファイルが存在する場合は web.config の作成を行わない
+            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+            {
+                // Answer 用ファイルを返すための Web.config を作成
+                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
+        }
+
+        // .well-known を仮想アプリケーションとして追加
+        config.Data.VirtualApplications.Add(new VirtualApplication
+        {
+            VirtualPath = "/.well-known",
+            PhysicalPath = "site\\.well-known",
+            IsPreloadEnabled = false
+        });
+
+        await config.UpdateAsync(config.Data);
+    }
+
+    private async Task Http01Precondition_WebSiteSlot(ResourceIdentifier resourceId)
+    {
+        var webSiteSlot = _armClient.GetWebSiteSlotResource(resourceId);
+
+        WebSiteSlotConfigResource config = await webSiteSlot.GetWebSiteSlotConfig().GetAsync();
+
+        // 既に .well-known が仮想アプリケーションとして追加されているか確認
+        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+
+        if (virtualApplication != null)
+        {
+            return;
+        }
+
+        // 発行プロファイルを取得
+        var credentials = await webSiteSlot.GetPublishingCredentialsSlotAsync(WaitUntil.Completed);
 
         var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
 
@@ -274,11 +330,24 @@ public class SharedActivity : ISharedActivity
         }
 
         // 発行プロファイルを取得
-        var webSite = _armClient.GetWebSiteResource(new ResourceIdentifier(id));
+        PublishingUserData credentials;
 
-        var credentials = await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed);
+        var resourceId = new ResourceIdentifier(id);
 
-        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
+        if (resourceId.ResourceType == WebSiteResource.ResourceType)
+        {
+            var webSite = _armClient.GetWebSiteResource(resourceId);
+
+            credentials = (await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed)).Value.Data;
+        }
+        else
+        {
+            var webSiteSlot = _armClient.GetWebSiteSlotResource(resourceId);
+
+            credentials = (await webSiteSlot.GetPublishingCredentialsSlotAsync(WaitUntil.Completed)).Value.Data;
+        }
+
+        var kuduClient = _kuduClientFactory.CreateClient(credentials.ScmUri);
 
         // Kudu API を使い、Answer 用のファイルを作成
         foreach (var challengeResult in challengeResults)
@@ -597,19 +666,35 @@ public class SharedActivity : ISharedActivity
 
         var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
 
-        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+        var resourceId = new ResourceIdentifier(id);
 
-        WebSiteResource webSite = await _armClient.GetWebSiteResource(new ResourceIdentifier(id)).GetAsync();
+        AzureLocation location;
+        ResourceIdentifier appServicePlanId;
 
-        ResourceGroupResource resourceGroup = await subscription.GetResourceGroupAsync(webSite.Data.ResourceGroup);
+        if (resourceId.ResourceType == WebSiteResource.ResourceType)
+        {
+            WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
+
+            location = webSite.Data.Location;
+            appServicePlanId = webSite.Data.AppServicePlanId;
+        }
+        else
+        {
+            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
+
+            location = webSiteSlot.Data.Location;
+            appServicePlanId = webSiteSlot.Data.AppServicePlanId;
+        }
+
+        var resourceGroup = _armClient.GetResourceGroupResource(ResourceGroupResource.CreateResourceIdentifier(resourceId.SubscriptionId, resourceId.ResourceGroupName));
 
         var certificateCollection = resourceGroup.GetAppCertificates();
 
-        var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new AppCertificateData(webSite.Data.Location)
+        var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new AppCertificateData(location)
         {
             Password = password,
             PfxBlob = pfxBlob,
-            ServerFarmId = webSite.Data.AppServicePlanId,
+            ServerFarmId = appServicePlanId,
             Tags =
             {
                 { "Issuer", IssuerName },
@@ -626,7 +711,21 @@ public class SharedActivity : ISharedActivity
     {
         var (id, dnsNames, thumbprint, useIpBasedSsl) = input;
 
-        WebSiteResource webSite = await _armClient.GetWebSiteResource(new ResourceIdentifier(id)).GetAsync();
+        var resourceId = new ResourceIdentifier(id);
+
+        if (resourceId.ResourceType == WebSiteResource.ResourceType)
+        {
+            await UpdateSiteBinding_WebSite(resourceId, dnsNames, thumbprint, useIpBasedSsl);
+        }
+        else
+        {
+            await UpdateSiteBinding_WebSiteSlot(resourceId, dnsNames, thumbprint, useIpBasedSsl);
+        }
+    }
+
+    private async Task UpdateSiteBinding_WebSite(ResourceIdentifier resourceId, IReadOnlyList<string> dnsNames, string thumbprint, bool? useIpBasedSsl)
+    {
+        WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
 
         var sitePatch = new SitePatchInfo();
 
@@ -637,13 +736,42 @@ public class SharedActivity : ISharedActivity
                 hostNameSslState.Thumbprint = new BinaryData(thumbprint);
                 hostNameSslState.ToUpdate = true;
 
-                hostNameSslState.SslState = useIpBasedSsl ?? false ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
+                if (useIpBasedSsl is not null)
+                {
+                    hostNameSslState.SslState = useIpBasedSsl.Value ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
+                }
             }
 
             sitePatch.HostNameSslStates.Add(hostNameSslState);
         }
 
         await webSite.UpdateAsync(sitePatch);
+
+    }
+
+    private async Task UpdateSiteBinding_WebSiteSlot(ResourceIdentifier resourceId, IReadOnlyList<string> dnsNames, string thumbprint, bool? useIpBasedSsl)
+    {
+        WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
+
+        var sitePatch = new SitePatchInfo();
+
+        foreach (var hostNameSslState in webSiteSlot.Data.HostNameSslStates)
+        {
+            if (dnsNames.Contains(Punycode.Encode(hostNameSslState.Name)))
+            {
+                hostNameSslState.Thumbprint = new BinaryData(thumbprint);
+                hostNameSslState.ToUpdate = true;
+
+                if (useIpBasedSsl is not null)
+                {
+                    hostNameSslState.SslState = useIpBasedSsl.Value ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
+                }
+            }
+
+            sitePatch.HostNameSslStates.Add(hostNameSslState);
+        }
+
+        await webSiteSlot.UpdateAsync(sitePatch);
     }
 
     [FunctionName(nameof(CleanupDnsChallenge))]
@@ -675,7 +803,21 @@ public class SharedActivity : ISharedActivity
     [FunctionName(nameof(CleanupVirtualApplication))]
     public async Task CleanupVirtualApplication([ActivityTrigger] string id)
     {
-        var webSite = _armClient.GetWebSiteResource(new ResourceIdentifier(id));
+        var resourceId = new ResourceIdentifier(id);
+
+        if (resourceId.ResourceType == WebSiteResource.ResourceType)
+        {
+            await CleanupVirtualApplication_WebSite(resourceId);
+        }
+        else
+        {
+            await CleanupVirtualApplication_WebSiteSlot(resourceId);
+        }
+    }
+
+    private async Task CleanupVirtualApplication_WebSite(ResourceIdentifier resourceId)
+    {
+        var webSite = _armClient.GetWebSiteResource(resourceId);
 
         WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
@@ -693,20 +835,40 @@ public class SharedActivity : ISharedActivity
         await config.UpdateAsync(config.Data);
     }
 
+    private async Task CleanupVirtualApplication_WebSiteSlot(ResourceIdentifier resourceId)
+    {
+        var webSiteSlot = _armClient.GetWebSiteSlotResource(resourceId);
+
+        WebSiteSlotConfigResource config = await webSiteSlot.GetWebSiteSlotConfig().GetAsync();
+
+        // 既に .well-known が仮想アプリケーションとして追加されているか確認
+        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+
+        if (virtualApplication is null)
+        {
+            return;
+        }
+
+        // 作成した仮想アプリケーションを削除
+        config.Data.VirtualApplications.Remove(virtualApplication);
+
+        await config.UpdateAsync(config.Data);
+    }
+
     [FunctionName(nameof(DeleteCertificate))]
-    public Task DeleteCertificate([ActivityTrigger] string id)
+    public async Task DeleteCertificate([ActivityTrigger] string id)
     {
         var certificateResource = _armClient.GetAppCertificateResource(new ResourceIdentifier(id));
 
-        return certificateResource.DeleteAsync(WaitUntil.Completed);
+        await certificateResource.DeleteAsync(WaitUntil.Completed);
     }
 
     [FunctionName(nameof(SendCompletedEvent))]
-    public Task SendCompletedEvent([ActivityTrigger] (WebSiteItem, DateTimeOffset?, IReadOnlyList<string>) input)
+    public async Task SendCompletedEvent([ActivityTrigger] (WebSiteItem, DateTimeOffset?, IReadOnlyList<string>) input)
     {
         var (site, expirationDate, dnsNames) = input;
 
-        return _webhookInvoker.SendCompletedEventAsync(site.Name, site.SlotName, expirationDate, dnsNames);
+        await _webhookInvoker.SendCompletedEventAsync(site.Name, site.SlotName, expirationDate, dnsNames);
     }
 
     private const string DefaultWebConfigPath = ".well-known/web.config";
