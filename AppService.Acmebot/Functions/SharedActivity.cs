@@ -89,7 +89,7 @@ public class SharedActivity : ISharedActivity
 
         if (slotName != "production")
         {
-            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName, slotName);
+            var id = WebSiteSlotResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName, slotName);
 
             WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(id).GetAsync();
 
@@ -97,7 +97,7 @@ public class SharedActivity : ISharedActivity
         }
         else
         {
-            var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName);
+            var id = WebSiteResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName);
 
             WebSiteResource webSite = await _armClient.GetWebSiteResource(id).GetAsync();
 
@@ -130,7 +130,7 @@ public class SharedActivity : ISharedActivity
 
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
 
-        var id = WebSiteResource.CreateResourceIdentifier(subscription.Id.SubscriptionId, resourceGroupName, webSiteName);
+        var id = WebSiteResource.CreateResourceIdentifier(subscription.Data.SubscriptionId, resourceGroupName, webSiteName);
 
         var webSite = _armClient.GetWebSiteResource(id);
 
@@ -195,7 +195,9 @@ public class SharedActivity : ISharedActivity
     [FunctionName(nameof(Http01Precondition))]
     public async Task Http01Precondition([ActivityTrigger] string id)
     {
-        var webSite = _armClient.GetWebSiteResource(new ResourceIdentifier(id));
+        var resourceId = new ResourceIdentifier(id);
+
+        var webSite = _armClient.GetWebSiteResource(resourceId);
 
         WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
@@ -254,7 +256,7 @@ public class SharedActivity : ISharedActivity
             // HTTP-01 Challenge の情報を拾う
             var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "http-01");
 
-            if (challenge == null)
+            if (challenge is null)
             {
                 throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
             }
@@ -331,7 +333,7 @@ public class SharedActivity : ISharedActivity
                                   .MaxBy(x => x.Data.Name.Length);
 
             // マッチする DNS zone が見つからない場合はエラー
-            if (dnsZone == null)
+            if (dnsZone is null)
             {
                 zoneNotFoundDnsNames.Add(dnsName);
                 continue;
@@ -349,7 +351,7 @@ public class SharedActivity : ISharedActivity
         foreach (var dnsZone in foundDnsZones)
         {
             // DNS provider が Name servers を返していなければスキップ
-            if (dnsZone.NameServers == null || dnsZone.NameServers.Count == 0)
+            if (dnsZone.NameServers is null || dnsZone.NameServers.Count == 0)
             {
                 continue;
             }
@@ -390,7 +392,7 @@ public class SharedActivity : ISharedActivity
             // DNS-01 Challenge の情報を拾う
             var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "dns-01");
 
-            if (challenge == null)
+            if (challenge is null)
             {
                 throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
             }
@@ -507,7 +509,7 @@ public class SharedActivity : ISharedActivity
             {
                 var challenge = await acmeProtocolClient.GetChallengeDetailsAsync(challengeResult.Url);
 
-                if (challenge.Status != "invalid" || challenge.Error == null)
+                if (challenge.Status != "invalid" || challenge.Error is null)
                 {
                     continue;
                 }
@@ -589,7 +591,9 @@ public class SharedActivity : ISharedActivity
         x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
 
         // PFX 形式としてエクスポート
-        var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, "P@ssw0rd");
+        var password = Guid.NewGuid().ToString();
+
+        var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, password);
 
         var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
 
@@ -603,9 +607,9 @@ public class SharedActivity : ISharedActivity
 
         var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new AppCertificateData(webSite.Data.Location)
         {
-            Password = "P@ssw0rd",
+            Password = password,
             PfxBlob = pfxBlob,
-            ServerFarmId = new ResourceIdentifier(webSite.Data.AppServicePlanId),
+            ServerFarmId = webSite.Data.AppServicePlanId,
             Tags =
             {
                 { "Issuer", IssuerName },
@@ -633,10 +637,7 @@ public class SharedActivity : ISharedActivity
                 hostNameSslState.Thumbprint = new BinaryData(thumbprint);
                 hostNameSslState.ToUpdate = true;
 
-                if (useIpBasedSsl.HasValue)
-                {
-                    hostNameSslState.SslState = useIpBasedSsl.Value ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
-                }
+                hostNameSslState.SslState = useIpBasedSsl ?? false ? HostNameBindingSslState.IPBasedEnabled : HostNameBindingSslState.SniEnabled;
             }
 
             sitePatch.HostNameSslStates.Add(hostNameSslState);
@@ -681,7 +682,7 @@ public class SharedActivity : ISharedActivity
         // 既に .well-known が仮想アプリケーションとして追加されているか確認
         var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-        if (virtualApplication == null)
+        if (virtualApplication is null)
         {
             return;
         }

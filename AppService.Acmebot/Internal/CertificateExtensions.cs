@@ -8,7 +8,7 @@ internal static class CertificateExtensions
     {
         var tags = certificate.Tags;
 
-        if (tags == null)
+        if (tags is null)
         {
             return false;
         }

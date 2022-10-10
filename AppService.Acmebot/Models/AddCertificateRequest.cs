@@ -22,7 +22,7 @@ public class AddCertificateRequest : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (DnsNames == null || DnsNames.Length == 0)
+        if (DnsNames is null || DnsNames.Length == 0)
         {
             yield return new ValidationResult($"The {nameof(DnsNames)} is required.", new[] { nameof(DnsNames) });
         }
