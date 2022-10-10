@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 using DurableTask.TypedProxy;
@@ -32,6 +33,8 @@ public class PurgeCertificates
             return;
         }
 
+        var boundCertificates = new List<string>();
+
         var resourceGroups = await activity.GetResourceGroups();
 
         foreach (var resourceGroup in resourceGroups)
@@ -39,16 +42,27 @@ public class PurgeCertificates
             // App Service を取得
             var webSites = await activity.GetWebSites(resourceGroup.Name);
 
-            // App Service にバインド済み証明書のサムプリントを取得
-            var boundCertificates = webSites.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint))
-                                            .ToArray();
+            foreach (var webSite in webSites)
+            {
+                // App Service にバインド済み証明書のサムプリントを取得
+                boundCertificates.AddRange(webSite.HostNames.Select(x => x.Thumbprint));
 
-            // バインドされていない証明書を削除
-            var tasks = certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)).Select(x => activity.DeleteCertificate(x.Id));
+                // Deployment Slot を取得
+                var webSiteSlots = await activity.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
 
-            // アクティビティの完了を待つ
-            await Task.WhenAll(tasks);
+                // Deployment Slot にバインド済み証明書のサムプリントを取得
+                boundCertificates.AddRange(webSiteSlots.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint)));
+            }
         }
+
+        log.LogInformation($"Certificates = {string.Join(",", certificates.Select(x => x.Thumbprint))}");
+        log.LogInformation($"Bound certificates = {string.Join(",", boundCertificates)}");
+
+        // バインドされていない証明書を削除
+        var tasks = certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)).Select(x => activity.DeleteCertificate(x.Id));
+
+        // アクティビティの完了を待つ
+        await Task.WhenAll(tasks);
     }
 
     [FunctionName($"{nameof(PurgeCertificates)}_{nameof(Timer)}")]
