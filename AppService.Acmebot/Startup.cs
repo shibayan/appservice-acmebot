@@ -75,7 +75,11 @@ public class Startup : FunctionsStartup
             var environment = provider.GetRequiredService<AzureEnvironment>();
             var credential = provider.GetRequiredService<TokenCredential>();
 
-            return new ArmClient(credential, options.Value.SubscriptionId, new ArmClientOptions { Environment = environment.ResourceManager });
+            var armClientOptions = new ArmClientOptions { Environment = environment.ResourceManager };
+
+            armClientOptions.AddPolicy(new ArmSdkMitigatePolicy(), HttpPipelinePosition.PerRetry);
+
+            return new ArmClient(credential, options.Value.SubscriptionId, armClientOptions);
         });
 
         builder.Services.AddSingleton<AcmeProtocolClientFactory>();
