@@ -433,9 +433,9 @@ public class SharedActivity : ISharedActivity
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
         // Answer の準備が出来たことを通知
-        foreach (var challenge in challengeResults)
+        foreach (var challengeResult in challengeResults)
         {
-            await acmeProtocolClient.AnswerChallengeAsync(challenge.Url);
+            await acmeProtocolClient.AnswerChallengeAsync(challengeResult.Url);
         }
     }
 
