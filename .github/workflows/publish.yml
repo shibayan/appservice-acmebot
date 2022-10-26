@@ -14,12 +14,12 @@ jobs:
     outputs:
       version: ${{ steps.setup_version.outputs.version }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
 
     - name: Use .NET Core ${{ env.DOTNET_VERSION }}
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v2
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -27,14 +27,14 @@ jobs:
       id: setup_version
       run: echo ::set-output name=version::${GITHUB_REF/refs\/tags\/v/}
 
-    - name: Publish Function app
+    - name: Publish Functions
       run: dotnet publish -c Release -r win-x86 --self-contained false -o ./dist -p:Version=${{ steps.setup_version.outputs.version }} AppService.Acmebot
 
-    - name: Zip Function app
+    - name: Zip Functions
       run: 7z a -mx=9 latest.zip ./dist/*
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: dist
         path: |
@@ -60,7 +60,7 @@ jobs:
       run: az bicep install --version v${{ env.BICEP_VERSION }}
 
     - name: Download artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: dist
 
