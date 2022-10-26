@@ -7,30 +7,29 @@ using ACMESharp.Protocol;
 
 using AppService.Acmebot.Models;
 
-using Azure.Core;
-using Azure.ResourceManager.AppService;
-
 using DurableTask.TypedProxy;
 
 namespace AppService.Acmebot.Functions;
 
 public interface ISharedActivity
 {
-    Task<IReadOnlyList<string>> GetResourceGroups(object input = null);
+    Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups(object input = null);
 
-    Task<WebSiteData> GetSite((string, string, string) input);
+    Task<WebSiteItem> GetWebSite((string, string, string) input);
 
-    Task<IReadOnlyList<WebSiteData>> GetSites((string, bool) input);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSites(string resourceGroupName);
 
-    Task<IReadOnlyList<CertificateData>> GetExpiringCertificates(DateTime currentDateTime);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots((string, string) input);
 
-    Task<IReadOnlyList<CertificateData>> GetAllCertificates(object input = null);
+    Task<IReadOnlyList<CertificateItem>> GetExpiringCertificates(DateTime currentDateTime);
+
+    Task<IReadOnlyList<CertificateItem>> GetAllCertificates(object input = null);
 
     Task<OrderDetails> Order(IReadOnlyList<string> dnsNames);
 
-    Task Http01Precondition(ResourceIdentifier id);
+    Task Http01Precondition(string id);
 
-    Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization((ResourceIdentifier, IReadOnlyList<string>) input);
+    Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization((string, IReadOnlyList<string>) input);
 
     [RetryOptions("00:00:10", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
     Task CheckHttpChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
@@ -52,15 +51,15 @@ public interface ISharedActivity
     [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
     Task<OrderDetails> CheckIsValid(OrderDetails orderDetails);
 
-    Task<CertificateData> UploadCertificate((ResourceIdentifier, string, bool, OrderDetails, RSAParameters) input);
+    Task<CertificateItem> UploadCertificate((string, string, bool, OrderDetails, RSAParameters) input);
 
-    Task UpdateSiteBinding(ResourceIdentifier id);
+    Task UpdateSiteBinding((string, IReadOnlyList<string>, string, bool?) input);
 
-    Task CleanupVirtualApplication(ResourceIdentifier id);
+    Task CleanupVirtualApplication(string id);
 
-    Task DeleteCertificate(ResourceIdentifier id);
+    Task DeleteCertificate(string id);
 
     Task CleanupDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-    Task SendCompletedEvent((WebSiteData, DateTimeOffset?, IReadOnlyList<string>) input);
+    Task SendCompletedEvent((WebSiteItem, DateTimeOffset?, IReadOnlyList<string>) input);
 }

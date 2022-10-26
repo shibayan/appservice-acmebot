@@ -4,8 +4,6 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
-using Azure.ResourceManager.AppService;
-using Azure.ResourceManager.AppService.Models;
 using Azure.WebJobs.Extensions.HttpApi;
 
 using DurableTask.TypedProxy;
@@ -26,28 +24,28 @@ public class AddCertificate : HttpFunctionBase
     {
     }
 
-    [FunctionName(nameof(AddCertificate) + "_" + nameof(Orchestrator))]
+    [FunctionName($"{nameof(AddCertificate)}_{nameof(Orchestrator)}")]
     public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
     {
         var request = context.GetInput<AddCertificateRequest>();
 
         var activity = context.CreateActivityProxy<ISharedActivity>();
 
-        var site = await activity.GetSite((request.ResourceGroupName, request.AppName, request.SlotName));
+        var webSite = await activity.GetWebSite((request.ResourceGroupName, request.WebSiteName, request.SlotName));
 
-        if (site == null)
+        if (webSite is null)
         {
-            log.LogError($"{request.AppName} is not found");
+            log.LogError($"{request.WebSiteName} is not found");
             return;
         }
 
-        var hostNameSslStates = site.HostNameSslStates
-                                    .Where(x => request.DnsNames.Contains(x.Name))
-                                    .ToArray();
+        var hostNames = webSite.HostNames
+                               .Where(x => request.DnsNames.Contains(x.Name))
+                               .ToArray();
 
-        if (hostNameSslStates.Length != request.DnsNames.Length)
+        if (hostNames.Length != request.DnsNames.Length)
         {
-            foreach (var dnsName in request.DnsNames.Except(hostNameSslStates.Select(x => x.Name)))
+            foreach (var dnsName in request.DnsNames.Except(hostNames.Select(x => x.Name)))
             {
                 log.LogError($"{dnsName} is not found");
             }
@@ -60,29 +58,22 @@ public class AddCertificate : HttpFunctionBase
         try
         {
             // 証明書を発行し Azure にアップロード
-            var certificate = await context.CallSubOrchestratorAsync<CertificateData>(nameof(SharedOrchestrator.IssueCertificate), (site, asciiDnsNames, request.ForceDns01Challenge ?? false));
+            var certificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (webSite, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
             // App Service のホスト名に証明書をセットする
-            foreach (var hostNameSslState in hostNameSslStates)
-            {
-                hostNameSslState.Thumbprint = certificate.Thumbprint;
-                hostNameSslState.SslState = request.UseIpBasedSsl ?? false ? SslState.IPBasedEnabled : SslState.SniEnabled;
-                hostNameSslState.ToUpdate = true;
-            }
-
-            await activity.UpdateSiteBinding(site.Id);
+            await activity.UpdateSiteBinding((webSite.Id, request.DnsNames, certificate.Thumbprint, request.UseIpBasedSsl));
 
             // 証明書の更新が完了後に Webhook を送信する
-            await activity.SendCompletedEvent((site, certificate.ExpirationOn, asciiDnsNames));
+            await activity.SendCompletedEvent((webSite, certificate.ExpirationOn, asciiDnsNames));
         }
         finally
         {
             // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(site.Id);
+            await activity.CleanupVirtualApplication(webSite.Id);
         }
     }
 
-    [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpStart))]
+    [FunctionName($"{nameof(AddCertificate)}_{nameof(HttpStart)}")]
     public async Task<IActionResult> HttpStart(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "api/certificate")] AddCertificateRequest request,
         [DurableClient] IDurableClient starter,
@@ -99,14 +90,14 @@ public class AddCertificate : HttpFunctionBase
         }
 
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync(nameof(AddCertificate) + "_" + nameof(Orchestrator), request);
+        var instanceId = await starter.StartNewAsync($"{nameof(AddCertificate)}_{nameof(Orchestrator)}", request);
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-        return AcceptedAtFunction(nameof(AddCertificate) + "_" + nameof(HttpPoll), new { instanceId }, null);
+        return AcceptedAtFunction($"{nameof(AddCertificate)}_{nameof(HttpPoll)}", new { instanceId }, null);
     }
 
-    [FunctionName(nameof(AddCertificate) + "_" + nameof(HttpPoll))]
+    [FunctionName($"{nameof(AddCertificate)}_{nameof(HttpPoll)}")]
     public async Task<IActionResult> HttpPoll(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "api/certificate/{instanceId}")] HttpRequest req,
         string instanceId,
@@ -119,7 +110,7 @@ public class AddCertificate : HttpFunctionBase
 
         var status = await starter.GetStatusAsync(instanceId);
 
-        if (status == null)
+        if (status is null)
         {
             return BadRequest();
         }
@@ -131,7 +122,7 @@ public class AddCertificate : HttpFunctionBase
 
         if (status.RuntimeStatus is OrchestrationRuntimeStatus.Running or OrchestrationRuntimeStatus.Pending or OrchestrationRuntimeStatus.ContinuedAsNew)
         {
-            return AcceptedAtFunction(nameof(AddCertificate) + "_" + nameof(HttpPoll), new { instanceId }, null);
+            return AcceptedAtFunction($"{nameof(AddCertificate)}_{nameof(HttpPoll)}", new { instanceId }, null);
         }
 
         return Ok();
