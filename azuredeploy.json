@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.9.1.41621",
-      "templateHash": "9556437516569446987"
+      "version": "0.12.40.16777",
+      "templateHash": "13029381433880328781"
     }
   },
   "parameters": {
@@ -57,7 +57,7 @@
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
-      "apiVersion": "2021-09-01",
+      "apiVersion": "2022-05-01",
       "name": "[variables('storageAccountName')]",
       "location": "[parameters('location')]",
       "kind": "Storage",
@@ -83,7 +83,7 @@
     },
     {
       "type": "Microsoft.OperationalInsights/workspaces",
-      "apiVersion": "2021-06-01",
+      "apiVersion": "2022-10-01",
       "name": "[variables('workspaceName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -127,15 +127,15 @@
           "appSettings": [
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[format('InstrumentationKey={0};EndpointSuffix={1}', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName'))).InstrumentationKey, variables('appInsightsEndpoints')[environment().name])]"
+              "value": "[format('InstrumentationKey={0};EndpointSuffix={1}', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey, variables('appInsightsEndpoints')[environment().name])]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value, environment().suffixes.storage)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value, environment().suffixes.storage)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -143,11 +143,11 @@
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/v3/latest.zip"
+              "value": "https://stacmebotprod.blob.core.windows.net/appservice-acmebot/v4/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~3"
+              "value": "~4"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
@@ -170,6 +170,7 @@
               "value": "[environment().name]"
             }
           ],
+          "netFrameworkVersion": "v6.0",
           "ftpsState": "Disabled",
           "minTlsVersion": "1.2",
           "scmMinTlsVersion": "1.2"
