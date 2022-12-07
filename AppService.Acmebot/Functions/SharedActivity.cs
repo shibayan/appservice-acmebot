@@ -495,16 +495,16 @@ public class SharedActivity : ISharedActivity
             var acmeDnsRecordName = dnsRecordName.Replace($".{dnsZone.Data.Name}", "", StringComparison.OrdinalIgnoreCase);
 
             // TXT レコードに TTL と値をセットする
-            var recordSets = dnsZone.GetTxtRecords();
+            var recordSets = dnsZone.GetDnsTxtRecords();
 
-            var recordSet = new TxtRecordData
+            var recordSet = new DnsTxtRecordData
             {
                 TtlInSeconds = 60
             };
 
             foreach (var value in lookup)
             {
-                recordSet.TxtRecords.Add(new TxtRecordInfo { Values = { value.DnsRecordValue } });
+                recordSet.DnsTxtRecords.Add(new DnsTxtRecordInfo { Values = { value.DnsRecordValue } });
             }
 
             await recordSets.CreateOrUpdateAsync(WaitUntil.Completed, acmeDnsRecordName, recordSet);
@@ -794,7 +794,7 @@ public class SharedActivity : ISharedActivity
             // Challenge の詳細から Azure DNS 向けにレコード名を作成
             var acmeDnsRecordName = dnsRecordName.Replace($".{dnsZone.Data.Name}", "", StringComparison.OrdinalIgnoreCase);
 
-            TxtRecordResource recordSet = await dnsZone.GetTxtRecordAsync(acmeDnsRecordName);
+            DnsTxtRecordResource recordSet = await dnsZone.GetDnsTxtRecordAsync(acmeDnsRecordName);
 
             await recordSet.DeleteAsync(WaitUntil.Completed);
         }
