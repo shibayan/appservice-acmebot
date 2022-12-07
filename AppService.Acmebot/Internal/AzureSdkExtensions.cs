@@ -12,7 +12,7 @@ internal static class AzureSdkExtensions
     {
         var dnsZones = new List<DnsZoneResource>();
 
-        var result = subscription.GetDnsZonesByDnszoneAsync();
+        var result = subscription.GetDnsZonesAsync();
 
         await foreach (var dnsZone in result)
         {
