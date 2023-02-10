@@ -58,7 +58,7 @@ public class Startup : FunctionsStartup
 
             return new DefaultAzureCredential(new DefaultAzureCredentialOptions
             {
-                AuthorityHost = environment.ActiveDirectory
+                AuthorityHost = environment.AuthorityHost
             });
         });
 
