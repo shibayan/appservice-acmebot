@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using Azure.Identity;
 using Azure.ResourceManager;
 
 namespace AppService.Acmebot.Internal;
 
 public class AzureEnvironment
 {
-    public Uri ActiveDirectory { get; init; }
+    public Uri AuthorityHost { get; init; }
     public ArmEnvironment ResourceManager { get; init; }
     public string AppService { get; init; }
     public string TrafficManager { get; init; }
@@ -20,7 +21,7 @@ public class AzureEnvironment
             "AzureCloud",
             new AzureEnvironment
             {
-                ActiveDirectory = new Uri("https://login.microsoftonline.com"),
+                AuthorityHost = AzureAuthorityHosts.AzurePublicCloud,
                 ResourceManager = ArmEnvironment.AzurePublicCloud,
                 AppService = ".azurewebsites.net",
                 TrafficManager = ".trafficmanager.net"
@@ -30,7 +31,7 @@ public class AzureEnvironment
             "AzureChinaCloud",
             new AzureEnvironment
             {
-                ActiveDirectory = new Uri("https://login.chinacloudapi.cn"),
+                AuthorityHost = AzureAuthorityHosts.AzureChina,
                 ResourceManager = ArmEnvironment.AzureChina,
                 AppService = ".chinacloudsites.cn",
                 TrafficManager = ".trafficmanager.cn"
@@ -40,7 +41,7 @@ public class AzureEnvironment
             "AzureUSGovernment",
             new AzureEnvironment
             {
-                ActiveDirectory = new Uri("https://login.microsoftonline.us"),
+                AuthorityHost = AzureAuthorityHosts.AzureGovernment,
                 ResourceManager = ArmEnvironment.AzureGovernment,
                 AppService = ".azurewebsites.us",
                 TrafficManager = ".usgovtrafficmanager.net"
