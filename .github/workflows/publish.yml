@@ -6,7 +6,7 @@ on:
 
 env:
   DOTNET_VERSION: 6.0.x
-  BICEP_VERSION: 0.15.31
+  BICEP_VERSION: 0.18.4
 
 jobs:
   publish:
@@ -73,5 +73,5 @@ jobs:
 
     - name: Publish to Private Registry
       run: |
-        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v4
-        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v${{ needs.publish.outputs.version }}
+        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v4 --force
+        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v${{ needs.publish.outputs.version }} --force
