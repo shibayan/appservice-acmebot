@@ -3,28 +3,33 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+
+using Azure.Core;
 
 namespace AppService.Acmebot.Internal;
 
 public class KuduClient
 {
-    public KuduClient(HttpClient httpClient, Uri scmUri)
+    public KuduClient(HttpClient httpClient, Uri scmUri, TokenCredential tokenCredential)
     {
         _httpClient = httpClient;
         _scmHost = scmUri.Host;
-        _basicAuth = Convert.ToBase64String(Encoding.UTF8.GetBytes(scmUri.UserInfo));
+        _tokenCredential = tokenCredential;
     }
 
     private readonly HttpClient _httpClient;
     private readonly string _scmHost;
-    private readonly string _basicAuth;
+    private readonly TokenCredential _tokenCredential;
 
     public async Task<bool> ExistsFileAsync(string filePath)
     {
+        var accessToken = await _tokenCredential.GetTokenAsync(new TokenRequestContext(), CancellationToken.None);
+
         var request = new HttpRequestMessage(HttpMethod.Head, $"https://{_scmHost}/api/vfs/site/{filePath}");
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
 
         var response = await _httpClient.SendAsync(request);
 
@@ -43,15 +48,17 @@ public class KuduClient
         return false;
     }
 
-    public Task WriteFileAsync(string filePath, string content)
+    public async Task WriteFileAsync(string filePath, string content)
     {
+        var accessToken = await _tokenCredential.GetTokenAsync(new TokenRequestContext(), CancellationToken.None);
+
         var request = new HttpRequestMessage(HttpMethod.Put, $"https://{_scmHost}/api/vfs/site/{filePath}");
 
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", _basicAuth);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
         request.Headers.IfMatch.Add(EntityTagHeaderValue.Any);
 
         request.Content = new StringContent(content, Encoding.UTF8);
 
-        return _httpClient.SendAsync(request);
+        await _httpClient.SendAsync(request);
     }
 }
