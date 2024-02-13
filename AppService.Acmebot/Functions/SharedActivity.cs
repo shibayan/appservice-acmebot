@@ -209,22 +209,22 @@ public class SharedActivity : ISharedActivity
 
     private async Task Http01Precondition_WebSite(ResourceIdentifier resourceId)
     {
-        var webSite = _armClient.GetWebSiteResource(resourceId);
+        WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
 
         WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
         // 既に .well-known が仮想アプリケーションとして追加されているか確認
         var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-        if (virtualApplication != null)
+        if (virtualApplication is not null)
         {
             return;
         }
 
-        // 発行プロファイルを取得
-        var credentials = await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed);
+        // ファイル操作用の KuduClient を作成
+        var scmUri = webSite.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
 
-        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
+        var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
         try
         {
@@ -253,22 +253,22 @@ public class SharedActivity : ISharedActivity
 
     private async Task Http01Precondition_WebSiteSlot(ResourceIdentifier resourceId)
     {
-        var webSiteSlot = _armClient.GetWebSiteSlotResource(resourceId);
+        WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
 
         WebSiteSlotConfigResource config = await webSiteSlot.GetWebSiteSlotConfig().GetAsync();
 
         // 既に .well-known が仮想アプリケーションとして追加されているか確認
         var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-        if (virtualApplication != null)
+        if (virtualApplication is not null)
         {
             return;
         }
 
-        // 発行プロファイルを取得
-        var credentials = await webSiteSlot.GetPublishingCredentialsSlotAsync(WaitUntil.Completed);
+        // ファイル操作用の KuduClient を作成
+        var scmUri = webSiteSlot.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
 
-        var kuduClient = _kuduClientFactory.CreateClient(credentials.Value.Data.ScmUri);
+        var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
         try
         {
@@ -329,25 +329,25 @@ public class SharedActivity : ISharedActivity
             });
         }
 
-        // 発行プロファイルを取得
-        PublishingUserData credentials;
+        // ファイル操作用の KuduClient を作成
+        HostNameSslState scmUri;
 
         var resourceId = new ResourceIdentifier(id);
 
         if (resourceId.ResourceType == WebSiteResource.ResourceType)
         {
-            var webSite = _armClient.GetWebSiteResource(resourceId);
+            WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
 
-            credentials = (await webSite.GetPublishingCredentialsAsync(WaitUntil.Completed)).Value.Data;
+            scmUri = webSite.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
         }
         else
         {
-            var webSiteSlot = _armClient.GetWebSiteSlotResource(resourceId);
+            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
 
-            credentials = (await webSiteSlot.GetPublishingCredentialsSlotAsync(WaitUntil.Completed)).Value.Data;
+            scmUri = webSiteSlot.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
         }
 
-        var kuduClient = _kuduClientFactory.CreateClient(credentials.ScmUri);
+        var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
         // Kudu API を使い、Answer 用のファイルを作成
         foreach (var challengeResult in challengeResults)
