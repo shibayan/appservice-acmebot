@@ -153,7 +153,7 @@ public class SharedActivity : ISharedActivity
 
         await foreach (var certificate in subscription.GetAppCertificatesAsync())
         {
-            if (!certificate.Data.TagsFilter(IssuerName, _options.Endpoint))
+            if (!certificate.Data.IsIssuedByAcmebot() || !certificate.Data.IsSameEndpoint(_options.Endpoint))
             {
                 continue;
             }
@@ -698,7 +698,7 @@ public class SharedActivity : ISharedActivity
             Tags =
             {
                 { "Issuer", IssuerName },
-                { "Endpoint", _options.Endpoint },
+                { "Endpoint", _options.Endpoint.Host },
                 { "ForceDns01Challenge", forceDns01Challenge.ToString() }
             }
         });
