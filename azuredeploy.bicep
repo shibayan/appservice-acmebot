@@ -10,11 +10,12 @@ param mailAddress string
 
 @description('Certification authority ACME Endpoint.')
 @allowed([
-  'https://acme-v02.api.letsencrypt.org/'
-  'https://api.buypass.com/acme/'
+  'https://acme-v02.api.letsencrypt.org/directory'
+  'https://api.buypass.com/acme/directory'
   'https://acme.zerossl.com/v2/DV90/'
+  'https://dv.acme-v02.api.pki.goog/directory'
 ])
-param acmeEndpoint string = 'https://acme-v02.api.letsencrypt.org/'
+param acmeEndpoint string = 'https://acme-v02.api.letsencrypt.org/directory'
 
 var functionAppName = 'func-${appNamePrefix}-${substring(uniqueString(resourceGroup().id, deployment().name), 0, 4)}'
 var appServicePlanName = 'plan-${appNamePrefix}-${substring(uniqueString(resourceGroup().id, deployment().name), 0, 4)}'

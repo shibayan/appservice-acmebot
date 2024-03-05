@@ -44,7 +44,7 @@ public class Startup : FunctionsStartup
                    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                });
 
-        builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer<Startup>>();
+        builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer>();
 
         builder.Services.AddSingleton(new LookupClient(new LookupClientOptions(NameServer.GooglePublicDns, NameServer.GooglePublicDns2)
         {

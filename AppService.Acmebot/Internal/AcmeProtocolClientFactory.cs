@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 
@@ -21,19 +22,23 @@ public class AcmeProtocolClientFactory
     public AcmeProtocolClientFactory(IOptions<AcmebotOptions> options)
     {
         _options = options.Value;
-        _baseUri = new Uri(_options.Endpoint);
     }
 
     private readonly AcmebotOptions _options;
-    private readonly Uri _baseUri;
 
     public async Task<AcmeProtocolClient> CreateClientAsync()
     {
         var account = LoadState<AccountDetails>("account.json");
         var accountKey = LoadState<AccountKey>("account_key.json");
-        var directory = LoadState<ServiceDirectory>("directory.json");
+        var directory = LoadTempState<ServiceDirectory>("directory.json");
 
-        var acmeProtocolClient = new AcmeProtocolClient(_baseUri, directory, account, accountKey?.GenerateSigner(), usePostAsGet: true);
+        var acmeProtocolClient = new AcmeProtocolClient(_options.Endpoint, directory, account, accountKey?.GenerateSigner(), usePostAsGet: true)
+        {
+            BeforeHttpSend = (_, req) =>
+            {
+                req.Headers.UserAgent.Add(new ProductInfoHeaderValue("AppService-Acmebot", Constants.ApplicationVersion));
+            }
+        };
 
         if (directory is null)
         {
@@ -41,14 +46,14 @@ public class AcmeProtocolClientFactory
             {
                 directory = await acmeProtocolClient.GetDirectoryAsync();
             }
-            catch (AcmeProtocolException)
+            catch
             {
-                acmeProtocolClient.Directory.Directory = "";
+                acmeProtocolClient.Directory.Directory = "directory";
 
                 directory = await acmeProtocolClient.GetDirectoryAsync();
             }
 
-            SaveState(directory, "directory.json");
+            SaveTempState(directory, "directory.json");
 
             acmeProtocolClient.Directory = directory;
         }
@@ -57,7 +62,12 @@ public class AcmeProtocolClientFactory
 
         if (acmeProtocolClient.Account is null)
         {
-            var externalAccountBinding = directory.Meta.ExternalAccountRequired ?? false ? CreateExternalAccountBinding(acmeProtocolClient) : null;
+            var externalAccountBinding = CreateExternalAccountBinding(acmeProtocolClient);
+
+            if (externalAccountBinding is null && (directory.Meta.ExternalAccountRequired ?? false))
+            {
+                throw new PreconditionException("This ACME endpoint requires External Account Binding.");
+            }
 
             account = await acmeProtocolClient.CreateAccountAsync(new[] { $"mailto:{_options.Contacts}" }, true, externalAccountBinding);
 
@@ -87,6 +97,11 @@ public class AcmeProtocolClientFactory
 
     private object CreateExternalAccountBinding(AcmeProtocolClient acmeProtocolClient)
     {
+        if (string.IsNullOrEmpty(_options.ExternalAccountBinding?.KeyId) || string.IsNullOrEmpty(_options.ExternalAccountBinding?.HmacKey))
+        {
+            return null;
+        }
+
         byte[] HmacSignature(byte[] x)
         {
             var hmacKeyBytes = CryptoHelper.Base64.UrlDecode(_options.ExternalAccountBinding.HmacKey);
@@ -96,15 +111,10 @@ public class AcmeProtocolClientFactory
                 "HS256" => new HMACSHA256(hmacKeyBytes),
                 "HS384" => new HMACSHA384(hmacKeyBytes),
                 "HS512" => new HMACSHA512(hmacKeyBytes),
-                _ => throw new NotSupportedException($"The signature algorithm {_options.ExternalAccountBinding.Algorithm} is not supported.")
+                _ => throw new NotSupportedException($"The signature algorithm {_options.ExternalAccountBinding.Algorithm} is not supported. (supported values are HS256 / HS384 / HS512)")
             });
 
             return hmac.ComputeHash(x);
-        }
-
-        if (string.IsNullOrEmpty(_options.ExternalAccountBinding.KeyId) || string.IsNullOrEmpty(_options.ExternalAccountBinding.HmacKey))
-        {
-            throw new PreconditionException("This ACME endpoint requires External Account Binding.");
         }
 
         var payload = JsonConvert.SerializeObject(acmeProtocolClient.Signer.ExportJwk());
@@ -125,28 +135,12 @@ public class AcmeProtocolClientFactory
 
         if (!File.Exists(fullPath))
         {
-            // Fallback legacy state
-            var legacyFullPath = Environment.ExpandEnvironmentVariables(@"%HOME%\.acme\" + path);
-
-            if (!File.Exists(legacyFullPath))
-            {
-                return default;
-            }
-
-            var json = File.ReadAllText(legacyFullPath);
-
-            var state = JsonConvert.DeserializeObject<TState>(json);
-
-            SaveState(state, path);
-
-            return state;
+            return default;
         }
-        else
-        {
-            var json = File.ReadAllText(fullPath);
 
-            return JsonConvert.DeserializeObject<TState>(json);
-        }
+        var json = File.ReadAllText(fullPath);
+
+        return JsonConvert.DeserializeObject<TState>(json);
     }
 
     private void SaveState<TState>(TState value, string path)
@@ -164,5 +158,36 @@ public class AcmeProtocolClientFactory
         File.WriteAllText(fullPath, json);
     }
 
-    private string ResolveStateFullPath(string path) => Environment.ExpandEnvironmentVariables($"%HOME%/data/.acmebot/{_baseUri.Host}/{path}");
+    private TState LoadTempState<TState>(string path)
+    {
+        var fullPath = ResolveTempStateFullPath(path);
+
+        if (!File.Exists(fullPath))
+        {
+            return default;
+        }
+
+        var json = File.ReadAllText(fullPath);
+
+        return JsonConvert.DeserializeObject<TState>(json);
+    }
+
+    private void SaveTempState<TState>(TState value, string path)
+    {
+        var fullPath = ResolveTempStateFullPath(path);
+        var directoryPath = Path.GetDirectoryName(fullPath);
+
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        var json = JsonConvert.SerializeObject(value, Formatting.Indented);
+
+        File.WriteAllText(fullPath, json);
+    }
+
+    private string ResolveStateFullPath(string path) => Environment.ExpandEnvironmentVariables($"%HOME%/data/.acmebot/{_options.Endpoint.Host}/{path}");
+
+    private string ResolveTempStateFullPath(string path) => Environment.ExpandEnvironmentVariables($"%TEMP%/.acmebot/{_options.Endpoint.Host}/{path}");
 }
