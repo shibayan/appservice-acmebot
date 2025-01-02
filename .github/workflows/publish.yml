@@ -68,10 +68,5 @@ jobs:
 
     - name: Upload to Blob
       run: |
-        az storage blob upload --auth-mode login -f latest.zip --account-name stacmebotprod -c appservice-acmebot -n v4/latest.zip --overwrite
-        az storage blob upload --auth-mode login -f latest.zip --account-name stacmebotprod -c appservice-acmebot -n v4/${{ needs.publish.outputs.version }}.zip --overwrite
-
-    - name: Publish to Private Registry
-      run: |
-        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v4 --force
-        az bicep publish --file azuredeploy.bicep --target br:cracmebotprod.azurecr.io/bicep/modules/appservice-acmebot:v${{ needs.publish.outputs.version }} --force
+        az storage blob upload --auth-mode login -f latest.zip --account-name st7jndhh2mnbz4mfunc -c appservice-acmebot -n v4/latest.zip --overwrite
+        az storage blob upload --auth-mode login -f latest.zip --account-name st7jndhh2mnbz4mfunc -c appservice-acmebot -n v4/${{ needs.publish.outputs.version }}.zip --overwrite
