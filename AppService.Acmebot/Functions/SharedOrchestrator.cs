@@ -24,7 +24,6 @@ public class SharedOrchestrator
         // ワイルドカード、コンテナ、Linux の場合は DNS-01 を利用する
         var useDns01Auth = forceDns01Challenge || dnsNames.Any(x => x.StartsWith("*")) || webSite.Kind.Contains("container") || webSite.Kind.Contains("linux");
 
-        // 前提条件をチェック
         if (useDns01Auth)
         {
             await activity.Dns01Precondition(dnsNames);
