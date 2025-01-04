@@ -14,6 +14,8 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Azure.Security.KeyVault.Certificates;
+using Azure.Identity;
 
 namespace AppService.Acmebot.Functions;
 

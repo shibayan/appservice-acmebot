@@ -23,6 +23,8 @@ using Azure.ResourceManager.AppService.Models;
 using Azure.ResourceManager.Dns;
 using Azure.ResourceManager.Dns.Models;
 using Azure.ResourceManager.Resources;
+using Azure.Security.KeyVault.Certificates;
+using Azure.Identity;
 
 using DnsClient;
 
@@ -664,7 +666,33 @@ public class SharedActivity : ISharedActivity
 
         var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, password);
 
-        var certificateName = $"{dnsName}-{x509Certificates[0].Thumbprint}";
+        var certificateName = $"{dnsName.Replace(".", "-")}-{x509Certificates[0].Thumbprint}";
+
+        // Upload to Key Vault
+        try
+        {
+            var certificateClient = new CertificateClient(
+                new Uri(_options.KeyVaultUri),
+                new DefaultAzureCredential());
+
+            var importCertOptions = new ImportCertificateOptions(certificateName, pfxBlob)
+            {
+            Password = password,
+            Tags = {
+            { "Issuer", IssuerName },
+            { "Source", "Acmebot" },
+            { "DnsName", dnsName }
+        }
+            };
+
+            await certificateClient.ImportCertificateAsync(importCertOptions);
+            _logger.LogInformation($"Certificate {certificateName} uploaded to Key Vault successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to upload certificate {certificateName} to Key Vault");
+            // Continue with App Service upload even if Key Vault upload fails
+        }
 
         var resourceId = new ResourceIdentifier(id);
 

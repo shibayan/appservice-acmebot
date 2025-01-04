@@ -26,4 +26,8 @@ public class AcmebotOptions
     public int RenewBeforeExpiry { get; set; } = 30;
 
     public ExternalAccountBindingOptions ExternalAccountBinding { get; set; }
+
+    [Required]
+    [Url]
+    public string KeyVaultUri { get; set; }
 }
