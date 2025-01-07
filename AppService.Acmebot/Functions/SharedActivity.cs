@@ -733,7 +733,7 @@ public class SharedActivity : ISharedActivity
         {
             if (dnsNames.Contains(Punycode.Encode(hostNameSslState.Name)))
             {
-                hostNameSslState.Thumbprint = new BinaryData(thumbprint);
+                hostNameSslState.ThumbprintString = thumbprint;
                 hostNameSslState.ToUpdate = true;
 
                 if (useIpBasedSsl is not null)
@@ -759,7 +759,7 @@ public class SharedActivity : ISharedActivity
         {
             if (dnsNames.Contains(Punycode.Encode(hostNameSslState.Name)))
             {
-                hostNameSslState.Thumbprint = new BinaryData(thumbprint);
+                hostNameSslState.ThumbprintString = thumbprint;
                 hostNameSslState.ToUpdate = true;
 
                 if (useIpBasedSsl is not null)
