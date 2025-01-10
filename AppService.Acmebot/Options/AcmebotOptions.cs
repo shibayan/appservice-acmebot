@@ -3,6 +3,15 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AppService.Acmebot.Options;
 
+public class ValidationWebAppOptions
+{
+    [Required]
+    public string ResourceGroupName { get; set; }
+
+    [Required]
+    public string WebAppName { get; set; }
+}
+
 public class AcmebotOptions
 {
     [Required]
@@ -30,4 +39,7 @@ public class AcmebotOptions
     [Required]
     [Url]
     public string KeyVaultUri { get; set; }
+
+    [Required]
+    public ValidationWebAppOptions ValidationWebApp { get; set; }
 }
