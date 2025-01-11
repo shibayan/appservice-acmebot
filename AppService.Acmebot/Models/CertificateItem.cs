@@ -32,7 +32,7 @@ public class CertificateItem
             Issuer = certificateData.Issuer,
             SubjectName = certificateData.SubjectName,
             Tags = certificateData.Tags,
-            Thumbprint = certificateData.Thumbprint.ToString()
+            Thumbprint = certificateData.ThumbprintString
         };
     }
 }

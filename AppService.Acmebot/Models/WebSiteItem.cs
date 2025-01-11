@@ -44,7 +44,7 @@ public class WebSiteItem
             SlotName = index == -1 ? "production" : webSiteData.Name[(index + 1)..],
             HostNames = webSiteData.HostNameSslStates
                                    .Where(x => !x.Name.EndsWith(environment.AppService) && !x.Name.EndsWith(environment.TrafficManager))
-                                   .Select(x => new HostNameItem { Name = x.Name, Thumbprint = x.Thumbprint?.ToString() })
+                                   .Select(x => new HostNameItem { Name = x.Name, Thumbprint = x.ThumbprintString })
                                    .ToArray(),
             IsRunning = webSiteData.State == "Running",
             HasCustomDomain = webSiteData.HostNames.Any(x => !x.EndsWith(environment.AppService) && !x.EndsWith(environment.TrafficManager))
