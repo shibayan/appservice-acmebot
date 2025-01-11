@@ -589,7 +589,7 @@ public class SharedActivity : ISharedActivity
             }
 
             // 全てのエラーが connection か dns 関係の場合は Orchestrator からリトライさせる
-            if (problems.All(x => x.Type == "urn:ietf:params:acme:error:connection" || x.Type == "urn:ietf:params:acme:error:dns"))
+            if (problems.All(x => x.Type is "urn:ietf:params:acme:error:connection" or "urn:ietf:params:acme:error:dns"))
             {
                 throw new RetriableOrchestratorException("ACME validation status is invalid, but retriable error. It will retry automatically.");
             }
