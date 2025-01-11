@@ -194,55 +194,56 @@ public class SharedActivity : ISharedActivity
         return await acmeProtocolClient.CreateOrderAsync(dnsNames);
     }
 
+    private async Task<WebSiteResource> GetValidationWebApp()
+    {
+        var subscription = await _armClient.GetDefaultSubscriptionAsync();
+
+        var id = WebSiteResource.CreateResourceIdentifier(
+            subscription.Data.SubscriptionId,
+            _options.ValidationWebApp.ResourceGroupName,
+            _options.ValidationWebApp.WebAppName);
+
+        return await _armClient.GetWebSiteResource(id).GetAsync();
+    }
+
     [FunctionName(nameof(Http01Precondition))]
     public async Task Http01Precondition([ActivityTrigger] string id)
     {
-        var resourceId = new ResourceIdentifier(id);
-
-        if (resourceId.ResourceType == WebSiteResource.ResourceType)
-        {
-            await Http01Precondition_WebSite(resourceId);
-        }
-        else
-        {
-            await Http01Precondition_WebSiteSlot(resourceId);
-        }
-    }
-
-    private async Task Http01Precondition_WebSite(ResourceIdentifier resourceId)
-    {
-        WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
+        // Use validation web app instead of target web app
+        var webSite = await GetValidationWebApp();
 
         WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
-        // 既に .well-known が仮想アプリケーションとして追加されているか確認
-        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+        // Check if .well-known virtual application exists
+        var virtualApplication = config.Data.VirtualApplications
+                                     .FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
         if (virtualApplication is not null)
         {
             return;
         }
 
-        // ファイル操作用の KuduClient を作成
-        var scmUri = webSite.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
+        // Get SCM credentials for validation web app
+        var scmUri = webSite.Data.HostNameSslStates
+                            .First(x => x.HostType == AppServiceHostType.Repository);
 
         var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
         try
         {
-            // 特殊なファイルが存在する場合は web.config の作成を行わない
+            // Check if already configured
             if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
             {
-                // Answer 用ファイルを返すための Web.config を作成
+                // Create web.config for serving challenge files
                 await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
             }
         }
         catch (HttpRequestException ex)
         {
-            throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
+            throw new PreconditionException($"Failed to access validation web app SCM site. Message: {ex.Message}");
         }
 
-        // .well-known を仮想アプリケーションとして追加
+        // Add virtual application for serving challenge files
         config.Data.VirtualApplications.Add(new VirtualApplication
         {
             VirtualPath = "/.well-known",
@@ -253,65 +254,109 @@ public class SharedActivity : ISharedActivity
         await config.UpdateAsync(config.Data);
     }
 
-    private async Task Http01Precondition_WebSiteSlot(ResourceIdentifier resourceId)
-    {
-        WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
 
-        WebSiteSlotConfigResource config = await webSiteSlot.GetWebSiteSlotConfig().GetAsync();
+    //private async Task Http01Precondition_WebSite(ResourceIdentifier resourceId)
+    //{
+    //    WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
 
-        // 既に .well-known が仮想アプリケーションとして追加されているか確認
-        var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+    //    WebSiteConfigResource config = await webSite.GetWebSiteConfig().GetAsync();
 
-        if (virtualApplication is not null)
-        {
-            return;
-        }
+    //    // 既に .well-known が仮想アプリケーションとして追加されているか確認
+    //    var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
 
-        // ファイル操作用の KuduClient を作成
-        var scmUri = webSiteSlot.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
+    //    if (virtualApplication is not null)
+    //    {
+    //        return;
+    //    }
 
-        var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
+    //    // ファイル操作用の KuduClient を作成
+    //    var scmUri = webSite.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
 
-        try
-        {
-            // 特殊なファイルが存在する場合は web.config の作成を行わない
-            if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
-            {
-                // Answer 用ファイルを返すための Web.config を作成
-                await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
-        }
+    //    var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
-        // .well-known を仮想アプリケーションとして追加
-        config.Data.VirtualApplications.Add(new VirtualApplication
-        {
-            VirtualPath = "/.well-known",
-            PhysicalPath = "site\\.well-known",
-            IsPreloadEnabled = false
-        });
+    //    try
+    //    {
+    //        // 特殊なファイルが存在する場合は web.config の作成を行わない
+    //        if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+    //        {
+    //            // Answer 用ファイルを返すための Web.config を作成
+    //            await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+    //        }
+    //    }
+    //    catch (HttpRequestException ex)
+    //    {
+    //        throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
+    //    }
 
-        await config.UpdateAsync(config.Data);
-    }
+    //    // .well-known を仮想アプリケーションとして追加
+    //    config.Data.VirtualApplications.Add(new VirtualApplication
+    //    {
+    //        VirtualPath = "/.well-known",
+    //        PhysicalPath = "site\\.well-known",
+    //        IsPreloadEnabled = false
+    //    });
+
+    //    await config.UpdateAsync(config.Data);
+    //}
+
+    //private async Task Http01Precondition_WebSiteSlot(ResourceIdentifier resourceId)
+    //{
+    //    WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
+
+    //    WebSiteSlotConfigResource config = await webSiteSlot.GetWebSiteSlotConfig().GetAsync();
+
+    //    // 既に .well-known が仮想アプリケーションとして追加されているか確認
+    //    var virtualApplication = config.Data.VirtualApplications.FirstOrDefault(x => x.VirtualPath == "/.well-known");
+
+    //    if (virtualApplication is not null)
+    //    {
+    //        return;
+    //    }
+
+    //    // ファイル操作用の KuduClient を作成
+    //    var scmUri = webSiteSlot.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
+
+    //    var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
+
+    //    try
+    //    {
+    //        // 特殊なファイルが存在する場合は web.config の作成を行わない
+    //        if (!await kuduClient.ExistsFileAsync(".well-known/configured"))
+    //        {
+    //            // Answer 用ファイルを返すための Web.config を作成
+    //            await kuduClient.WriteFileAsync(DefaultWebConfigPath, DefaultWebConfig);
+    //        }
+    //    }
+    //    catch (HttpRequestException ex)
+    //    {
+    //        throw new PreconditionException($"Failed to access SCM site. Message: {ex.Message}");
+    //    }
+
+    //    // .well-known を仮想アプリケーションとして追加
+    //    config.Data.VirtualApplications.Add(new VirtualApplication
+    //    {
+    //        VirtualPath = "/.well-known",
+    //        PhysicalPath = "site\\.well-known",
+    //        IsPreloadEnabled = false
+    //    });
+
+    //    await config.UpdateAsync(config.Data);
+    //}
 
     [FunctionName(nameof(Http01Authorization))]
     public async Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (string, IReadOnlyList<string>) input)
     {
-        var (id, authorizationUrls) = input;
-
+        var (_, authorizationUrls) = input;
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
         var challengeResults = new List<AcmeChallengeResult>();
 
         foreach (var authorizationUrl in authorizationUrls)
         {
-            // Authorization の詳細を取得
+            // Get authorization details
             var authorization = await acmeProtocolClient.GetAuthorizationDetailsAsync(authorizationUrl);
 
-            // HTTP-01 Challenge の情報を拾う
+            // Get HTTP-01 challenge
             var challenge = authorization.Challenges.FirstOrDefault(x => x.Type == "http-01");
 
             if (challenge is null)
@@ -319,9 +364,10 @@ public class SharedActivity : ISharedActivity
                 throw new InvalidOperationException("Simultaneous use of HTTP-01 and DNS-01 for authentication is not allowed.");
             }
 
-            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(authorization, challenge, acmeProtocolClient.Signer);
+            var challengeValidationDetails = AuthorizationDecoder.ResolveChallengeForHttp01(
+                authorization, challenge, acmeProtocolClient.Signer);
 
-            // Challenge の情報を保存する
+            // Store challenge info
             challengeResults.Add(new AcmeChallengeResult
             {
                 Url = challenge.Url,
@@ -331,30 +377,19 @@ public class SharedActivity : ISharedActivity
             });
         }
 
-        // ファイル操作用の KuduClient を作成
-        HostNameSslState scmUri;
-
-        var resourceId = new ResourceIdentifier(id);
-
-        if (resourceId.ResourceType == WebSiteResource.ResourceType)
-        {
-            WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
-
-            scmUri = webSite.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
-        }
-        else
-        {
-            WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
-
-            scmUri = webSiteSlot.Data.HostNameSslStates.First(x => x.HostType == AppServiceHostType.Repository);
-        }
+        // Use validation web app for challenge files
+        var webSite = await GetValidationWebApp();
+        var scmUri = webSite.Data.HostNameSslStates
+                            .First(x => x.HostType == AppServiceHostType.Repository);
 
         var kuduClient = await _kuduClientFactory.CreateClientAsync(scmUri.Name);
 
-        // Kudu API を使い、Answer 用のファイルを作成
+        // Write challenge files to validation web app
         foreach (var challengeResult in challengeResults)
         {
-            await kuduClient.WriteFileAsync(challengeResult.HttpResourcePath, challengeResult.HttpResourceValue);
+            await kuduClient.WriteFileAsync(
+                challengeResult.HttpResourcePath,
+                challengeResult.HttpResourceValue);
         }
 
         return challengeResults;
@@ -653,83 +688,85 @@ public class SharedActivity : ISharedActivity
 
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
 
-        // 証明書をバイト配列としてダウンロード
+        // Get certificate
         var x509Certificates = await acmeProtocolClient.GetOrderCertificateAsync(orderDetails, _options.PreferredChain);
 
-        // 秘密鍵を含んだ形で X509Certificate2 を作成
+        // Create certificate with private key
         var rsa = RSA.Create(rsaParameters);
-
         x509Certificates[0] = x509Certificates[0].CopyWithPrivateKey(rsa);
 
-        // PFX 形式としてエクスポート
+        // Export as PFX
         var password = Guid.NewGuid().ToString();
-
         var pfxBlob = x509Certificates.Export(X509ContentType.Pfx, password);
 
-        var certificateName = $"{dnsName.Replace(".", "-")}-{x509Certificates[0].Thumbprint}";
+        // Use consistent name for Key Vault versioning
+        var certificateName = $"{dnsName.Replace(".", "-")}";
 
-        // Upload to Key Vault
-        try
+        // Upload to Key Vault first
+        var certificateClient = new CertificateClient(
+            new Uri(_options.KeyVaultUri),
+            new DefaultAzureCredential());
+
+        var importCertOptions = new ImportCertificateOptions(certificateName, pfxBlob)
         {
-            var certificateClient = new CertificateClient(
-                new Uri(_options.KeyVaultUri),
-                new DefaultAzureCredential());
-
-            var importCertOptions = new ImportCertificateOptions(certificateName, pfxBlob)
-            {
             Password = password,
             Tags = {
             { "Issuer", IssuerName },
             { "Source", "Acmebot" },
-            { "DnsName", dnsName }
+            { "DnsName", dnsName },
+            { "LastRenewal", DateTime.UtcNow.ToString("O") }
         }
-            };
+        };
 
-            await certificateClient.ImportCertificateAsync(importCertOptions);
-            _logger.LogInformation($"Certificate {certificateName} uploaded to Key Vault successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, $"Failed to upload certificate {certificateName} to Key Vault");
-            // Continue with App Service upload even if Key Vault upload fails
-        }
+        // Upload to Key Vault - no try/catch as we want to fail if this fails
+        await certificateClient.ImportCertificateAsync(importCertOptions);
+        _logger.LogInformation($"Certificate {certificateName} uploaded to Key Vault successfully as new version");
 
+        // Get location and app service plan for the target web app
         var resourceId = new ResourceIdentifier(id);
-
         AzureLocation location;
         ResourceIdentifier appServicePlanId;
 
         if (resourceId.ResourceType == WebSiteResource.ResourceType)
         {
             WebSiteResource webSite = await _armClient.GetWebSiteResource(resourceId).GetAsync();
-
             location = webSite.Data.Location;
             appServicePlanId = webSite.Data.AppServicePlanId;
         }
         else
         {
             WebSiteSlotResource webSiteSlot = await _armClient.GetWebSiteSlotResource(resourceId).GetAsync();
-
             location = webSiteSlot.Data.Location;
             appServicePlanId = webSiteSlot.Data.AppServicePlanId;
         }
 
-        var resourceGroup = _armClient.GetResourceGroupResource(ResourceGroupResource.CreateResourceIdentifier(resourceId.SubscriptionId, resourceId.ResourceGroupName));
+        // Get resource group for certificate upload
+        var resourceGroup = _armClient.GetResourceGroupResource(
+            ResourceGroupResource.CreateResourceIdentifier(
+                resourceId.SubscriptionId,
+                resourceId.ResourceGroupName));
 
         var certificateCollection = resourceGroup.GetAppCertificates();
 
-        var result = await certificateCollection.CreateOrUpdateAsync(WaitUntil.Completed, certificateName, new AppCertificateData(location)
-        {
-            Password = password,
-            PfxBlob = pfxBlob,
-            ServerFarmId = appServicePlanId,
-            Tags =
+        // Use thumbprint in App Service certificate name for uniqueness
+        var appServiceCertName = $"{certificateName}-{x509Certificates[0].Thumbprint}";
+
+        // Upload certificate to App Service
+        var result = await certificateCollection.CreateOrUpdateAsync(
+            WaitUntil.Completed,
+            appServiceCertName,
+            new AppCertificateData(location)
             {
+                Password = password,
+                PfxBlob = pfxBlob,
+                ServerFarmId = appServicePlanId,
+                Tags =
+                {
                 { "Issuer", IssuerName },
                 { "Endpoint", _options.Endpoint.Host },
                 { "ForceDns01Challenge", forceDns01Challenge.ToString() }
-            }
-        });
+                }
+            });
 
         return CertificateItem.Create(result.Value.Data);
     }
