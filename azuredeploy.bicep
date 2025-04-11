@@ -14,6 +14,7 @@ param mailAddress string
   'https://api.buypass.com/acme/directory'
   'https://acme.zerossl.com/v2/DV90/'
   'https://dv.acme-v02.api.pki.goog/directory'
+  'https://emea.acme.atlas.globalsign.com/directory'
 ])
 param acmeEndpoint string = 'https://acme-v02.api.letsencrypt.org/directory'
 
