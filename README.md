@@ -1,5 +1,5 @@
 <h1 align="center">
-  App Service Acmebot
+  Acmebot for Azure App Service
 </h1>
 <p align="center">
   Automated ACME SSL/TLS certificates issuer for Azure App Service (Web Apps / Functions / Containers)
