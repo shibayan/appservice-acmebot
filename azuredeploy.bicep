@@ -29,7 +29,7 @@ var appInsightsEndpoints = {
   AzureUSGovernment: 'applicationinsights.us'
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   name: storageAccountName
   location: location
   kind: 'Storage'
@@ -43,7 +43,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' = {
   name: appServicePlanName
   location: location
   sku: {
@@ -53,7 +53,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   properties: {}
 }
 
-resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: workspaceName
   location: location
   properties: {
@@ -77,7 +77,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
+resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'

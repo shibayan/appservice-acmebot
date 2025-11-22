@@ -5,8 +5,8 @@ on:
     tags: [ v* ]
 
 env:
-  DOTNET_VERSION: 6.0.x
-  BICEP_VERSION: 0.34.44
+  DOTNET_VERSION: 8.0.x
+  BICEP_VERSION: 0.38.5
 
 jobs:
   publish:
@@ -34,7 +34,7 @@ jobs:
       run: 7z a -mx=9 latest.zip ./dist/*
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: dist
         path: |
@@ -62,7 +62,7 @@ jobs:
         az bicep install --version v${{ env.BICEP_VERSION }}
 
     - name: Download artifacts
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v6
       with:
         name: dist
 
