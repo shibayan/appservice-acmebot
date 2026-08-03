@@ -160,8 +160,19 @@ public class SharedActivity : ISharedActivity
 
         await foreach (var certificate in subscription.GetAppCertificatesAsync())
         {
-            if (!certificate.Data.IsIssuedByAcmebot() || !certificate.Data.IsSameEndpoint(_options.Endpoint))
+            if (!certificate.Data.IsIssuedByAcmebot())
             {
+                continue;
+            }
+
+            if (!certificate.Data.IsSameEndpoint(_options.Endpoint))
+            {
+                // An Acmebot-issued certificate that fails the endpoint match will never be
+                // renewed automatically, so make the mismatch visible instead of silently skipping.
+                certificate.Data.Tags.TryGetValue("Endpoint", out var tagEndpoint);
+
+                _logger.LogWarning($"Skipping Acmebot-issued certificate {certificate.Data.Name} because its Endpoint tag '{tagEndpoint}' does not match '{_options.Endpoint.Host}'");
+
                 continue;
             }
 
