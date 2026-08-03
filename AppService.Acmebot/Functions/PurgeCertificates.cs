@@ -8,62 +8,69 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot.Functions
+namespace AppService.Acmebot.Functions;
+
+public class PurgeCertificates
 {
-    public class PurgeCertificates
+    [FunctionName($"{nameof(PurgeCertificates)}_{nameof(Orchestrator)}")]
+    public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
     {
-        [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Orchestrator))]
-        public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+        var activity = context.CreateActivityProxy<ISharedActivity>();
+
+        // 期限切れまで 30 日以内の証明書を取得する
+        var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
+
+        foreach (var certificate in certificates)
         {
-            var activity = context.CreateActivityProxy<ISharedActivity>();
+            log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationOn}");
+        }
 
-            // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
+        // 対象となる証明書がない場合は終わる
+        if (certificates.Count == 0)
+        {
+            log.LogInformation("Certificates are not found");
 
-            foreach (var certificate in certificates)
+            return;
+        }
+
+        var boundCertificates = new List<string>();
+
+        var resourceGroups = await activity.GetResourceGroups();
+
+        foreach (var resourceGroup in resourceGroups)
+        {
+            // App Service を取得
+            var webSites = await activity.GetWebSites(resourceGroup.Name);
+
+            foreach (var webSite in webSites)
             {
-                log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationDate}");
-            }
-
-            // 対象となる証明書がない場合は終わる
-            if (certificates.Count == 0)
-            {
-                log.LogInformation("Certificates are not found");
-
-                return;
-            }
-
-            var resourceGroups = await activity.GetResourceGroups();
-
-            foreach (var resourceGroup in resourceGroups)
-            {
-                // App Service を取得
-                var sites = await activity.GetSites((resourceGroup.Name, false));
-
                 // App Service にバインド済み証明書のサムプリントを取得
-                var boundCertificates = sites.SelectMany(x => x.HostNameSslStates.Select(xs => xs.Thumbprint))
-                                             .ToArray();
+                boundCertificates.AddRange(webSite.HostNames.Select(x => x.Thumbprint));
 
-                var tasks = new List<Task>();
+                // Deployment Slot を取得
+                var webSiteSlots = await activity.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
 
-                // バインドされていない証明書を削除
-                foreach (var certificate in certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)))
-                {
-                    tasks.Add(activity.DeleteCertificate(certificate));
-                }
-
-                // アクティビティの完了を待つ
-                await Task.WhenAll(tasks);
+                // Deployment Slot にバインド済み証明書のサムプリントを取得
+                boundCertificates.AddRange(webSiteSlots.SelectMany(x => x.HostNames.Select(xs => xs.Thumbprint)));
             }
         }
 
-        [FunctionName(nameof(PurgeCertificates) + "_" + nameof(Timer))]
-        public async Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
-        {
-            // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(PurgeCertificates) + "_" + nameof(Orchestrator));
+        log.LogInformation($"Certificates = {string.Join(",", certificates.Select(x => x.Thumbprint))}");
+        log.LogInformation($"Bound certificates = {string.Join(",", boundCertificates)}");
 
-            log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
-        }
+        // バインドされていない証明書を削除
+        var tasks = certificates.Where(x => !boundCertificates.Contains(x.Thumbprint)).Select(x => activity.DeleteCertificate(x.Id));
+
+        // アクティビティの完了を待つ
+        await Task.WhenAll(tasks);
+    }
+
+    [FunctionName($"{nameof(PurgeCertificates)}_{nameof(Timer)}")]
+    public async Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+    {
+        // Function input comes from the request content.
+        var instanceId = await starter.StartNewAsync($"{nameof(PurgeCertificates)}_{nameof(Orchestrator)}");
+
+        log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
     }
 }

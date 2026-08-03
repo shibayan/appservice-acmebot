@@ -1,12 +1,26 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.38.5.1644",
+      "templateHash": "5692007909706987119"
+    }
+  },
   "parameters": {
     "appNamePrefix": {
       "type": "string",
       "maxLength": 14,
       "metadata": {
         "description": "The name of the function app that you wish to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "The location of the function app that you wish to create."
       }
     },
     "mailAddress": {
@@ -17,11 +31,14 @@
     },
     "acmeEndpoint": {
       "type": "string",
+      "defaultValue": "https://acme-v02.api.letsencrypt.org/directory",
       "allowedValues": [
-        "https://acme-v02.api.letsencrypt.org/",
-        "https://api.buypass.com/acme/"
+        "https://acme-v02.api.letsencrypt.org/directory",
+        "https://api.buypass.com/acme/directory",
+        "https://acme.zerossl.com/v2/DV90/",
+        "https://dv.acme-v02.api.pki.goog/directory",
+        "https://emea.acme.atlas.globalsign.com/directory"
       ],
-      "defaultValue": "https://acme-v02.api.letsencrypt.org/",
       "metadata": {
         "description": "Certification authority ACME Endpoint."
       }
@@ -33,24 +50,20 @@
         "description": "Enter the base URL of an existing Key Vault. (ex. https://example.vault.azure.net)"
       }
     },
-    "storageSasUri" : {
+    "storageSasUri": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description" : "Enter the SAS storage URi where challenge-responses will be stored"
+        "description": "Enter the SAS storage URI where challenge-responses will be stored."
       }
     }
   },
   "variables": {
-    "functionAppName": "[concat('func-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
-    "appServicePlanName": "[concat('plan-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
-    "appInsightsName": "[concat('appi-', parameters('appNamePrefix'), '-', substring(uniquestring(resourceGroup().id, deployment().name), 0, 4))]",
-    "storageAccountName": "[concat('st', uniquestring(resourceGroup().id, deployment().name), 'func')]",
-    "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-    "mailAddress": "[parameters('mailAddress')]",
-    "acmeEndpoint": "[parameters('acmeEndpoint')]",
-    "vaultBaseUrl": "[parameters('keyVaultBaseUrl')]",
-    "storageSasUri": "[parameters('storageSasUri')]",
+    "functionAppName": "[format('func-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
+    "appServicePlanName": "[format('plan-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
+    "appInsightsName": "[format('appi-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
+    "workspaceName": "[format('log-{0}-{1}', parameters('appNamePrefix'), substring(uniqueString(resourceGroup().id, deployment().name), 0, 4))]",
+    "storageAccountName": "[format('st{0}func', uniqueString(resourceGroup().id, deployment().name))]",
     "appInsightsEndpoints": {
       "AzureCloud": "applicationinsights.azure.com",
       "AzureChinaCloud": "applicationinsights.azure.cn",
@@ -60,72 +73,85 @@
   "resources": [
     {
       "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2025-01-01",
       "name": "[variables('storageAccountName')]",
-      "apiVersion": "2019-06-01",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "kind": "Storage",
       "sku": {
         "name": "Standard_LRS"
       },
       "properties": {
         "supportsHttpsTrafficOnly": true,
-        "allowBlobPublicAccess": false
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2"
       }
     },
     {
       "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2024-11-01",
       "name": "[variables('appServicePlanName')]",
-      "apiVersion": "2020-06-01",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "sku": {
         "name": "Y1",
-        "tier": "Dynamic",
-        "size": "Y1",
-        "family": "Y"
+        "tier": "Dynamic"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2025-02-01",
+      "name": "[variables('workspaceName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
       }
     },
     {
       "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
       "name": "[variables('appInsightsName')]",
-      "apiVersion": "2015-05-01",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
+      "kind": "web",
       "tags": {
-        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('functionAppName'))]": "Resource"
+        "[format('hidden-link:{0}/providers/Microsoft.Web/sites/{1}', resourceGroup().id, variables('functionAppName'))]": "Resource"
       },
       "properties": {
         "Application_Type": "web",
-        "applicationId": "[variables('appInsightsName')]"
-      }
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+      ]
     },
     {
       "type": "Microsoft.Web/sites",
+      "apiVersion": "2024-11-01",
       "name": "[variables('functionAppName')]",
-      "apiVersion": "2020-06-01",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "kind": "functionapp",
       "identity": {
         "type": "SystemAssigned"
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
-      ],
       "properties": {
+        "clientAffinityEnabled": false,
+        "httpsOnly": true,
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
         "siteConfig": {
           "appSettings": [
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
-              "value": "[concat('InstrumentationKey=', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2015-05-01').InstrumentationKey, ';EndpointSuffix=', variables('appInsightsEndpoints')[environment().name])]"
+              "value": "[format('InstrumentationKey={0};EndpointSuffix={1}', reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey, variables('appInsightsEndpoints')[environment().name])]"
             },
             {
               "name": "AzureWebJobsStorage",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2025-01-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2018-11-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2025-01-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -133,11 +159,15 @@
             },
             {
               "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "https://shibayan.blob.core.windows.net/azure-appservice-letsencrypt/v3/latest.zip"
+              "value": "https://stacmebotprod.blob.core.windows.net/appservice-acmebot/v4/latest.zip"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~3"
+              "value": "~4"
+            },
+            {
+              "name": "FUNCTIONS_INPROC_NET8_ENABLED",
+              "value": "1"
             },
             {
               "name": "FUNCTIONS_WORKER_RUNTIME",
@@ -149,43 +179,50 @@
             },
             {
               "name": "Acmebot:Contacts",
-              "value": "[variables('mailAddress')]"
+              "value": "[parameters('mailAddress')]"
             },
             {
               "name": "Acmebot:Endpoint",
-              "value": "[variables('acmeEndpoint')]"
+              "value": "[parameters('acmeEndpoint')]"
             },
             {
               "name": "Acmebot:VaultBaseUrl",
-              "value": "[variables('vaultBaseUrl')]"
+              "value": "[parameters('keyVaultBaseUrl')]"
             },
             {
               "name": "Acmebot:StorageSasUri",
-              "value": "[variables('storageSasUri')]"
+              "value": "[parameters('storageSasUri')]"
             },
             {
               "name": "Acmebot:Environment",
               "value": "[environment().name]"
             }
           ],
-          "clientAffinityEnabled": false
-        },
-        "ftpsState": "Disabled",
-        "httpsOnly": true
-      },
-      "resources": [
-        {
-          "apiVersion": "2020-06-01",
-          "name": "metadata",
-          "type": "config",
-          "dependsOn": [
-            "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
-          ],
-          "properties": {
-            "synctriggersstatus": "[listsyncfunctiontriggerstatus(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2020-06-01').status]"
-          }
+          "netFrameworkVersion": "v8.0",
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "scmMinTlsVersion": "1.2"
         }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
       ]
     }
-  ]
+  ],
+  "outputs": {
+    "functionAppName": {
+      "type": "string",
+      "value": "[variables('functionAppName')]"
+    },
+    "principalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2024-11-01', 'full').identity.principalId]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2024-11-01', 'full').identity.tenantId]"
+    }
+  }
 }

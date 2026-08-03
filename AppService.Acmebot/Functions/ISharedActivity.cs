@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
@@ -8,56 +9,58 @@ using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
-using Microsoft.Azure.Management.ResourceManager.Models;
-using Microsoft.Azure.Management.WebSites.Models;
+namespace AppService.Acmebot.Functions;
 
-namespace AppService.Acmebot.Functions
+public interface ISharedActivity
 {
-    public interface ISharedActivity
-    {
-        Task<IReadOnlyList<ResourceGroup>> GetResourceGroups(object input = null);
+    Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups(object input = null);
 
-        Task<Site> GetSite((string, string, string) input);
+    Task<WebSiteItem> GetWebSite((string, string, string) input);
 
-        Task<IReadOnlyList<Site>> GetSites((string, bool) input);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSites(string resourceGroupName);
 
-        Task<IReadOnlyList<Certificate>> GetExpiringCertificates(DateTime currentDateTime);
+    Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots((string, string) input);
 
-        Task<IReadOnlyList<Certificate>> GetAllCertificates(object input = null);
+    Task<IReadOnlyList<CertificateItem>> GetExpiringCertificates(DateTime currentDateTime);
 
-        Task<OrderDetails> Order(IReadOnlyList<string> dnsNames);
+    Task<IReadOnlyList<CertificateItem>> GetAllCertificates(object input = null);
 
-        Task Http01Precondition(Site site);
+    Task<OrderDetails> Order(IReadOnlyList<string> dnsNames);
 
-        Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization((Site, IReadOnlyList<string>) input);
+    Task Http01Precondition(string id);
 
-        [RetryOptions("00:00:10", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
-        Task CheckHttpChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
+    Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization((string, IReadOnlyList<string>) input);
 
-        Task Dns01Precondition(IReadOnlyList<string> dnsNames);
+    [RetryOptions("00:00:10", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
+    Task CheckHttpChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        Task<IReadOnlyList<AcmeChallengeResult>> Dns01Authorization(IReadOnlyList<string> authorizationUrls);
+    Task Dns01Precondition(IReadOnlyList<string> dnsNames);
 
-        [RetryOptions("00:00:10", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
-        Task CheckDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
+    Task<IReadOnlyList<AcmeChallengeResult>> Dns01Authorization(IReadOnlyList<string> authorizationUrls);
 
-        Task AnswerChallenges(IReadOnlyList<AcmeChallengeResult> challengeResults);
+    [RetryOptions("00:00:10", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
+    Task CheckDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
-        Task CheckIsReady((OrderDetails, IReadOnlyList<AcmeChallengeResult>) input);
+    Task AnswerChallenges(IReadOnlyList<AcmeChallengeResult> challengeResults);
 
-        Task<(string, byte[])> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
+    [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
+    Task CheckIsReady((OrderDetails, IReadOnlyList<AcmeChallengeResult>) input);
 
-        Task<Certificate> UploadCertificate((Site, string, string, byte[], bool) input);
+    Task<(OrderDetails, RSAParameters)> FinalizeOrder((IReadOnlyList<string>, OrderDetails) input);
 
-        Task UpdateHostNameSslState((Site, HostNameSslState) input);
+    [RetryOptions("00:00:05", 12, HandlerType = typeof(ExceptionRetryStrategy<RetriableActivityException>))]
+    Task<OrderDetails> CheckIsValid(OrderDetails orderDetails);
 
-        Task CleanupVirtualApplication(Site site);
+    Task<CertificateItem> UploadCertificate((string, string, bool, OrderDetails, RSAParameters) input);
 
-        Task DeleteCertificate(Certificate certificate);
+    [RetryOptions("00:00:15", 20, BackoffCoefficient = 2.0, MaxRetryInterval = "01:00:00")]
+    Task UpdateSiteBinding((string, IReadOnlyList<string>, string, bool?) input);
 
-        Task CleanupDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
+    Task CleanupVirtualApplication(string id);
 
-        Task SendCompletedEvent((Site, DateTime?, IReadOnlyList<string>) input);
-    }
+    Task DeleteCertificate(string id);
+
+    Task CleanupDnsChallenge(IReadOnlyList<AcmeChallengeResult> challengeResults);
+
+    Task SendCompletedEvent((WebSiteItem, DateTimeOffset?, IReadOnlyList<string>) input);
 }

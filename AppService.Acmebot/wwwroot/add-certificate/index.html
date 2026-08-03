@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>App Service Acmebot</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.1/css/bulma.min.css" integrity="sha512-ZRv40llEogRmoWgZwnsqke3HNzJ0kiI0+pcMgiz2bxO6Ew1DVBtWjVn0qjrXdT3+u+pSN36gLgmJiiQ3cQtyzA==" crossorigin="anonymous" />
-  <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css" integrity="sha512-IgmDkwzs96t4SrChW29No3NXBIBv8baW490zk5aXvhCD8vuZM3yUSkbyTBcXohkySecyzIrUwiF/qV0cuPcL3Q==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/js/all.min.js" integrity="sha512-Tn2m0TIpgVyTzzvmxLNuqbSJH3JP8jm+Cy3hvHrW7ndTDcJ1w5mBiksqDBb8GpE2ksktFvDB/ykZ0mDpsZj20w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
   <section class="section">
@@ -15,7 +15,7 @@
       </h1>
       <div id="app">
         <div class="field is-horizontal">
-          <div class="field-label">
+          <div class="field-label is-normal">
             <label class="label">Resource Group</label>
           </div>
           <div class="field-body">
@@ -32,16 +32,16 @@
           </div>
         </div>
         <div class="field is-horizontal">
-          <div class="field-label">
-            <label class="label">App Name</label>
+          <div class="field-label is-normal">
+            <label class="label">App Service</label>
           </div>
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': sitesLoading }">
-                  <select v-model="appName">
+                <div class="select" :class="{ 'is-loading': webSitesLoading }">
+                  <select v-model="webSiteName">
                     <option disabled value="">Please select one</option>
-                    <option v-for="site in sites" :value="site.name">{{ site.name }}</option>
+                    <option v-for="webSite in webSites" :value="webSite.name">{{ webSite.name }}</option>
                   </select>
                 </div>
               </div>
@@ -49,16 +49,16 @@
           </div>
         </div>
         <div class="field is-horizontal">
-          <div class="field-label">
+          <div class="field-label is-normal">
             <label class="label">Deployment Slot</label>
           </div>
           <div class="field-body">
             <div class="field">
               <div class="control">
-                <div class="select" :class="{ 'is-loading': sitesLoading }">
+                <div class="select" :class="{ 'is-loading': webSiteSlotsLoading }">
                   <select v-model="slotName">
                     <option disabled value="">Please select one</option>
-                    <option v-for="slot in (selectedSite || {}).slots">{{ slot.name }}</option>
+                    <option v-for="webSiteSlot in webSiteSlots">{{ webSiteSlot.slotName }}</option>
                   </select>
                 </div>
               </div>
@@ -66,7 +66,7 @@
           </div>
         </div>
         <div class="field is-horizontal">
-          <div class="field-label">
+          <div class="field-label is-normal">
             <label class="label">DNS Names</label>
           </div>
           <div class="field-body">
@@ -74,7 +74,7 @@
               <div class="control">
                 <div class="select is-multiple">
                   <select multiple v-model="dnsNames">
-                    <option v-for="dnsName in (selectedSlot || {}).dnsNames" :value="dnsName.name">{{ dnsName.name }} ({{ dnsName.issuer }})</option>
+                    <option v-for="hostName in (selectedSlot || {}).hostNames" :value="hostName.name">{{ hostName.name }} ({{ hostName.issuer }})</option>
                   </select>
                 </div>
               </div>
@@ -132,8 +132,8 @@
       </div>
     </div>
   </section>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.0.2/vue.global.prod.js" integrity="sha512-M8VjsuCj1iBzrwKloFNjvQBmFXT2oF0MWExoLGpQT2nEx5tq7CP+BhWGJdczT1LoWAhyqHh+LJ6ihHSVGyclHw==" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.0/axios.min.js" integrity="sha512-DZqqY3PiOvTP9HkjIWgjO6ouCbq+dxqWoJZ/Q+zPYNHmlnI2dQnbJ5bxAHpAMw+LXRm4D72EIRXzvcHQtE8/VQ==" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.2.11/vue.global.prod.min.js" integrity="sha512-RiF+Jrmab5nvkymjQZrHxYRi83mZj3cblSwolvamR1phU+rN9gUBPGEU7P+tvaKncRSk8dXvJhyhKb0BpYgj9A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.4/axios.min.js" integrity="sha512-lTLt+W7MrmDfKam+r3D2LURu0F47a3QaW5nF0c6Hl0JDZ57ruei+ovbg7BrZ+0bjVJ5YgzsAWE+RreERbpPE1g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script>
     const delay = (millisecondsDelay) => {
       return new Promise(resolve => setTimeout(() => resolve(), millisecondsDelay));
@@ -143,32 +143,27 @@
       data() {
         return {
           resourceGroups: [],
-          sites: [],
+          webSites: [],
+          webSiteSlots: [],
           resourceGroupName: '',
-          appName: '',
+          webSiteName: '',
           slotName: '',
           dnsNames: [],
           useIpBasedSsl: false,
           forceDns01Challenge: false,
           resourceGroupsLoading: false,
-          sitesLoading: false,
+          webSitesLoading: false,
+          webSiteSlotsLoading: false,
           sending: false
         };
       },
       computed: {
-        selectedSite() {
-          if (!this.sites) {
-            return undefined;
-          }
-          const name = this.appName;
-          return this.sites.find(function (x) { return x.name === name; });
-        },
         selectedSlot() {
-          if (!this.selectedSite) {
+          if (!this.webSiteSlots) {
             return undefined;
           }
           const name = this.slotName;
-          return this.selectedSite.slots.find(function (x) { return x.name === name; });
+          return this.webSiteSlots.find(function (x) { return x.slotName === name; });
         }
       },
       watch: {
@@ -177,17 +172,34 @@
             return;
           }
 
-          this.sitesLoading = true;
+          this.webSitesLoading = true;
 
           try {
-            const response = await axios.get("/api/sites/" + newValue);
+            const response = await axios.get(`/api/group/${newValue}/site`);
 
-            this.sites = response.data;
+            this.webSites = response.data;
           } catch (error) {
-            alert(error);
+            alert(error.response.data.output);
           }
 
-          this.sitesLoading = false;
+          this.webSitesLoading = false;
+        },
+        async webSiteName(newValue, _) {
+          if (!newValue) {
+            return;
+          }
+
+          this.webSiteSlotsLoading = true;
+
+          try {
+            const response = await axios.get(`/api/group/${this.resourceGroupName}/site/${newValue}/slot`);
+
+            this.webSiteSlots = response.data;
+          } catch (error) {
+            alert(error.response.data.output);
+          }
+
+          this.webSiteSlotsLoading = false;
         }
       },
       methods: {
@@ -195,19 +207,20 @@
           this.resourceGroupsLoading = true;
 
           try {
-            const response = await axios.get("/api/resource-groups");
+            const response = await axios.get("/api/group");
 
             this.resourceGroups = response.data;
           } catch (error) {
-            alert(error);
+            alert(error.response.data.output);
           }
 
           this.resourceGroupsLoading = false;
         },
         reset() {
-          this.sites = [];
+          this.webSites = [];
+          this.webSiteSlots = [];
           this.resourceGroupName = '';
-          this.appName = '';
+          this.webSiteName = '';
           this.slotName = '';
           this.dnsNames = [];
           this.useIpBasedSsl = false;
@@ -218,7 +231,7 @@
 
           const postData = {
             resourceGroupName: this.resourceGroupName,
-            appName: this.appName,
+            webSiteName: this.webSiteName,
             slotName: this.slotName,
             dnsNames: this.dnsNames,
             useIpBasedSsl: this.useIpBasedSsl,
@@ -251,7 +264,7 @@
 
               alert(errors.join("\n"));
             } else {
-              alert(problem.detail)
+              alert(problem.detail);
             }
           }
 

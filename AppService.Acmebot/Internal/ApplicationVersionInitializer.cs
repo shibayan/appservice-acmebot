@@ -1,24 +1,9 @@
-﻿using System.Reflection;
-
-using Microsoft.ApplicationInsights.Channel;
+﻿using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.Extensibility;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot.Internal;
+
+internal class ApplicationVersionInitializer : ITelemetryInitializer
 {
-    internal class ApplicationVersionInitializer<TStartup> : ITelemetryInitializer
-    {
-        public ApplicationVersionInitializer()
-        {
-            ApplicationVersion = typeof(TStartup).Assembly
-                                                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-                                                 ?.InformationalVersion;
-        }
-
-        public string ApplicationVersion { get; set; }
-
-        public void Initialize(ITelemetry telemetry)
-        {
-            telemetry.Context.Component.Version = ApplicationVersion;
-        }
-    }
+    public void Initialize(ITelemetry telemetry) => telemetry.Context.Component.Version = Constants.ApplicationVersion;
 }

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pwsh -File scripts/*)"
+    ],
+    "ask": [
+      "Edit(scripts/**)",
+      "Write(scripts/**)"
+    ],
+    "deny": [
+      "Bash(git commit*)",
+      "Bash(git push*)"
+    ]
+  }
+}

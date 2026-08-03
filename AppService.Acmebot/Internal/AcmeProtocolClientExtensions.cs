@@ -6,76 +6,83 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using ACMESharp.Protocol;
+
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot.Internal
+namespace AppService.Acmebot.Internal;
+
+internal static class AcmeProtocolClientExtensions
 {
-    internal static class AcmeProtocolClientExtensions
+    public static async Task<X509Certificate2Collection> GetOrderCertificateAsync(this AcmeProtocolClient acmeProtocolClient, OrderDetails order,
+                                                                                  string preferredChain, ILogger log, CancellationToken cancel = default)
     {
-        public static async Task<X509Certificate2Collection> GetOrderCertificateAsync(this AcmeProtocolClient acmeProtocolClient, OrderDetails order,
-                                                                                      string preferredChain, ILogger log, CancellationToken cancel = default)
+        log.LogInformation($"GetOrderCertificateAsync - preferred chain: '{preferredChain}'");
+
+        IEnumerable<string> linkHeaders;
+        X509Certificate2Collection defaultX509Certificates;
+
+        using (var resp = await acmeProtocolClient.GetAsync(order.Payload.Certificate, cancel))
         {
-            log.LogInformation($"GetOrderCertificateAsync - preferred chain: '{preferredChain}'");
+            defaultX509Certificates = await resp.Content.ReadAsCertificatesAsync();
 
-            IEnumerable<string> linkHeaders;
-            X509Certificate2Collection defaultX509Certificates;
-
-            using (var resp = await acmeProtocolClient.GetAsync(order.Payload.Certificate, cancel))
+            foreach (var x509Cert in defaultX509Certificates)
             {
-                defaultX509Certificates = await resp.Content.ReadAsCertificatesAsync();
+                log.LogInformation($"GetOrderCertificateAsync - cert from default chain has Subject '{x509Cert.Subject}' and Issuer '{x509Cert.Issuer}'");
+            }
 
-                foreach (var x509Cert in defaultX509Certificates) {
-                    log.LogInformation($"GetOrderCertificateAsync - cert from default chain has Subject '{x509Cert.Subject}' and Issuer {x509Cert.Issuer}");
-                }
+            // 証明書チェーンが未指定の場合は即返す
+            if (string.IsNullOrEmpty(preferredChain))
+            {
+                return defaultX509Certificates;
+            }
 
-                foreach (var header in resp.Headers) {
-                    var values = String.Join(";", header.Value);
-                    log.LogInformation($"GetOrderCertificateAsync - htttp response header: '{header.Key}' -> '{values}'");
-                }
-                linkHeaders = resp.Headers.GetValues("Link");
-                foreach (var linkHeader in linkHeaders) {
-                    log.LogInformation($"GetOrderCertificateAsync - link: '{linkHeader}'");
-                }
-                
-                // 証明書チェーンが未指定の場合は即返す
-                if (preferredChain == null)
-                {
-                    return defaultX509Certificates;
-                }
+            // Link ヘッダーが存在しない場合は即返す
+            if (!resp.Headers.TryGetValues("Link", out linkHeaders))
+            {
+                log.LogInformation("GetOrderCertificateAsync - no 'Link' response header present, falling back to default chain");
+
+                return defaultX509Certificates;
             }
 
             foreach (var linkHeader in linkHeaders)
             {
-                // Link ヘッダーから alternate で指定されている URL を拾ってくる
-                var rel = Regex.Match(linkHeader, "(?<=rel=\").+?(?=\")", RegexOptions.IgnoreCase);
+                log.LogInformation($"GetOrderCertificateAsync - link: '{linkHeader}'");
+            }
+        }
 
-                if (!string.Equals(rel.Value, "alternate", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+        foreach (var linkHeader in linkHeaders)
+        {
+            // Link ヘッダーから alternate で指定されている URL を拾ってくる
+            var rel = Regex.Match(linkHeader, "(?<=rel=\").+?(?=\")", RegexOptions.IgnoreCase);
 
-                var url = Regex.Match(linkHeader, "(?<=<).+?(?=>)", RegexOptions.IgnoreCase);
-
-                // 代替の証明書をダウンロードする
-                using (var resp = await acmeProtocolClient.GetAsync(url.Value, cancel))
-                {
-                    var x509Certificates = await resp.Content.ReadAsCertificatesAsync();
-                    foreach (var x509Cert in x509Certificates) {
-                        log.LogInformation($"GetOrderCertificateAsync - cert from alternate chain has Subject '{x509Cert.Subject}' and Issuer {x509Cert.Issuer}");
-                    }
-
-                    // 指定された証明書チェーンに一致する場合は返す
-                    if (x509Certificates.Find(X509FindType.FindByIssuerName, preferredChain, false).Count > 0)
-                    {
-                        return x509Certificates;
-                    }
-                }
+            if (!string.Equals(rel.Value, "alternate", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
             }
 
-            log.LogInformation($"GetOrderCertificateAsync - found no alternate issuers matching preferred chain '{preferredChain}', falling back to default");
+            var url = Regex.Match(linkHeader, "(?<=<).+?(?=>)", RegexOptions.IgnoreCase);
 
-            // マッチする証明書チェーンが存在しない場合はデフォルトを返す
-            return defaultX509Certificates;
+            // 代替の証明書をダウンロードする
+            using (var resp = await acmeProtocolClient.GetAsync(url.Value, cancel))
+            {
+                var x509Certificates = await resp.Content.ReadAsCertificatesAsync();
+
+                foreach (var x509Cert in x509Certificates)
+                {
+                    log.LogInformation($"GetOrderCertificateAsync - cert from alternate chain has Subject '{x509Cert.Subject}' and Issuer '{x509Cert.Issuer}'");
+                }
+
+                // ルート CA の名前が指定された証明書チェーンに一致する場合は返す
+                if (x509Certificates[^1].GetNameInfo(X509NameType.DnsName, true) == preferredChain)
+                {
+                    return x509Certificates;
+                }
+            }
         }
+
+        log.LogInformation($"GetOrderCertificateAsync - found no alternate issuers matching preferred chain '{preferredChain}', falling back to default");
+
+        // マッチする証明書チェーンが存在しない場合はデフォルトを返す
+        return defaultX509Certificates;
     }
 }

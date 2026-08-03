@@ -7,24 +7,32 @@ on:
     branches: [ master ]
 
 env:
-  DOTNET_VERSION: 3.1.x
+  DOTNET_VERSION: 8.0.x
+  BICEP_VERSION: 0.38.5
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
 
     - name: Use .NET Core ${{ env.DOTNET_VERSION }}
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Install .NET Core format tool
-      run: dotnet tool update -g dotnet-format
+    - name: Use Bicep ${{ env.BICEP_VERSION }}
+      run: |
+        az config set bicep.use_binary_from_path=false
+        az bicep install --version v${{ env.BICEP_VERSION }}
 
     - name: Build project
       run: dotnet build -c Release
 
     - name: Lint C# code
-      run: dotnet format --check --verbosity detailed
+      run: dotnet format --verify-no-changes --exclude ACMESharpCore --verbosity detailed --no-restore
+
+    - name: Lint Bicep template
+      run: az bicep build -f azuredeploy.bicep && git diff --exit-code --quiet

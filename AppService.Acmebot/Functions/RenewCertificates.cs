@@ -1,53 +1,63 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
-using AppService.Acmebot.Internal;
+using AppService.Acmebot.Models;
 
 using DurableTask.TypedProxy;
 
-using Microsoft.Azure.Management.WebSites.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
 
-namespace AppService.Acmebot.Functions
+namespace AppService.Acmebot.Functions;
+
+public class RenewCertificates
 {
-    public class RenewCertificates
+    [FunctionName($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}")]
+    public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
     {
-        [FunctionName(nameof(RenewCertificates) + "_" + nameof(Orchestrator))]
-        public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+        var activity = context.CreateActivityProxy<ISharedActivity>();
+
+        // 期限切れまで 30 日以内の証明書を取得する
+        var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
+
+        // 更新対象となる証明書がない場合は終わる
+        if (certificates.Count == 0)
         {
-            var activity = context.CreateActivityProxy<ISharedActivity>();
+            log.LogInformation("Certificates are not found");
 
-            // 期限切れまで 30 日以内の証明書を取得する
-            var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
+            return;
+        }
 
-            foreach (var certificate in certificates)
+        foreach (var certificate in certificates)
+        {
+            log.LogInformation($"Expiring certificate : {certificate.SubjectName} - {certificate.ExpirationOn}");
+        }
+
+        // スロットリング対策として 600 秒以内でジッターを追加する
+        var jitter = (uint)context.NewGuid().GetHashCode() % 600;
+
+        await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
+
+        // リソースグループ単位で証明書の更新を行う
+        var resourceGroups = await activity.GetResourceGroups();
+
+        foreach (var resourceGroup in resourceGroups)
+        {
+            // App Service を取得
+            var webSites = await activity.GetWebSites(resourceGroup.Name);
+
+            // サイト単位で証明書の更新を行う
+            foreach (var webSite in webSites)
             {
-                log.LogInformation($"{certificate.SubjectName} - {certificate.ExpirationDate}");
-            }
+                var webSiteSlots = await activity.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
 
-            // 更新対象となる証明書がない場合は終わる
-            if (certificates.Count == 0)
-            {
-                log.LogInformation("Certificates are not found");
-
-                return;
-            }
-
-            var resourceGroups = await activity.GetResourceGroups();
-
-            foreach (var resourceGroup in resourceGroups)
-            {
-                // App Service を取得
-                var sites = await activity.GetSites((resourceGroup.Name, true));
-
-                // サイト単位で証明書の更新を行う
-                foreach (var site in sites)
+                foreach (var webSiteSlot in webSiteSlots.Prepend(webSite).Where(x => x.IsRunning))
                 {
                     // 期限切れが近い証明書がバインドされているか確認
-                    var boundCertificates = certificates.Where(x => site.HostNameSslStates.Any(xs => xs.Thumbprint == x.Thumbprint))
+                    var boundCertificates = certificates.Where(x => webSiteSlot.HostNames.Any(xs => xs.Thumbprint == x.Thumbprint))
                                                         .ToArray();
 
                     // 対象となる証明書が存在しない場合はスキップ
@@ -59,7 +69,7 @@ namespace AppService.Acmebot.Functions
                     try
                     {
                         // 証明書の更新処理を開始
-                        await context.CallSubOrchestratorAsync(nameof(RenewCertificates) + "_" + nameof(SubOrchestrator), (site, boundCertificates));
+                        await context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", (webSiteSlot, boundCertificates));
                     }
                     catch (Exception ex)
                     {
@@ -70,68 +80,76 @@ namespace AppService.Acmebot.Functions
                 }
             }
         }
+    }
 
-        [FunctionName(nameof(RenewCertificates) + "_" + nameof(SubOrchestrator))]
-        public async Task SubOrchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+    [FunctionName($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}")]
+    public async Task SubOrchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+    {
+        var (webSite, certificates) = context.GetInput<(WebSiteItem, CertificateItem[])>();
+
+        var activity = context.CreateActivityProxy<ISharedActivity>();
+
+        log.LogInformation($"Site name: {webSite.Name}");
+
+        try
         {
-            var (site, certificates) = context.GetInput<(Site, Certificate[])>();
-
-            var activity = context.CreateActivityProxy<ISharedActivity>();
-
-            log.LogInformation($"Site name: {site.Name}");
-
-            try
+            // 証明書単位で更新を行う
+            foreach (var certificate in certificates)
             {
-                // 証明書単位で更新を行う
-                foreach (var certificate in certificates)
+                try
                 {
-                    try
+                    log.LogInformation($"Subject name: {certificate.SubjectName}");
+
+                    // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+                    var dnsNames = certificate.HostNames
+                                              .Where(x => !x.Contains(" (") && webSite.HostNames.Any(xs => xs.Name == x))
+                                              .ToArray();
+
+                    // 更新対象の DNS 名が空の時はログを出して終了
+                    if (dnsNames.Length == 0)
                     {
-                        log.LogInformation($"Subject name: {certificate.SubjectName}");
+                        log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", webSite.HostNames.Select(x => x.Name))}");
 
-                        // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
-                        var dnsNames = certificate.HostNames
-                                                  .Where(x => !x.Contains(" (") && site.HostNames.Contains(x))
-                                                  .ToArray();
-
-                        var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) ? bool.Parse(value) : false;
-
-                        // 証明書を発行し Azure にアップロード
-                        var newCertificate = await context.CallSubOrchestratorAsync<Certificate>(nameof(SharedOrchestrator.IssueCertificate), (site, dnsNames, forceDns01Challenge));
-
-                        foreach (var hostNameSslState in site.HostNameSslStates.Where(x => dnsNames.Contains(Punycode.Encode(x.Name))))
-                        {
-                            hostNameSslState.Thumbprint = newCertificate.Thumbprint;
-                            hostNameSslState.ToUpdate = true;
-                            await activity.UpdateHostNameSslState((site, hostNameSslState));
-                        }
-
-                        // 証明書の更新が完了後に Webhook を送信する
-                        await activity.SendCompletedEvent((site, newCertificate.ExpirationDate, dnsNames));
+                        continue;
                     }
-                    catch (Exception ex)
-                    {
-                        // Observed on a domain where the DNS setup had been changed to point to a completely different system.
-                        // Do not let individual renewal failures block other renewals.
-                        log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
-                        log.LogError(ex.Message);
-                    }
+
+                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
+
+                    // 証明書を発行し Azure にアップロード
+                    var newCertificate = await context.CallSubOrchestratorWithRetryAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (webSite, dnsNames, forceDns01Challenge));
+
+                    await activity.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
+
+                    // 証明書の更新が完了後に Webhook を送信する
+                    await activity.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
+                }
+                catch (Exception ex)
+                {
+                    // Observed on a domain where the DNS setup had been changed to point to a completely different system.
+                    // Do not let individual renewal failures block other renewals.
+                    log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
+                    log.LogError(ex.Message);
                 }
             }
-            finally
-            {
-                // クリーンアップ処理を実行
-                await activity.CleanupVirtualApplication(site);
-            }
         }
-
-        [FunctionName(nameof(RenewCertificates) + "_" + nameof(Timer))]
-        public async Task Timer([TimerTrigger("0 0 0 * * 0")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+        finally
         {
-            // Function input comes from the request content.
-            var instanceId = await starter.StartNewAsync(nameof(RenewCertificates) + "_" + nameof(Orchestrator));
-
-            log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+            // クリーンアップ処理を実行
+            await activity.CleanupVirtualApplication(webSite.Id);
         }
     }
+
+    [FunctionName($"{nameof(RenewCertificates)}_{nameof(Timer)}")]
+    public async Task Timer([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+    {
+        // Function input comes from the request content.
+        var instanceId = await starter.StartNewAsync($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}");
+
+        log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
+    }
+
+    private readonly RetryOptions _retryOptions = new(TimeSpan.FromHours(3), 2)
+    {
+        Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
+    };
 }

@@ -1,21 +1,36 @@
-﻿using System.Net.Http;
+﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace AppService.Acmebot.Internal
+using Azure.Core;
+
+namespace AppService.Acmebot.Internal;
+
+public class KuduClientFactory
 {
-    public class KuduClientFactory
+    public KuduClientFactory(IHttpClientFactory httpClientFactory, TokenCredential tokenCredential, AzureEnvironment environment)
     {
-        public KuduClientFactory(IHttpClientFactory httpClientFactory)
-        {
-            _httpClientFactory = httpClientFactory;
-        }
+        _httpClientFactory = httpClientFactory;
+        _tokenCredential = tokenCredential;
+        _environment = environment;
+    }
 
-        private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly TokenCredential _tokenCredential;
+    private readonly AzureEnvironment _environment;
 
-        public KuduClient CreateClient(string scmUrl, string userName, string password)
-        {
-            var httpClient = _httpClientFactory.CreateClient();
+    public async Task<KuduClient> CreateClientAsync(string scmHost)
+    {
+        var httpClient = _httpClientFactory.CreateClient();
 
-            return new KuduClient(httpClient, scmUrl, userName, password);
-        }
+        var context = new TokenRequestContext(new[] { _environment.ResourceManager.DefaultScope }, null);
+        var accessToken = await _tokenCredential.GetTokenAsync(context, CancellationToken.None);
+
+        httpClient.BaseAddress = new Uri($"https://{scmHost}");
+        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
+
+        return new KuduClient(httpClient);
     }
 }

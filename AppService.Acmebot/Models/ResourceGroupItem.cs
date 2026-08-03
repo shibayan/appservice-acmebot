@@ -1,10 +1,19 @@
-﻿using Newtonsoft.Json;
+﻿using Azure.ResourceManager.Resources;
 
-namespace AppService.Acmebot.Models
+using Newtonsoft.Json;
+
+namespace AppService.Acmebot.Models;
+
+public class ResourceGroupItem
 {
-    public class ResourceGroupItem
+    [JsonProperty("name")]
+    public string Name { get; set; }
+
+    public static ResourceGroupItem Create(ResourceGroupData resourceGroup)
     {
-        [JsonProperty("name")]
-        public string Name { get; set; }
+        return new ResourceGroupItem
+        {
+            Name = resourceGroup.Name
+        };
     }
 }
