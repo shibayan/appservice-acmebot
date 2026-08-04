@@ -127,12 +127,16 @@ foreach ($slot in $targets) {
 
     Invoke-Az functionapp deploy -g $ResourceGroup -n $FunctionAppName @slotArgs --src-path $PackagePath --type zip --output none
 
-    # Smoke check: the v4 host should load and report the functions
+    # Smoke check: the v4 host should load and report the functions.
+    # 'az functionapp function list' does not support --slot, so query ARM directly.
+    $slotPath = if ($slot) { "/slots/$slot" } else { '' }
+    $functionsUrl = "https://management.azure.com/subscriptions/$($account.subscription)/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$FunctionAppName$slotPath/functions?api-version=2022-03-01"
+
     $functionCount = $null
     foreach ($attempt in 1..6) {
         Start-Sleep -Seconds 10
         try {
-            $functionCount = Invoke-Az functionapp function list -g $ResourceGroup -n $FunctionAppName @slotArgs --query 'length(@)' -o tsv
+            $functionCount = Invoke-Az rest --method get --url $functionsUrl --query 'length(value)' -o tsv
             if ([int]$functionCount -gt 0) { break }
         }
         catch {
