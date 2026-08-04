@@ -132,11 +132,14 @@ foreach ($slot in $targets) {
     $slotPath = if ($slot) { "/slots/$slot" } else { '' }
     $functionsUrl = "https://management.azure.com/subscriptions/$($account.subscription)/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$FunctionAppName$slotPath/functions?api-version=2022-03-01"
 
+    # No --query here: az is a .cmd shim on Windows and cmd.exe cannot pass JMESPath
+    # parentheses through unquoted; parse the JSON in PowerShell instead.
     $functionCount = $null
-    foreach ($attempt in 1..6) {
+    foreach ($attempt in 1..12) {
         Start-Sleep -Seconds 10
         try {
-            $functionCount = Invoke-Az rest --method get --url $functionsUrl --query 'length(value)' -o tsv
+            $response = Invoke-Az rest --method get --url $functionsUrl
+            $functionCount = (($response -join "`n" | ConvertFrom-Json).value).Count
             if ([int]$functionCount -gt 0) { break }
         }
         catch {
