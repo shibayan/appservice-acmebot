@@ -6,6 +6,7 @@ This is the Criipto fork of [shibayan/appservice-acmebot](https://github.com/shi
 - Issued certificates are also imported into Key Vault (`Acmebot:VaultBaseUrl`).
 - Host name SSL bindings are updated individually with a minimal payload instead of updating the whole site.
 - HTTP endpoints require function-level authorization keys.
+- The Durable Functions task hub name is derived from the deployment slot (`Acmebot<slotname>`, e.g. `Acmebotproduction`; `Acmebotdefault` outside App Service), so slots sharing a storage account never execute each other's orchestrations.
 - Deployments to the in-use function apps (and deployment slots) are done manually via VS Code publishing. Clone with `git submodule update --init` (ACMESharpCore is a submodule). The function app must have `FUNCTIONS_EXTENSION_VERSION=~4`, `FUNCTIONS_INPROC_NET8_ENABLED=1` and .NET version `v8.0` configured before deploying this build.
 
 <h1 align="center">

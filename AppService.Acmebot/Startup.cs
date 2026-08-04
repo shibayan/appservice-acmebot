@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net.Http;
 
 using AppService.Acmebot.Internal;
@@ -36,6 +37,20 @@ public class Startup : FunctionsStartup
         builder.Services.AddOptions<AcmebotOptions>()
                .Bind(section.Exists() ? section : context.Configuration.GetSection("LetsEncrypt"))
                .ValidateDataAnnotations();
+
+        // Isolate the Durable Functions task hub per deployment slot, so slots sharing a
+        // storage account never execute each other's orchestrations and activities.
+        // WEBSITE_SLOT_NAME is provided by App Service ("production" on the production slot);
+        // outside App Service (e.g. local development) it falls back to "default".
+        // Task hub names allow only letters and digits, so slot names are sanitized.
+        builder.Services.Configure<DurableTaskOptions>(options =>
+        {
+            var slotName = Environment.GetEnvironmentVariable("WEBSITE_SLOT_NAME") ?? "default";
+
+            var hubName = $"Acmebot{string.Concat(slotName.Where(char.IsLetterOrDigit))}";
+
+            options.HubName = hubName.Length > 45 ? hubName[..45] : hubName;
+        });
 
         // Add Services
         builder.Services.Replace(ServiceDescriptor.Transient(typeof(IOptionsFactory<>), typeof(OptionsFactory<>)));
