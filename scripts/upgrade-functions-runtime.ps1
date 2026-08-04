@@ -19,6 +19,10 @@
 
 .EXAMPLE
     pwsh -File scripts/upgrade-functions-runtime.ps1 -FunctionAppName criipto-io-acme-bot-staging
+
+.EXAMPLE
+    # Upgrade a single slot only, leaving the production app untouched
+    pwsh -File scripts/upgrade-functions-runtime.ps1 -FunctionAppName criipto-io-acme-bot-staging -Slots test -SkipProduction
 #>
 [CmdletBinding()]
 param(
@@ -30,7 +34,10 @@ param(
 
     # Slots to configure in addition to the production app.
     # Defaults to every deployment slot of the app.
-    [string[]] $Slots
+    [string[]] $Slots,
+
+    # Skip the production app (configure slots only).
+    [switch] $SkipProduction
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,7 +76,9 @@ $requiredAcmebotSettings = @(
 # --- Per-target upgrade ------------------------------------------------------
 
 # $null represents the production app itself; slot names follow.
-$targets = @($null) + $Slots
+$targets = @()
+if (-not $SkipProduction) { $targets += ,$null }
+$targets += $Slots
 
 foreach ($slot in $targets) {
     $label = if ($slot) { "slot '$slot'" } else { 'production app' }
