@@ -23,6 +23,10 @@
 .EXAMPLE
     # Upgrade a single slot only, leaving the production app untouched
     pwsh -File scripts/upgrade-functions-runtime.ps1 -FunctionAppName criipto-io-acme-bot-staging -Slots test -SkipProduction
+
+.EXAMPLE
+    # Upgrade only the production app, leaving all slots untouched
+    pwsh -File scripts/upgrade-functions-runtime.ps1 -FunctionAppName criipto-io-acme-bot-staging -ProductionOnly
 #>
 [CmdletBinding()]
 param(
@@ -37,10 +41,20 @@ param(
     [string[]] $Slots,
 
     # Skip the production app (configure slots only).
-    [switch] $SkipProduction
+    [switch] $SkipProduction,
+
+    # Configure only the production app, ignoring all slots.
+    # Unlike '-Slots @()' this also works with 'pwsh -File' invocation.
+    [switch] $ProductionOnly
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($ProductionOnly) {
+    if ($SkipProduction) { throw '-ProductionOnly and -SkipProduction are mutually exclusive.' }
+    if ($PSBoundParameters.ContainsKey('Slots')) { throw 'Use either -ProductionOnly or -Slots, not both.' }
+    $Slots = @()
+}
 
 function Invoke-Az {
     $output = az @args 2>&1
@@ -63,7 +77,7 @@ if (-not $ResourceGroup) {
     Write-Host "Resolved resource group: $ResourceGroup"
 }
 
-if (-not $PSBoundParameters.ContainsKey('Slots')) {
+if (-not $ProductionOnly -and -not $PSBoundParameters.ContainsKey('Slots')) {
     $Slots = @(Invoke-Az functionapp deployment slot list -g $ResourceGroup -n $FunctionAppName --query '[].name' -o tsv)
     Write-Host "Discovered slots: $(if ($Slots) { $Slots -join ', ' } else { '(none)' })"
 }

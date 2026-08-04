@@ -26,6 +26,10 @@
 .EXAMPLE
     # Deploy to a single slot only, skipping the production app
     pwsh -File scripts/publish-functionapp.ps1 -FunctionAppName criipto-io-acme-bot-staging -Slots test -SkipProduction
+
+.EXAMPLE
+    # Deploy only to the production app, leaving all slots untouched
+    pwsh -File scripts/publish-functionapp.ps1 -FunctionAppName criipto-io-acme-bot-staging -ProductionOnly
 #>
 [CmdletBinding()]
 param(
@@ -42,6 +46,10 @@ param(
     # Skip deploying to the production app (deploy to slots only).
     [switch] $SkipProduction,
 
+    # Deploy only to the production app, ignoring all slots.
+    # Unlike '-Slots @()' this also works with 'pwsh -File' invocation.
+    [switch] $ProductionOnly,
+
     # Short SHA of the build to deploy. Defaults to the current HEAD.
     [string] $CommitSha,
 
@@ -53,6 +61,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($ProductionOnly) {
+    if ($SkipProduction) { throw '-ProductionOnly and -SkipProduction are mutually exclusive.' }
+    if ($PSBoundParameters.ContainsKey('Slots')) { throw 'Use either -ProductionOnly or -Slots, not both.' }
+    $Slots = @()
+}
 
 function Invoke-Az {
     $output = az @args 2>&1
@@ -100,7 +114,7 @@ if (-not $ResourceGroup) {
     Write-Host "Resolved resource group: $ResourceGroup"
 }
 
-if (-not $PSBoundParameters.ContainsKey('Slots')) {
+if (-not $ProductionOnly -and -not $PSBoundParameters.ContainsKey('Slots')) {
     $Slots = @(Invoke-Az functionapp deployment slot list -g $ResourceGroup -n $FunctionAppName --query '[].name' -o tsv)
     Write-Host "Discovered slots: $(if ($Slots) { $Slots -join ', ' } else { '(none)' })"
 }
