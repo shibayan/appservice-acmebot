@@ -100,15 +100,12 @@ foreach ($slot in $targets) {
     $settingsMap = @{}
     foreach ($s in $settings) { $settingsMap[$s.name] = $s.value }
 
-    Write-Host "Current FUNCTIONS_WORKER_RUNTIME: $($settingsMap['FUNCTIONS_WORKER_RUNTIME'])"
+    Write-Host "Current FUNCTIONS_EXTENSION_VERSION: $($settingsMap['FUNCTIONS_EXTENSION_VERSION']), FUNCTIONS_WORKER_RUNTIME: $($settingsMap['FUNCTIONS_WORKER_RUNTIME'])"
 
-    if ($settingsMap['FUNCTIONS_EXTENSION_VERSION'] -ne '~4') {
-        Write-Warning "FUNCTIONS_EXTENSION_VERSION is '$($settingsMap['FUNCTIONS_EXTENSION_VERSION'])' (expected '~4'). Run the phase-1 upgrade first."
-        continue
-    }
-
-    Write-Host "Setting FUNCTIONS_WORKER_RUNTIME=dotnet-isolated and AcmebotTaskHub=$hubName ..."
-    Invoke-Az functionapp config appsettings set -g $ResourceGroup -n $FunctionAppName @slotArgs --settings 'FUNCTIONS_WORKER_RUNTIME=dotnet-isolated' "AcmebotTaskHub=$hubName" --output none
+    # Works directly from v3 (in-process .NET Core 3.1) as well as from v4 in-process:
+    # the isolated model needs no intermediate .NET 8 step and no FUNCTIONS_INPROC_NET8_ENABLED.
+    Write-Host "Setting FUNCTIONS_EXTENSION_VERSION=~4, FUNCTIONS_WORKER_RUNTIME=dotnet-isolated and AcmebotTaskHub=$hubName ..."
+    Invoke-Az functionapp config appsettings set -g $ResourceGroup -n $FunctionAppName @slotArgs --settings 'FUNCTIONS_EXTENSION_VERSION=~4' 'FUNCTIONS_WORKER_RUNTIME=dotnet-isolated' "AcmebotTaskHub=$hubName" --output none
 
     if ($settingsMap.ContainsKey('FUNCTIONS_INPROC_NET8_ENABLED')) {
         Write-Host 'Removing FUNCTIONS_INPROC_NET8_ENABLED ...'
