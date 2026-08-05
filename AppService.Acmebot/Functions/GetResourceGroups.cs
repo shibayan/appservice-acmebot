@@ -1,39 +1,28 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
-using Azure.WebJobs.Extensions.HttpApi;
-
-using DurableTask.TypedProxy;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Functions;
 
-public class GetResourceGroups : HttpFunctionBase
+public class GetResourceGroups
 {
-    public GetResourceGroups(IHttpContextAccessor httpContextAccessor)
-        : base(httpContextAccessor)
+    [Function($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}")]
+    public async Task<IReadOnlyList<ResourceGroupItem>> Orchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-    }
-
-    [FunctionName($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}")]
-    public async Task<IReadOnlyList<ResourceGroupItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
-    {
-        var activity = context.CreateActivityProxy<ISharedActivity>();
-
         try
         {
             // リソースグループを取得
-            return await activity.GetResourceGroups();
+            return await context.GetResourceGroups();
         }
         catch
         {
@@ -41,22 +30,24 @@ public class GetResourceGroups : HttpFunctionBase
         }
     }
 
-    [FunctionName($"{nameof(GetResourceGroups)}_{nameof(HttpStart)}")]
+    [Function($"{nameof(GetResourceGroups)}_{nameof(HttpStart)}")]
     public async Task<IActionResult> HttpStart(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "api/group")] HttpRequest req,
-        [DurableClient] IDurableClient starter,
-        ILogger log)
+        [DurableClient] DurableTaskClient starter,
+        FunctionContext functionContext)
     {
-        if (!User.IsAppAuthorized())
+        var log = functionContext.GetLogger<GetResourceGroups>();
+
+        if (!req.IsAppAuthorized())
         {
-            return Unauthorized();
+            return new UnauthorizedResult();
         }
 
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}");
+        var instanceId = await starter.ScheduleNewOrchestrationInstanceAsync($"{nameof(GetResourceGroups)}_{nameof(Orchestrator)}");
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-        return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(1), returnInternalServerErrorOnFailure: true);
+        return await starter.WaitForCompletionResultAsync(instanceId, TimeSpan.FromMinutes(1));
     }
 }

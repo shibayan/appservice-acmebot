@@ -1,36 +1,59 @@
-﻿using System;
+using System;
+using System.IO;
 
 using AppService.Acmebot.Internal;
 
-using Azure.WebJobs.Extensions.HttpApi;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Azure.Functions.Worker;
 
 namespace AppService.Acmebot.Functions;
 
-public class StaticPage : HttpFunctionBase
+public class StaticPage
 {
-    public StaticPage(IHttpContextAccessor httpContextAccessor)
-        : base(httpContextAccessor)
-    {
-    }
+    private static readonly string s_wwwroot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
 
-    [FunctionName($"{nameof(StaticPage)}_{nameof(Serve)}")]
+    private static readonly FileExtensionContentTypeProvider s_contentTypeProvider = new();
+
+    [Function($"{nameof(StaticPage)}_{nameof(Serve)}")]
     public IActionResult Serve(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "{*path}")] HttpRequest req,
-        ILogger log)
+        string path)
     {
-        if (!IsEasyAuthEnabled || !User.IsAppAuthorized())
+        // The UI requires App Service Authentication; mirrors the in-process behavior.
+        if (!IdentityExtensions.IsEasyAuthEnabled || !req.ParseClientPrincipal().IsAppAuthorized())
         {
-            return Forbid();
+            return new ForbidResult();
         }
 
-        return LocalStaticApp();
-    }
+        // Replaces HttpFunctionBase.LocalStaticApp(): serve files from wwwroot, falling
+        // back to the directory's index.html for extensionless (SPA-style) paths.
+        var relativePath = string.IsNullOrEmpty(path) ? "index.html" : path.Replace('/', Path.DirectorySeparatorChar);
 
-    private static bool IsEasyAuthEnabled => bool.TryParse(Environment.GetEnvironmentVariable("WEBSITE_AUTH_ENABLED"), out var result) && result;
+        var fullPath = Path.GetFullPath(Path.Combine(s_wwwroot, relativePath));
+
+        // Prevent path traversal outside wwwroot
+        if (!fullPath.StartsWith(s_wwwroot, StringComparison.OrdinalIgnoreCase))
+        {
+            return new NotFoundResult();
+        }
+
+        if (Directory.Exists(fullPath) || !Path.HasExtension(fullPath))
+        {
+            fullPath = Path.Combine(fullPath, "index.html");
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            return new NotFoundResult();
+        }
+
+        if (!s_contentTypeProvider.TryGetContentType(fullPath, out var contentType))
+        {
+            contentType = "application/octet-stream";
+        }
+
+        return new PhysicalFileResult(fullPath, contentType);
+    }
 }

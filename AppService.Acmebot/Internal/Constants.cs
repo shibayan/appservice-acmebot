@@ -4,7 +4,7 @@ namespace AppService.Acmebot.Internal;
 
 internal static class Constants
 {
-    public static string ApplicationVersion { get; } = typeof(Startup).Assembly
+    public static string ApplicationVersion { get; } = typeof(Constants).Assembly
                                                                       .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
                                                                       ?.InformationalVersion;
 }

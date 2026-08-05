@@ -28,8 +28,7 @@ using Azure.Storage.Blobs;
 
 using DnsClient;
 
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -37,7 +36,7 @@ using Newtonsoft.Json;
 
 namespace AppService.Acmebot.Functions;
 
-public class SharedActivity : ISharedActivity
+public class SharedActivity
 {
     public SharedActivity(IHttpClientFactory httpClientFactory, AzureEnvironment environment, LookupClient lookupClient,
                           AcmeProtocolClientFactory acmeProtocolClientFactory, KuduClientFactory kuduClientFactory,
@@ -72,7 +71,7 @@ public class SharedActivity : ISharedActivity
 
     private const string IssuerName = "Acmebot";
 
-    [FunctionName(nameof(GetResourceGroups))]
+    [Function(nameof(GetResourceGroups))]
     public async Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups([ActivityTrigger] object input = null)
     {
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
@@ -87,7 +86,7 @@ public class SharedActivity : ISharedActivity
         return resourceGroups;
     }
 
-    [FunctionName(nameof(GetWebSite))]
+    [Function(nameof(GetWebSite))]
     public async Task<WebSiteItem> GetWebSite([ActivityTrigger] (string, string, string) input)
     {
         var (resourceGroupName, webSiteName, slotName) = input;
@@ -112,7 +111,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(GetWebSites))]
+    [Function(nameof(GetWebSites))]
     public async Task<IReadOnlyList<WebSiteItem>> GetWebSites([ActivityTrigger] string resourceGroupName)
     {
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
@@ -130,7 +129,7 @@ public class SharedActivity : ISharedActivity
     }
 
 
-    [FunctionName(nameof(GetWebSiteSlots))]
+    [Function(nameof(GetWebSiteSlots))]
     public async Task<IReadOnlyList<WebSiteItem>> GetWebSiteSlots([ActivityTrigger] (string, string) input)
     {
         var (resourceGroupName, webSiteName) = input;
@@ -151,7 +150,7 @@ public class SharedActivity : ISharedActivity
         return webSites;
     }
 
-    [FunctionName(nameof(GetExpiringCertificates))]
+    [Function(nameof(GetExpiringCertificates))]
     public async Task<IReadOnlyList<CertificateItem>> GetExpiringCertificates([ActivityTrigger] DateTime currentDateTime)
     {
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
@@ -187,7 +186,7 @@ public class SharedActivity : ISharedActivity
         return certificates;
     }
 
-    [FunctionName(nameof(GetAllCertificates))]
+    [Function(nameof(GetAllCertificates))]
     public async Task<IReadOnlyList<CertificateItem>> GetAllCertificates([ActivityTrigger] object input)
     {
         var subscription = await _armClient.GetDefaultSubscriptionAsync();
@@ -202,7 +201,7 @@ public class SharedActivity : ISharedActivity
         return certificates;
     }
 
-    [FunctionName(nameof(Order))]
+    [Function(nameof(Order))]
     public async Task<OrderDetails> Order([ActivityTrigger] IReadOnlyList<string> dnsNames)
     {
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
@@ -210,7 +209,7 @@ public class SharedActivity : ISharedActivity
         return await acmeProtocolClient.CreateOrderAsync(dnsNames);
     }
 
-    [FunctionName(nameof(Http01Precondition))]
+    [Function(nameof(Http01Precondition))]
     public Task Http01Precondition([ActivityTrigger] string id)
     {
         // Disabled entirely: challenge responses are served from blob storage, so no
@@ -218,7 +217,7 @@ public class SharedActivity : ISharedActivity
         return Task.CompletedTask;
     }
 
-    [FunctionName(nameof(Http01Authorization))]
+    [Function(nameof(Http01Authorization))]
     public async Task<IReadOnlyList<AcmeChallengeResult>> Http01Authorization([ActivityTrigger] (string, IReadOnlyList<string>) input)
     {
         var (id, authorizationUrls) = input;
@@ -264,7 +263,7 @@ public class SharedActivity : ISharedActivity
         return challengeResults;
     }
 
-    [FunctionName(nameof(CheckHttpChallenge))]
+    [Function(nameof(CheckHttpChallenge))]
     public async Task CheckHttpChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
     {
         foreach (var challengeResult in challengeResults)
@@ -291,7 +290,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(Dns01Precondition))]
+    [Function(nameof(Dns01Precondition))]
     public async Task Dns01Precondition([ActivityTrigger] IReadOnlyList<string> dnsNames)
     {
         // Azure DNS が存在するか確認
@@ -352,7 +351,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(Dns01Authorization))]
+    [Function(nameof(Dns01Authorization))]
     public async Task<IReadOnlyList<AcmeChallengeResult>> Dns01Authorization([ActivityTrigger] IReadOnlyList<string> authorizationUrls)
     {
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
@@ -419,7 +418,7 @@ public class SharedActivity : ISharedActivity
         return challengeResults;
     }
 
-    [FunctionName(nameof(CheckDnsChallenge))]
+    [Function(nameof(CheckDnsChallenge))]
     public async Task CheckDnsChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
     {
         foreach (var challengeResult in challengeResults)
@@ -455,7 +454,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(AnswerChallenges))]
+    [Function(nameof(AnswerChallenges))]
     public async Task AnswerChallenges([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
     {
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
@@ -467,7 +466,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(CheckIsReady))]
+    [Function(nameof(CheckIsReady))]
     public async Task CheckIsReady([ActivityTrigger] (OrderDetails, IReadOnlyList<AcmeChallengeResult>) input)
     {
         var (orderDetails, challengeResults) = input;
@@ -515,7 +514,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(FinalizeOrder))]
+    [Function(nameof(FinalizeOrder))]
     public async Task<(OrderDetails, RSAParameters)> FinalizeOrder([ActivityTrigger] (IReadOnlyList<string>, OrderDetails) input)
     {
         var (dnsNames, orderDetails) = input;
@@ -532,7 +531,7 @@ public class SharedActivity : ISharedActivity
         return (orderDetails, rsa.ExportParameters(true));
     }
 
-    [FunctionName(nameof(CheckIsValid))]
+    [Function(nameof(CheckIsValid))]
     public async Task<OrderDetails> CheckIsValid([ActivityTrigger] OrderDetails orderDetails)
     {
         var acmeProtocolClient = await _acmeProtocolClientFactory.CreateClientAsync();
@@ -554,7 +553,7 @@ public class SharedActivity : ISharedActivity
         return orderDetails;
     }
 
-    [FunctionName(nameof(UploadCertificate))]
+    [Function(nameof(UploadCertificate))]
     public async Task<CertificateItem> UploadCertificate([ActivityTrigger] (string, string, bool, OrderDetails, RSAParameters) input)
     {
         var (id, dnsName, forceDns01Challenge, orderDetails, rsaParameters) = input;
@@ -624,7 +623,7 @@ public class SharedActivity : ISharedActivity
         return CertificateItem.Create(result.Value.Data);
     }
 
-    [FunctionName(nameof(UpdateSiteBinding))]
+    [Function(nameof(UpdateSiteBinding))]
     public async Task UpdateSiteBinding([ActivityTrigger] (string, IReadOnlyList<string>, string, bool?) input)
     {
         var (id, dnsNames, thumbprint, useIpBasedSsl) = input;
@@ -680,7 +679,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(CleanupDnsChallenge))]
+    [Function(nameof(CleanupDnsChallenge))]
     public async Task CleanupDnsChallenge([ActivityTrigger] IReadOnlyList<AcmeChallengeResult> challengeResults)
     {
         // Azure DNS zone の一覧を取得する
@@ -706,7 +705,7 @@ public class SharedActivity : ISharedActivity
         }
     }
 
-    [FunctionName(nameof(CleanupVirtualApplication))]
+    [Function(nameof(CleanupVirtualApplication))]
     public Task CleanupVirtualApplication([ActivityTrigger] string id)
     {
         // Disabled entirely: no virtual application is created (challenge responses are
@@ -714,7 +713,7 @@ public class SharedActivity : ISharedActivity
         return Task.CompletedTask;
     }
 
-    [FunctionName(nameof(DeleteCertificate))]
+    [Function(nameof(DeleteCertificate))]
     public async Task DeleteCertificate([ActivityTrigger] string id)
     {
         var certificateResource = _armClient.GetAppCertificateResource(new ResourceIdentifier(id));
@@ -722,11 +721,21 @@ public class SharedActivity : ISharedActivity
         await certificateResource.DeleteAsync(WaitUntil.Completed);
     }
 
-    [FunctionName(nameof(SendCompletedEvent))]
+    [Function(nameof(SendCompletedEvent))]
     public async Task SendCompletedEvent([ActivityTrigger] (WebSiteItem, DateTimeOffset?, IReadOnlyList<string>) input)
     {
         var (site, expirationDate, dnsNames) = input;
 
         await _webhookInvoker.SendCompletedEventAsync(site.Name, site.SlotName, expirationDate, dnsNames);
+    }
+
+    [Function(nameof(SendFailedEvent))]
+    public async Task SendFailedEvent([ActivityTrigger] (string, string) input)
+    {
+        // Replaces the in-process ILifeCycleNotificationHelper failure hook, which has
+        // no isolated-worker equivalent; orchestrators call this from their catch blocks.
+        var (functionName, reason) = input;
+
+        await _webhookInvoker.SendFailedEventAsync(functionName, reason);
     }
 }

@@ -13,6 +13,7 @@
   },
   "extensions": {
     "durableTask": {
+      "hubName": "%AcmebotTaskHub%",
       "useGracefulShutdown": true,
       "useTablePartitionManagement": true
     },

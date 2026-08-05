@@ -1,21 +1,19 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 
-using DurableTask.Core;
-
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.DurableTask.Client;
 
 namespace AppService.Acmebot.Functions;
 
 public class PurgeInstanceHistory
 {
-    [FunctionName($"{nameof(PurgeInstanceHistory)}_{nameof(Timer)}")]
-    public Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] IDurableClient starter)
+    [Function($"{nameof(PurgeInstanceHistory)}_{nameof(Timer)}")]
+    public Task Timer([TimerTrigger("0 0 0 1 * *")] TimerInfo timer, [DurableClient] DurableTaskClient starter)
     {
-        return starter.PurgeInstanceHistoryAsync(
-            DateTime.MinValue,
-            DateTime.UtcNow.AddMonths(-1),
-            new[] { OrchestrationStatus.Completed, OrchestrationStatus.Failed });
+        return starter.PurgeAllInstancesAsync(new PurgeInstancesFilter(
+            CreatedFrom: DateTimeOffset.MinValue,
+            CreatedTo: DateTimeOffset.UtcNow.AddMonths(-1),
+            Statuses: new[] { OrchestrationRuntimeStatus.Completed, OrchestrationRuntimeStatus.Failed }));
     }
 }

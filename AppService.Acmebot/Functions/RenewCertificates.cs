@@ -1,27 +1,26 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Models;
 
-using DurableTask.TypedProxy;
-
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Functions;
 
 public class RenewCertificates
 {
-    [FunctionName($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}")]
-    public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+    [Function($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}")]
+    public async Task Orchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-        var activity = context.CreateActivityProxy<ISharedActivity>();
+        var log = context.CreateReplaySafeLogger<RenewCertificates>();
 
         // 期限切れまで 30 日以内の証明書を取得する
-        var certificates = await activity.GetExpiringCertificates(context.CurrentUtcDateTime);
+        var certificates = await context.GetExpiringCertificates(context.CurrentUtcDateTime);
 
         // 更新対象となる証明書がない場合は終わる
         if (certificates.Count == 0)
@@ -42,17 +41,17 @@ public class RenewCertificates
         await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
 
         // リソースグループ単位で証明書の更新を行う
-        var resourceGroups = await activity.GetResourceGroups();
+        var resourceGroups = await context.GetResourceGroups();
 
         foreach (var resourceGroup in resourceGroups)
         {
             // App Service を取得
-            var webSites = await activity.GetWebSites(resourceGroup.Name);
+            var webSites = await context.GetWebSites(resourceGroup.Name);
 
             // サイト単位で証明書の更新を行う
             foreach (var webSite in webSites)
             {
-                var webSiteSlots = await activity.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
+                var webSiteSlots = await context.GetWebSiteSlots((resourceGroup.Name, webSite.Name));
 
                 foreach (var webSiteSlot in webSiteSlots.Prepend(webSite).Where(x => x.IsRunning))
                 {
@@ -82,12 +81,12 @@ public class RenewCertificates
         }
     }
 
-    [FunctionName($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}")]
-    public async Task SubOrchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+    [Function($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}")]
+    public async Task SubOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-        var (webSite, certificates) = context.GetInput<(WebSiteItem, CertificateItem[])>();
+        var log = context.CreateReplaySafeLogger<RenewCertificates>();
 
-        var activity = context.CreateActivityProxy<ISharedActivity>();
+        var (webSite, certificates) = context.GetInput<(WebSiteItem, CertificateItem[])>();
 
         log.LogInformation($"Site name: {webSite.Name}");
 
@@ -116,12 +115,12 @@ public class RenewCertificates
                     var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
 
                     // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorWithRetryAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), _retryOptions, (webSite, dnsNames, forceDns01Challenge));
+                    var newCertificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (webSite, dnsNames, forceDns01Challenge), _issueRetryOptions);
 
-                    await activity.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
+                    await context.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
 
                     // 証明書の更新が完了後に Webhook を送信する
-                    await activity.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
+                    await context.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
                 }
                 catch (Exception ex)
                 {
@@ -129,27 +128,32 @@ public class RenewCertificates
                     // Do not let individual renewal failures block other renewals.
                     log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
                     log.LogError(ex.Message);
+
+                    // Replaces the in-process lifecycle-notification webhook on orchestration failure.
+                    await context.SendFailedEvent(($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", $"{certificate.SubjectName}: {ex.Message}"));
                 }
             }
         }
         finally
         {
             // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(webSite.Id);
+            await context.CleanupVirtualApplication(webSite.Id);
         }
     }
 
-    [FunctionName($"{nameof(RenewCertificates)}_{nameof(Timer)}")]
-    public async Task Timer([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [DurableClient] IDurableClient starter, ILogger log)
+    [Function($"{nameof(RenewCertificates)}_{nameof(Timer)}")]
+    public async Task Timer([TimerTrigger("0 0 0 * * *")] TimerInfo timer, [DurableClient] DurableTaskClient starter, FunctionContext functionContext)
     {
+        var log = functionContext.GetLogger<RenewCertificates>();
+
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}");
+        var instanceId = await starter.ScheduleNewOrchestrationInstanceAsync($"{nameof(RenewCertificates)}_{nameof(Orchestrator)}");
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
     }
 
-    private readonly RetryOptions _retryOptions = new(TimeSpan.FromHours(3), 2)
+    private static readonly TaskOptions _issueRetryOptions = TaskOptions.FromRetryPolicy(new RetryPolicy(2, TimeSpan.FromHours(3))
     {
-        Handle = ex => ex.InnerException?.InnerException is RetriableOrchestratorException
-    };
+        HandleFailure = failure => failure.IsCausedBy<RetriableOrchestratorException>()
+    });
 }

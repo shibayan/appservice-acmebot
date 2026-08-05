@@ -11,11 +11,10 @@ on:
 
 env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
-  # SDK 9 is required to restore: the SDK 8 NuGet resolver rejects (NU1107) the
-  # Microsoft.Extensions.Logging constraint mismatch between the ACMESharpCore
-  # submodule and Durable Task, which SDK 9 tolerates (NU1608). The app still
-  # targets net8.0.
-  DOTNET_VERSION: '9.0.x'
+  # SDK 10 builds the net10.0 isolated-worker target. Do not downgrade below 9:
+  # the SDK 8 NuGet resolver rejects (NU1107) the Microsoft.Extensions.Logging
+  # constraint mismatch between the ACMESharpCore submodule and Durable Task.
+  DOTNET_VERSION: '10.0.x'
 
 jobs:
   build-and-deploy:

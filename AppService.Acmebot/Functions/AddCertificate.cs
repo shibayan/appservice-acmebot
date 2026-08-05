@@ -1,37 +1,31 @@
-﻿using System.Linq;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
-using Azure.WebJobs.Extensions.HttpApi;
-
-using DurableTask.TypedProxy;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Functions;
 
-public class AddCertificate : HttpFunctionBase
+public class AddCertificate
 {
-    public AddCertificate(IHttpContextAccessor httpContextAccessor)
-        : base(httpContextAccessor)
+    [Function($"{nameof(AddCertificate)}_{nameof(Orchestrator)}")]
+    public async Task Orchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
-    }
+        var log = context.CreateReplaySafeLogger<AddCertificate>();
 
-    [FunctionName($"{nameof(AddCertificate)}_{nameof(Orchestrator)}")]
-    public async Task Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
-    {
         var request = context.GetInput<AddCertificateRequest>();
 
-        var activity = context.CreateActivityProxy<ISharedActivity>();
-
-        var webSite = await activity.GetWebSite((request.ResourceGroupName, request.WebSiteName, request.SlotName));
+        var webSite = await context.GetWebSite((request.ResourceGroupName, request.WebSiteName, request.SlotName));
 
         if (webSite is null)
         {
@@ -61,70 +55,100 @@ public class AddCertificate : HttpFunctionBase
             var certificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (webSite, asciiDnsNames, request.ForceDns01Challenge ?? false));
 
             // App Service のホスト名に証明書をセットする
-            await activity.UpdateSiteBinding((webSite.Id, request.DnsNames, certificate.Thumbprint, request.UseIpBasedSsl));
+            await context.UpdateSiteBinding((webSite.Id, request.DnsNames, certificate.Thumbprint, request.UseIpBasedSsl));
 
             // 証明書の更新が完了後に Webhook を送信する
-            await activity.SendCompletedEvent((webSite, certificate.ExpirationOn, asciiDnsNames));
+            await context.SendCompletedEvent((webSite, certificate.ExpirationOn, asciiDnsNames));
+        }
+        catch (Exception ex)
+        {
+            // Replaces the in-process lifecycle-notification webhook on orchestration failure.
+            await context.SendFailedEvent(($"{nameof(AddCertificate)}_{nameof(Orchestrator)}", ex.Message));
+
+            throw;
         }
         finally
         {
             // クリーンアップ処理を実行
-            await activity.CleanupVirtualApplication(webSite.Id);
+            await context.CleanupVirtualApplication(webSite.Id);
         }
     }
 
-    [FunctionName($"{nameof(AddCertificate)}_{nameof(HttpStart)}")]
+    [Function($"{nameof(AddCertificate)}_{nameof(HttpStart)}")]
     public async Task<IActionResult> HttpStart(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "api/certificate")] AddCertificateRequest request,
-        [DurableClient] IDurableClient starter,
-        ILogger log)
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "api/certificate")] HttpRequest req,
+        [DurableClient] DurableTaskClient starter,
+        FunctionContext functionContext)
     {
-        if (!User.IsAppAuthorized())
+        var log = functionContext.GetLogger<AddCertificate>();
+
+        if (!req.IsAppAuthorized())
         {
-            return Unauthorized();
+            return new UnauthorizedResult();
         }
 
-        if (!TryValidateModel(request))
+        AddCertificateRequest request;
+
+        try
         {
-            return ValidationProblem(ModelState);
+            request = await req.ReadFromJsonAsync<AddCertificateRequest>();
+        }
+        catch (Exception)
+        {
+            return new BadRequestObjectResult("Request body is not valid JSON.");
+        }
+
+        if (request is null)
+        {
+            return new BadRequestObjectResult("Request body is required.");
+        }
+
+        var validationResults = new List<ValidationResult>();
+
+        if (!Validator.TryValidateObject(request, new ValidationContext(request), validationResults, validateAllProperties: true))
+        {
+            return new BadRequestObjectResult(validationResults.Select(x => x.ErrorMessage));
         }
 
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync($"{nameof(AddCertificate)}_{nameof(Orchestrator)}", request);
+        var instanceId = await starter.ScheduleNewOrchestrationInstanceAsync($"{nameof(AddCertificate)}_{nameof(Orchestrator)}", request);
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-        return AcceptedAtFunction($"{nameof(AddCertificate)}_{nameof(HttpPoll)}", new { instanceId }, null);
+        return new AcceptedResult($"/api/certificate/{instanceId}", null);
     }
 
-    [FunctionName($"{nameof(AddCertificate)}_{nameof(HttpPoll)}")]
+    [Function($"{nameof(AddCertificate)}_{nameof(HttpPoll)}")]
     public async Task<IActionResult> HttpPoll(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "api/certificate/{instanceId}")] HttpRequest req,
         string instanceId,
-        [DurableClient] IDurableClient starter)
+        [DurableClient] DurableTaskClient starter)
     {
-        if (!User.IsAppAuthorized())
+        if (!req.IsAppAuthorized())
         {
-            return Unauthorized();
+            return new UnauthorizedResult();
         }
 
-        var status = await starter.GetStatusAsync(instanceId);
+        var metadata = await starter.GetInstanceAsync(instanceId);
 
-        if (status is null)
+        if (metadata is null)
         {
-            return BadRequest();
+            return new BadRequestResult();
         }
 
-        if (status.RuntimeStatus == OrchestrationRuntimeStatus.Failed)
+        if (metadata.RuntimeStatus == OrchestrationRuntimeStatus.Failed)
         {
-            return Problem(status.Output.ToString());
+            return new ObjectResult(metadata.FailureDetails?.ErrorMessage ?? "Orchestration failed.")
+            {
+                StatusCode = StatusCodes.Status500InternalServerError
+            };
         }
 
-        if (status.RuntimeStatus is OrchestrationRuntimeStatus.Running or OrchestrationRuntimeStatus.Pending or OrchestrationRuntimeStatus.ContinuedAsNew)
+        if (metadata.RuntimeStatus is OrchestrationRuntimeStatus.Running or OrchestrationRuntimeStatus.Pending or OrchestrationRuntimeStatus.Suspended)
         {
-            return AcceptedAtFunction($"{nameof(AddCertificate)}_{nameof(HttpPoll)}", new { instanceId }, null);
+            return new AcceptedResult($"/api/certificate/{instanceId}", null);
         }
 
-        return Ok();
+        return new OkResult();
     }
 }

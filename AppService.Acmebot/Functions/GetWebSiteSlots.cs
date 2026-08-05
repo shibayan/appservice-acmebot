@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -6,38 +6,27 @@ using System.Threading.Tasks;
 using AppService.Acmebot.Internal;
 using AppService.Acmebot.Models;
 
-using Azure.WebJobs.Extensions.HttpApi;
-
-using DurableTask.TypedProxy;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.DurableTask;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.DurableTask;
+using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 
 namespace AppService.Acmebot.Functions;
 
-public class GetWebSiteSlots : HttpFunctionBase
+public class GetWebSiteSlots
 {
-    public GetWebSiteSlots(IHttpContextAccessor httpContextAccessor)
-        : base(httpContextAccessor)
-    {
-    }
-
-    [FunctionName($"{nameof(GetWebSiteSlots)}_{nameof(Orchestrator)}")]
-    public async Task<IReadOnlyList<WebSiteItem>> Orchestrator([OrchestrationTrigger] IDurableOrchestrationContext context)
+    [Function($"{nameof(GetWebSiteSlots)}_{nameof(Orchestrator)}")]
+    public async Task<IReadOnlyList<WebSiteItem>> Orchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
         var (resourceGroupName, webSiteName) = context.GetInput<(string, string)>();
 
-        var activity = context.CreateActivityProxy<ISharedActivity>();
-
-        var certificates = await activity.GetAllCertificates();
+        var certificates = await context.GetAllCertificates();
 
         // App Service を取得
-        var site = await activity.GetWebSite((resourceGroupName, webSiteName, "production"));
-        var sites = await activity.GetWebSiteSlots((resourceGroupName, webSiteName));
+        var site = await context.GetWebSite((resourceGroupName, webSiteName, "production"));
+        var sites = await context.GetWebSiteSlots((resourceGroupName, webSiteName));
 
         var webSites = sites.Prepend(site).Where(x => x.IsRunning && x.HasCustomDomain).ToArray();
 
@@ -49,24 +38,26 @@ public class GetWebSiteSlots : HttpFunctionBase
         return webSites;
     }
 
-    [FunctionName($"{nameof(GetWebSiteSlots)}_{nameof(HttpStart)}")]
+    [Function($"{nameof(GetWebSiteSlots)}_{nameof(HttpStart)}")]
     public async Task<IActionResult> HttpStart(
         [HttpTrigger(AuthorizationLevel.Function, "get", Route = "api/group/{resourceGroupName}/site/{webSiteName}/slot")] HttpRequest req,
         string resourceGroupName,
         string webSiteName,
-        [DurableClient] IDurableClient starter,
-        ILogger log)
+        [DurableClient] DurableTaskClient starter,
+        FunctionContext functionContext)
     {
-        if (!User.IsAppAuthorized())
+        var log = functionContext.GetLogger<GetWebSiteSlots>();
+
+        if (!req.IsAppAuthorized())
         {
-            return Unauthorized();
+            return new UnauthorizedResult();
         }
 
         // Function input comes from the request content.
-        var instanceId = await starter.StartNewAsync($"{nameof(GetWebSiteSlots)}_{nameof(Orchestrator)}", null, (resourceGroupName, webSiteName));
+        var instanceId = await starter.ScheduleNewOrchestrationInstanceAsync($"{nameof(GetWebSiteSlots)}_{nameof(Orchestrator)}", (resourceGroupName, webSiteName));
 
         log.LogInformation($"Started orchestration with ID = '{instanceId}'.");
 
-        return await starter.WaitForCompletionOrCreateCheckStatusResponseAsync(req, instanceId, TimeSpan.FromMinutes(1), returnInternalServerErrorOnFailure: true);
+        return await starter.WaitForCompletionResultAsync(instanceId, TimeSpan.FromMinutes(1));
     }
 }
