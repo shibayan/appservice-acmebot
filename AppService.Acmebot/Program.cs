@@ -14,13 +14,11 @@ using Azure.Storage.Blobs;
 
 using DnsClient;
 
+using Azure.Core.Serialization;
+
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
-using Microsoft.DurableTask;
-using Microsoft.DurableTask.Client;
-using Microsoft.DurableTask.Converters;
-using Microsoft.DurableTask.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -37,18 +35,21 @@ builder.Services.AddOptions<AcmebotOptions>()
        .Bind(section.Exists() ? section : builder.Configuration.GetSection("LetsEncrypt"))
        .ValidateDataAnnotations();
 
-// Durable Task serialization: orchestration inputs/outputs use ValueTuples, whose
-// members are fields - System.Text.Json skips them unless IncludeFields is set.
+// Worker serialization: orchestration/activity inputs and outputs use ValueTuples,
+// whose members are fields - System.Text.Json skips them unless IncludeFields is set
+// (without it, activity tuple inputs silently deserialize to nulls). The Durable Task
+// extension derives its data converter from this worker serializer, so configuring it
+// here covers orchestrations, activities, and the durable client alike.
 // CamelCase matches the Newtonsoft-era [JsonProperty] names on the models, which the
 // add-certificate UI reads from the orchestrator outputs passed through over HTTP.
-var durableSerializerOptions = new JsonSerializerOptions
+builder.Services.Configure<WorkerOptions>(options =>
 {
-    IncludeFields = true,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-};
-
-builder.Services.Configure<DurableTaskWorkerOptions>(options => options.DataConverter = new JsonDataConverter(durableSerializerOptions));
-builder.Services.Configure<DurableTaskClientOptions>(options => options.DataConverter = new JsonDataConverter(durableSerializerOptions));
+    options.Serializer = new JsonObjectSerializer(new JsonSerializerOptions
+    {
+        IncludeFields = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    });
+});
 
 // Add Services
 builder.Services.AddApplicationInsightsTelemetryWorkerService();
