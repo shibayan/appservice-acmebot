@@ -42,13 +42,29 @@ builder.Services.AddOptions<AcmebotOptions>()
 // here covers orchestrations, activities, and the durable client alike.
 // CamelCase matches the Newtonsoft-era [JsonProperty] names on the models, which the
 // add-certificate UI reads from the orchestrator outputs passed through over HTTP.
-builder.Services.Configure<WorkerOptions>(options =>
+var serializerOptions = new JsonSerializerOptions
 {
-    options.Serializer = new JsonObjectSerializer(new JsonSerializerOptions
-    {
-        IncludeFields = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    });
+    IncludeFields = true,
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+};
+
+// Serialization must be configured on TWO independent surfaces, or ValueTuple
+// inputs are written correctly but silently read back as nulls somewhere:
+//
+// 1. WorkerOptions.Serializer - used for activity/trigger binding, and the Durable
+//    extension's PostConfigure derives its DataConverter from the WorkerOptions
+//    instance matching its own (named) options instance, so ConfigureAll is required.
+//    Configuring DurableTaskWorkerOptions.DataConverter directly is futile - the
+//    extension's PostConfigure overwrites it unconditionally.
+builder.Services.ConfigureAll<WorkerOptions>(options => options.Serializer = new JsonObjectSerializer(serializerOptions));
+
+// 2. IOptions<JsonSerializerOptions> - FunctionsOrchestrationContext.GetInput uses
+//    this raw DI options instance (NOT the data converter) when the orchestration
+//    input arrives as a JsonElement, e.g. for sub-orchestration inputs.
+builder.Services.Configure<JsonSerializerOptions>(options =>
+{
+    options.IncludeFields = serializerOptions.IncludeFields;
+    options.PropertyNamingPolicy = serializerOptions.PropertyNamingPolicy;
 });
 
 // Add Services
