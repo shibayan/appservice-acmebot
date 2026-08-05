@@ -8,6 +8,7 @@ using AppService.Acmebot.Options;
 using Azure.Core;
 using Azure.Identity;
 using Azure.ResourceManager;
+using Azure.ResourceManager.AppService;
 using Azure.Security.KeyVault.Certificates;
 using Azure.Storage.Blobs;
 
@@ -93,7 +94,14 @@ public class Startup : FunctionsStartup
             var environment = provider.GetRequiredService<AzureEnvironment>();
             var credential = provider.GetRequiredService<TokenCredential>();
 
-            return new ArmClient(credential, options.Value.SubscriptionId, new ArmClientOptions { Environment = environment.ResourceManager });
+            var armClientOptions = new ArmClientOptions { Environment = environment.ResourceManager };
+
+            // The subscription-level Microsoft.Web/certificates list returns only empty pages on
+            // api-versions newer than 2022-03-01 (observed 2026-08-05 in this subscription), which
+            // makes GetExpiringCertificates/GetAllCertificates come back empty and renewals no-op.
+            armClientOptions.SetApiVersion(AppCertificateResource.ResourceType, "2022-03-01");
+
+            return new ArmClient(credential, options.Value.SubscriptionId, armClientOptions);
         });
 
         builder.Services.AddSingleton(provider =>
