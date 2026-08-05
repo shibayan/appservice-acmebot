@@ -31,7 +31,11 @@ jobs:
       shell: pwsh
       run: |
         pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
-        dotnet build --configuration Release --output ./output
+        # Publish the function project only. Building the whole solution with --output
+        # merges the restore graphs of AppService.Acmebot and the ACMESharpCore submodule,
+        # escalating their Microsoft.Extensions.Logging version mismatch to NU1107.
+        # Publish (not build) matches the payload produced by scripts/build-package.ps1.
+        dotnet publish ./AppService.Acmebot/AppService.Acmebot.csproj --configuration Release --output ./output
         popd
 
     - name: 'Run Azure Functions Action'
