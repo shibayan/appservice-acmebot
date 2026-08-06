@@ -34,7 +34,7 @@ internal static class SharedActivityExtensions
     private static readonly TaskOptions BindingRetry = TaskOptions.FromRetryPolicy(new RetryPolicy(20, TimeSpan.FromSeconds(15), 2.0, TimeSpan.FromHours(1)));
 
     public static Task<IReadOnlyList<ResourceGroupItem>> GetResourceGroups(this TaskOrchestrationContext context)
-        => context.CallActivityAsync<IReadOnlyList<ResourceGroupItem>>(nameof(SharedActivity.GetResourceGroups), null);
+        => context.CallActivityAsync<IReadOnlyList<ResourceGroupItem>>(nameof(SharedActivity.GetResourceGroups), (object)null);
 
     public static Task<WebSiteItem> GetWebSite(this TaskOrchestrationContext context, (string, string, string) input)
         => context.CallActivityAsync<WebSiteItem>(nameof(SharedActivity.GetWebSite), input);
@@ -49,7 +49,7 @@ internal static class SharedActivityExtensions
         => context.CallActivityAsync<IReadOnlyList<CertificateItem>>(nameof(SharedActivity.GetExpiringCertificates), currentDateTime);
 
     public static Task<IReadOnlyList<CertificateItem>> GetAllCertificates(this TaskOrchestrationContext context)
-        => context.CallActivityAsync<IReadOnlyList<CertificateItem>>(nameof(SharedActivity.GetAllCertificates), null);
+        => context.CallActivityAsync<IReadOnlyList<CertificateItem>>(nameof(SharedActivity.GetAllCertificates), (object)null);
 
     public static Task<OrderDetails> Order(this TaskOrchestrationContext context, IReadOnlyList<string> dnsNames)
         => context.CallActivityAsync<OrderDetails>(nameof(SharedActivity.Order), dnsNames);
