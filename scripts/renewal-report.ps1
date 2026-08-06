@@ -64,7 +64,10 @@ function Format-Ts {
 function Invoke-AiQuery {
     param([string] $Query)
 
-    $json = az monitor app-insights query --app $AppInsightsComponent -g $ResourceGroup --analytics-query $Query -o json
+    # --offset is essential: az applies its own timespan (default 1h!) that silently
+    # INTERSECTS with any 'where timestamp > ago(...)' in the KQL. Without it, every
+    # query here would only cover the last hour regardless of -WindowHours.
+    $json = az monitor app-insights query --app $AppInsightsComponent -g $ResourceGroup --offset "${WindowHours}h" --analytics-query $Query -o json
     if ($LASTEXITCODE -ne 0) { throw "App Insights query failed." }
 
     $table = ($json | ConvertFrom-Json).tables[0]
