@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -6,6 +6,7 @@ using AppService.Acmebot.Internal;
 using AppService.Acmebot.Options;
 
 using Azure.Core;
+using Azure.Core.Serialization;
 using Azure.Identity;
 using Azure.ResourceManager;
 using Azure.ResourceManager.AppService;
@@ -13,8 +14,6 @@ using Azure.Security.KeyVault.Certificates;
 using Azure.Storage.Blobs;
 
 using DnsClient;
-
-using Azure.Core.Serialization;
 
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Azure.Functions.Worker;
