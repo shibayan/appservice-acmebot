@@ -101,6 +101,9 @@ $failed = Invoke-AiQuery "traces | where timestamp > ago($win) | where message s
 # Endpoint-mismatch skips (certificates this instance will never renew)
 $skipped = Invoke-AiQuery "traces | where timestamp > ago($win) | where message startswith 'Skipping Acmebot-issued certificate' | summarize n = count() by cloud_RoleName, message"
 
+# Precondition fast-skips (grace period / disabled tenant / DNS moved away)
+$preSkips = Invoke-AiQuery "traces | where timestamp > ago($win) | where message startswith 'Skipping renewal for' | project timestamp, cloud_RoleName, message"
+
 # Empty-result runs
 $notFound = Invoke-AiQuery "traces | where timestamp > ago($win) | where message == 'Certificates are not found' | summarize n = count() by cloud_RoleName"
 
@@ -148,7 +151,7 @@ function Resolve-DnsName {
     return $Message
 }
 
-$roles = @($runs + $expiring + $renewed + $failed + $skipped + $notFound | ForEach-Object { $_.cloud_RoleName } | Sort-Object -Unique)
+$roles = @($runs + $expiring + $renewed + $failed + $skipped + $preSkips + $notFound | ForEach-Object { $_.cloud_RoleName } | Sort-Object -Unique)
 
 Write-Host "Acmebot renewal report - last $WindowHours h (generated $(Format-Ts (Get-Date -AsUTC)) UTC)" -ForegroundColor Cyan
 
@@ -166,9 +169,10 @@ foreach ($role in $roles) {
     $n = @($renewed | Where-Object cloud_RoleName -eq $role)
     $f = @($failed | Where-Object cloud_RoleName -eq $role | Sort-Object message -Unique)
     $s = @($skipped | Where-Object cloud_RoleName -eq $role)
+    $p = @($preSkips | Where-Object cloud_RoleName -eq $role | Sort-Object message -Unique)
     $q = @($notFound | Where-Object cloud_RoleName -eq $role)
 
-    Write-Host "Runs started: $($r.Count)   Expiring found: $($e.Count)   Renewed: $($n.Count)   Failures: $($f.Count)   Empty runs: $(($q | Measure-Object -Sum n).Sum ?? 0)"
+    Write-Host "Runs started: $($r.Count)   Expiring found: $($e.Count)   Renewed: $($n.Count)   Failures: $($f.Count)   Fast-skipped: $($p.Count)   Empty runs: $(($q | Measure-Object -Sum n).Sum ?? 0)"
 
     if ($n) {
         Write-Host 'Renewed:' -ForegroundColor Green
@@ -179,6 +183,13 @@ foreach ($role in $roles) {
     if ($f) {
         Write-Host 'Failures:' -ForegroundColor Red
         $f | ForEach-Object { "  {0}  {1}" -f (Format-Ts ([datetime]$_.timestamp)), (Resolve-DnsName $_.message) }
+    }
+
+    if ($p) {
+        # Precondition fast-skips carry their own classification (402 grace period,
+        # 403 disabled tenant, CNAME mismatch) - useful as a zombie cleanup worklist.
+        Write-Host 'Fast-skipped (renewal preconditions):' -ForegroundColor Yellow
+        $p | ForEach-Object { "  $($_.message -replace '^Skipping renewal for ', '')" }
     }
 
     if ($e) {
