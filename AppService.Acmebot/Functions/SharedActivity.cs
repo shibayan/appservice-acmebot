@@ -738,4 +738,68 @@ public class SharedActivity
 
         await _webhookInvoker.SendFailedEventAsync(functionName, reason);
     }
+
+    [Function(nameof(CheckRenewalPreconditions))]
+    public async Task<string> CheckRenewalPreconditions([ActivityTrigger] IReadOnlyList<string> dnsNames)
+    {
+        // Fast-skip checks for renewals that cannot or should not proceed, so they do not
+        // cost minutes of challenge retries. Returns a skip reason, or null to proceed.
+        // Both checks fail OPEN: only definitive signals suppress a renewal.
+        var requiredCnameTargets = (_options.RequiredCnameTargets ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var dnsName in dnsNames)
+        {
+            // Wildcard names cannot be probed directly
+            if (dnsName.StartsWith("*"))
+            {
+                continue;
+            }
+
+            // Domains are onboarded with a CNAME pointing at us (e.g. idp.criipto.io); a chain
+            // that no longer includes any configured target means the customer moved away and
+            // challenge validation cannot succeed.
+            if (requiredCnameTargets.Length > 0)
+            {
+                var queryResult = await _lookupClient.QueryAsync(dnsName, QueryType.CNAME);
+
+                var chain = queryResult.Answers
+                                       .OfType<DnsClient.Protocol.CNameRecord>()
+                                       .Select(x => x.CanonicalName.Value.TrimEnd('.'))
+                                       .ToArray();
+
+                if (!chain.Any(x => requiredCnameTargets.Contains(x, StringComparer.OrdinalIgnoreCase)))
+                {
+                    return $"{dnsName} does not CNAME through any of [{string.Join(",", requiredCnameTargets)}] (chain: [{string.Join(",", chain)}])";
+                }
+            }
+
+            // Product contract: /.well-known/jwks answers 402 for tenants in a payment grace
+            // period and 403 for disabled/unknown tenants; both mean a renewal is pointless.
+            // Any other outcome (200, 5xx, timeouts, TLS errors) proceeds as usual.
+            try
+            {
+                var insecureHttpClient = _httpClientFactory.CreateClient("InSecure");
+
+                var response = await insecureHttpClient.GetAsync($"https://{dnsName}/.well-known/jwks");
+
+                if (response.StatusCode == System.Net.HttpStatusCode.PaymentRequired)
+                {
+                    return $"{dnsName} is in a payment grace period (jwks probe returned 402)";
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return $"{dnsName} tenant is disabled or unknown (jwks probe returned 403)";
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                // Unreachable/timed out - not a definitive signal, proceed with the renewal.
+                _logger.LogInformation($"jwks probe for {dnsName} inconclusive ({ex.GetType().Name}); proceeding with renewal.");
+            }
+        }
+
+        return null;
+    }
 }

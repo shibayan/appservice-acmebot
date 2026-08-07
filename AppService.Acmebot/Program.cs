@@ -73,7 +73,13 @@ builder.Services.ConfigureFunctionsApplicationInsights();
 builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer>();
 
 builder.Services.AddHttpClient();
-builder.Services.AddHttpClient("InSecure")
+builder.Services.AddHttpClient("InSecure", client =>
+       {
+           // Bound tightly: this client probes hosts that may be unresponsive (moved-away
+           // DNS); the default 100 s timeout would otherwise multiply across challenge
+           // retries into many minutes per dead host.
+           client.Timeout = TimeSpan.FromSeconds(10);
+       })
        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
        {
            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator

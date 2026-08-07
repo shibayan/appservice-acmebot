@@ -20,6 +20,10 @@ public class AcmebotOptions
     [Required]
     public string StorageSasUri { get; set; }
 
+    // Comma-separated CNAME targets a hostname must resolve through for a renewal to
+    // proceed (e.g. "idp.criipto.io"). Empty/absent disables the DNS precondition check.
+    public string RequiredCnameTargets { get; set; }
+
     [Url]
     public string Webhook { get; set; }
 

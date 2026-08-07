@@ -92,52 +92,83 @@ public class RenewCertificates
 
         try
         {
-            // 証明書単位で更新を行う
-            foreach (var certificate in certificates)
-            {
-                try
-                {
-                    log.LogInformation($"Subject name: {certificate.SubjectName}");
+            // 証明書単位で更新を行う (in parallel, so one slow or retrying renewal never
+            // delays the others; still-valid certificates are scheduled before expired ones)
+            var renewals = certificates
+                .OrderBy(x => x.ExpirationOn < context.CurrentUtcDateTime)
+                .ThenBy(x => x.ExpirationOn)
+                .Select(certificate => context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}", (webSite, certificate)))
+                .ToArray();
 
-                    // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
-                    var dnsNames = certificate.HostNames
-                                              .Where(x => !x.Contains(" (") && webSite.HostNames.Any(xs => xs.Name == x))
-                                              .ToArray();
-
-                    // 更新対象の DNS 名が空の時はログを出して終了
-                    if (dnsNames.Length == 0)
-                    {
-                        log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", webSite.HostNames.Select(x => x.Name))}");
-
-                        continue;
-                    }
-
-                    var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
-
-                    // 証明書を発行し Azure にアップロード
-                    var newCertificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (webSite, dnsNames, forceDns01Challenge), _issueRetryOptions);
-
-                    await context.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
-
-                    // 証明書の更新が完了後に Webhook を送信する
-                    await context.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
-                }
-                catch (Exception ex)
-                {
-                    // Observed on a domain where the DNS setup had been changed to point to a completely different system.
-                    // Do not let individual renewal failures block other renewals.
-                    log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
-                    log.LogError(ex.Message);
-
-                    // Replaces the in-process lifecycle-notification webhook on orchestration failure.
-                    await context.SendFailedEvent(($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", $"{certificate.SubjectName}: {ex.Message}"));
-                }
-            }
+            await Task.WhenAll(renewals);
+        }
+        catch (Exception ex)
+        {
+            // Individual failures are handled (and webhooked) inside CertOrchestrator;
+            // this only catches unexpected fan-out failures.
+            log.LogError($"Unexpected renewal fan-out failure for site {webSite.Name}: {ex.Message}");
         }
         finally
         {
             // クリーンアップ処理を実行
             await context.CleanupVirtualApplication(webSite.Id);
+        }
+    }
+
+    [Function($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}")]
+    public async Task CertOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    {
+        var log = context.CreateReplaySafeLogger<RenewCertificates>();
+
+        var (webSite, certificate) = context.GetInput<(WebSiteItem, CertificateItem)>();
+
+        try
+        {
+            log.LogInformation($"Subject name: {certificate.SubjectName}");
+
+            // IDN に対して証明書を発行すると SANs に Punycode 前の DNS 名が入るので除外
+            var dnsNames = certificate.HostNames
+                                      .Where(x => !x.Contains(" (") && webSite.HostNames.Any(xs => xs.Name == x))
+                                      .ToArray();
+
+            // 更新対象の DNS 名が空の時はログを出して終了
+            if (dnsNames.Length == 0)
+            {
+                log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", webSite.HostNames.Select(x => x.Name))}");
+
+                return;
+            }
+
+            // Fast-skip renewals that cannot or should not proceed (grace-period or
+            // disabled tenants, DNS no longer pointing at us) before the ACME dance.
+            var skipReason = await context.CheckRenewalPreconditions(dnsNames);
+
+            if (skipReason is not null)
+            {
+                log.LogWarning($"Skipping renewal for {string.Join(",", dnsNames)}: {skipReason}");
+
+                return;
+            }
+
+            var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
+
+            // 証明書を発行し Azure にアップロード
+            var newCertificate = await context.CallSubOrchestratorAsync<CertificateItem>(nameof(SharedOrchestrator.IssueCertificate), (webSite, dnsNames, forceDns01Challenge), _issueRetryOptions);
+
+            await context.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
+
+            // 証明書の更新が完了後に Webhook を送信する
+            await context.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
+        }
+        catch (Exception ex)
+        {
+            // Observed on a domain where the DNS setup had been changed to point to a completely different system.
+            // Do not let individual renewal failures block other renewals.
+            log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
+            log.LogError(ex.Message);
+
+            // Replaces the in-process lifecycle-notification webhook on orchestration failure.
+            await context.SendFailedEvent(($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}", $"{certificate.SubjectName}: {ex.Message}"));
         }
     }
 
