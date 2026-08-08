@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,8 @@ public class RenewCertificates
     {
         var log = context.CreateReplaySafeLogger<RenewCertificates>();
 
+        var startedAt = context.CurrentUtcDateTime;
+
         // 期限切れまで 30 日以内の証明書を取得する
         var certificates = await context.GetExpiringCertificates(context.CurrentUtcDateTime);
 
@@ -26,6 +29,19 @@ public class RenewCertificates
         if (certificates.Count == 0)
         {
             log.LogInformation("Certificates are not found");
+
+            // The digest includes the full inventory count so a silently empty
+            // certificate list (seen once with an api-version regression) is
+            // distinguishable from a genuinely quiet night.
+            var inventory = await context.GetAllCertificates();
+
+            await SendRenewalSummarySafe(context, log, new RenewalRunSummary
+            {
+                ExpiringCount = 0,
+                InventoryCount = inventory.Count,
+                DurationMinutes = (context.CurrentUtcDateTime - startedAt).TotalMinutes,
+                Results = Array.Empty<CertificateRenewalResult>()
+            });
 
             return;
         }
@@ -42,6 +58,8 @@ public class RenewCertificates
 
         // リソースグループ単位で証明書の更新を行う
         var resourceGroups = await context.GetResourceGroups();
+
+        var results = new List<CertificateRenewalResult>();
 
         foreach (var resourceGroup in resourceGroups)
         {
@@ -68,21 +86,50 @@ public class RenewCertificates
                     try
                     {
                         // 証明書の更新処理を開始
-                        await context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", (webSiteSlot, boundCertificates));
+                        var subResults = await context.CallSubOrchestratorAsync<IReadOnlyList<CertificateRenewalResult>>($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}", (webSiteSlot, boundCertificates));
+
+                        results.AddRange(subResults);
                     }
                     catch (Exception ex)
                     {
                         // 失敗した場合はログに詳細を書き出して続きを実行する
                         log.LogError($"Failed sub orchestration with Certificates = {string.Join(",", boundCertificates.Select(x => x.Thumbprint))}");
                         log.LogError(ex.Message);
+
+                        results.Add(new CertificateRenewalResult
+                        {
+                            DnsNames = string.Join(",", boundCertificates.Select(x => x.SubjectName)),
+                            Outcome = CertificateRenewalResult.Failed,
+                            Detail = $"site fan-out failure on {webSiteSlot.Name}: {ex.Message}"
+                        });
                     }
                 }
             }
         }
+
+        await SendRenewalSummarySafe(context, log, new RenewalRunSummary
+        {
+            ExpiringCount = certificates.Count,
+            DurationMinutes = (context.CurrentUtcDateTime - startedAt).TotalMinutes,
+            Results = results
+        });
+    }
+
+    private static async Task SendRenewalSummarySafe(TaskOrchestrationContext context, ILogger log, RenewalRunSummary summary)
+    {
+        try
+        {
+            await context.SendRenewalSummary(summary);
+        }
+        catch (Exception ex)
+        {
+            // The digest is best-effort and must never fail the run itself.
+            log.LogError($"Failed to send renewal digest: {ex.Message}");
+        }
     }
 
     [Function($"{nameof(RenewCertificates)}_{nameof(SubOrchestrator)}")]
-    public async Task SubOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    public async Task<IReadOnlyList<CertificateRenewalResult>> SubOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
         var log = context.CreateReplaySafeLogger<RenewCertificates>();
 
@@ -90,22 +137,25 @@ public class RenewCertificates
 
         log.LogInformation($"Site name: {webSite.Name}");
 
+        // 証明書単位で更新を行う (in parallel, so one slow or retrying renewal never
+        // delays the others; still-valid certificates are scheduled before expired ones)
+        var ordered = certificates
+            .OrderBy(x => x.ExpirationOn < context.CurrentUtcDateTime)
+            .ThenBy(x => x.ExpirationOn)
+            .ToArray();
+
+        var renewals = ordered
+            .Select(certificate => context.CallSubOrchestratorAsync<CertificateRenewalResult>($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}", (webSite, certificate)))
+            .ToArray();
+
         try
         {
-            // 証明書単位で更新を行う (in parallel, so one slow or retrying renewal never
-            // delays the others; still-valid certificates are scheduled before expired ones)
-            var renewals = certificates
-                .OrderBy(x => x.ExpirationOn < context.CurrentUtcDateTime)
-                .ThenBy(x => x.ExpirationOn)
-                .Select(certificate => context.CallSubOrchestratorAsync($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}", (webSite, certificate)))
-                .ToArray();
-
             await Task.WhenAll(renewals);
         }
         catch (Exception ex)
         {
-            // Individual failures are handled (and webhooked) inside CertOrchestrator;
-            // this only catches unexpected fan-out failures.
+            // Individual failures are handled inside CertOrchestrator and reported per
+            // task below; this only catches unexpected fan-out failures.
             log.LogError($"Unexpected renewal fan-out failure for site {webSite.Name}: {ex.Message}");
         }
         finally
@@ -113,10 +163,26 @@ public class RenewCertificates
             // クリーンアップ処理を実行
             await context.CleanupVirtualApplication(webSite.Id);
         }
+
+        var results = new List<CertificateRenewalResult>(ordered.Length);
+
+        for (var i = 0; i < ordered.Length; i++)
+        {
+            results.Add(renewals[i].IsCompletedSuccessfully
+                ? renewals[i].Result
+                : new CertificateRenewalResult
+                {
+                    DnsNames = ordered[i].SubjectName,
+                    Outcome = CertificateRenewalResult.Failed,
+                    Detail = renewals[i].Exception?.GetBaseException().Message ?? "unexpected fan-out failure"
+                });
+        }
+
+        return results;
     }
 
     [Function($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}")]
-    public async Task CertOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
+    public async Task<CertificateRenewalResult> CertOrchestrator([OrchestrationTrigger] TaskOrchestrationContext context)
     {
         var log = context.CreateReplaySafeLogger<RenewCertificates>();
 
@@ -136,7 +202,12 @@ public class RenewCertificates
             {
                 log.LogWarning($"DnsNames are empty. Certificate HostNames: {string.Join(",", certificate.HostNames)}, Site HostNames: {string.Join(",", webSite.HostNames.Select(x => x.Name))}");
 
-                return;
+                return new CertificateRenewalResult
+                {
+                    DnsNames = certificate.SubjectName,
+                    Outcome = CertificateRenewalResult.Skipped,
+                    Detail = "no certificate host names bound to the site"
+                };
             }
 
             // Fast-skip renewals that cannot or should not proceed (grace-period or
@@ -147,7 +218,12 @@ public class RenewCertificates
             {
                 log.LogWarning($"Skipping renewal for {string.Join(",", dnsNames)}: {skipReason}");
 
-                return;
+                return new CertificateRenewalResult
+                {
+                    DnsNames = string.Join(",", dnsNames),
+                    Outcome = CertificateRenewalResult.Skipped,
+                    Detail = skipReason
+                };
             }
 
             var forceDns01Challenge = certificate.Tags.TryGetValue("ForceDns01Challenge", out var value) && bool.Parse(value);
@@ -157,8 +233,12 @@ public class RenewCertificates
 
             await context.UpdateSiteBinding((webSite.Id, dnsNames, newCertificate.Thumbprint, null));
 
-            // 証明書の更新が完了後に Webhook を送信する
-            await context.SendCompletedEvent((webSite, newCertificate.ExpirationOn, dnsNames));
+            return new CertificateRenewalResult
+            {
+                DnsNames = string.Join(",", dnsNames),
+                Outcome = CertificateRenewalResult.Renewed,
+                Detail = $"expires {newCertificate.ExpirationOn:yyyy-MM-dd}"
+            };
         }
         catch (Exception ex)
         {
@@ -167,8 +247,14 @@ public class RenewCertificates
             log.LogError($"Failed renewal in sub orchestration for Certificate = {certificate.Thumbprint}");
             log.LogError(ex.Message);
 
-            // Replaces the in-process lifecycle-notification webhook on orchestration failure.
-            await context.SendFailedEvent(($"{nameof(RenewCertificates)}_{nameof(CertOrchestrator)}", $"{certificate.SubjectName}: {ex.Message}"));
+            // The per-run digest replaces the per-certificate completed/failed webhooks
+            // in the renewal flow (AddCertificate keeps its immediate events).
+            return new CertificateRenewalResult
+            {
+                DnsNames = certificate.SubjectName,
+                Outcome = CertificateRenewalResult.Failed,
+                Detail = ex.Message
+            };
         }
     }
 

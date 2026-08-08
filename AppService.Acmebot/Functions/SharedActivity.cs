@@ -739,6 +739,12 @@ public class SharedActivity
         await _webhookInvoker.SendFailedEventAsync(functionName, reason);
     }
 
+    [Function(nameof(SendRenewalSummary))]
+    public async Task SendRenewalSummary([ActivityTrigger] RenewalRunSummary summary)
+    {
+        await _webhookInvoker.SendRenewalSummaryAsync(summary);
+    }
+
     [Function(nameof(CheckRenewalPreconditions))]
     public async Task<string> CheckRenewalPreconditions([ActivityTrigger] IReadOnlyList<string> dnsNames)
     {

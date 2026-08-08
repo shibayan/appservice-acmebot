@@ -105,6 +105,9 @@ internal static class SharedActivityExtensions
     public static Task SendFailedEvent(this TaskOrchestrationContext context, (string, string) input)
         => context.CallActivityAsync(nameof(SharedActivity.SendFailedEvent), input);
 
+    public static Task SendRenewalSummary(this TaskOrchestrationContext context, RenewalRunSummary summary)
+        => context.CallActivityAsync(nameof(SharedActivity.SendRenewalSummary), summary);
+
     public static Task<string> CheckRenewalPreconditions(this TaskOrchestrationContext context, IReadOnlyList<string> dnsNames)
         => context.CallActivityAsync<string>(nameof(SharedActivity.CheckRenewalPreconditions), dnsNames);
 }
