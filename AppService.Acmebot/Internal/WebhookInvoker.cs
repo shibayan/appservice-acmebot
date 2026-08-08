@@ -171,37 +171,28 @@ public class WebhookInvoker
         {
             var color = failed.Length > 0 || inventoryEmpty ? "danger" : skipped.Length > 0 ? "warning" : "good";
 
-            var fields = new List<object>
-            {
-                new { title = "Instance", value = instance, @short = true },
-                new { title = "Endpoint", value = endpoint, @short = true },
-                new { title = "Due", value = summary.ExpiringCount.ToString(), @short = true },
-                new { title = "Duration", value = $"{summary.DurationMinutes:0} min", @short = true }
-            };
+            // Plain markdown text (not attachment fields): field grids collapse into
+            // unreadable run-together text when a card is copy-pasted out of Slack.
+            var text = new StringBuilder($"*Renewal digest - {instance}* ({endpoint})\nDue: {summary.ExpiringCount} | Duration: {summary.DurationMinutes:0} min");
 
             if (summary.InventoryCount is not null)
             {
-                fields.Add(new
-                {
-                    title = "Certificate inventory",
-                    value = inventoryEmpty ? "EMPTY - possible certificate-list regression, verify!" : $"{summary.InventoryCount} certificates, none due",
-                    @short = false
-                });
+                text.Append($"\nInventory: {(inventoryEmpty ? "EMPTY - possible certificate-list regression, verify!" : $"{summary.InventoryCount} certificates (all endpoints), none due")}");
             }
 
             if (renewed.Length > 0)
             {
-                fields.Add(new { title = $"Renewed ({renewed.Length})", value = FormatResults(renewed), @short = false });
+                text.Append($"\n\n*Renewed ({renewed.Length})*\n{FormatResults(renewed)}");
             }
 
             if (failed.Length > 0)
             {
-                fields.Add(new { title = $"Failed ({failed.Length})", value = FormatResults(failed), @short = false });
+                text.Append($"\n\n*Failed ({failed.Length})*\n{FormatResults(failed)}");
             }
 
             if (skipped.Length > 0)
             {
-                fields.Add(new { title = $"Fast-skipped ({skipped.Length})", value = FormatResults(skipped), @short = false });
+                text.Append($"\n\n*Fast-skipped ({skipped.Length})*\n{FormatResults(skipped)}");
             }
 
             model = new
@@ -211,9 +202,9 @@ public class WebhookInvoker
                 {
                     new
                     {
-                        text = $"Nightly renewal digest - {instance}",
+                        text = text.ToString(),
                         color,
-                        fields = fields.ToArray()
+                        mrkdwn_in = new[] { "text" }
                     }
                 }
             };
@@ -271,7 +262,7 @@ public class WebhookInvoker
         const int maxLines = 15;
 
         var lines = results.Take(maxLines)
-                           .Select(x => string.IsNullOrEmpty(x.Detail) ? x.DnsNames : $"{x.DnsNames} - {x.Detail}");
+                           .Select(x => string.IsNullOrEmpty(x.Detail) ? $"• {x.DnsNames}" : $"• {x.DnsNames} - {x.Detail}");
 
         var text = string.Join("\n", lines);
 
