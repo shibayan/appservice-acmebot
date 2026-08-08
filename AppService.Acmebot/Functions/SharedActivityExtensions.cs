@@ -108,6 +108,9 @@ internal static class SharedActivityExtensions
     public static Task SendRenewalSummary(this TaskOrchestrationContext context, RenewalRunSummary summary)
         => context.CallActivityAsync(nameof(SharedActivity.SendRenewalSummary), summary);
 
+    public static Task EnsureAcmeAccount(this TaskOrchestrationContext context)
+        => context.CallActivityAsync(nameof(SharedActivity.EnsureAcmeAccount), (object)null);
+
     public static Task<string> CheckRenewalPreconditions(this TaskOrchestrationContext context, IReadOnlyList<string> dnsNames)
         => context.CallActivityAsync<string>(nameof(SharedActivity.CheckRenewalPreconditions), dnsNames);
 }

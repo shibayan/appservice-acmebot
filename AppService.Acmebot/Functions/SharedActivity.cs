@@ -745,6 +745,18 @@ public class SharedActivity
         await _webhookInvoker.SendRenewalSummaryAsync(summary);
     }
 
+    [Function(nameof(EnsureAcmeAccount))]
+    public async Task EnsureAcmeAccount([ActivityTrigger] object input)
+    {
+        // Loads the ACME account state, registering a new account only when none
+        // exists. Called ONCE before the renewal fan-out: with a missing/unreadable
+        // account.json, the parallel cert orchestrations would otherwise all race
+        // into registration - account.json file locks, the per-IP new-registration
+        // rate limit, and orders answered under mismatched account IDs (exactly what
+        // happened on the first isolated production run, 2026-08-08).
+        await _acmeProtocolClientFactory.CreateClientAsync();
+    }
+
     [Function(nameof(CheckRenewalPreconditions))]
     public async Task<string> CheckRenewalPreconditions([ActivityTrigger] IReadOnlyList<string> dnsNames)
     {
