@@ -56,6 +56,35 @@ public class RenewCertificates
 
         await context.CreateTimer(context.CurrentUtcDateTime.AddSeconds(jitter), CancellationToken.None);
 
+        try
+        {
+            // Settle the ACME account once, BEFORE the fan-out: parallel cert
+            // orchestrations must only ever read an existing account, never race
+            // into registering one (see EnsureAcmeAccount).
+            await context.EnsureAcmeAccount();
+        }
+        catch (Exception ex)
+        {
+            log.LogError($"ACME account preflight failed: {ex.Message}");
+
+            await SendRenewalSummarySafe(context, log, new RenewalRunSummary
+            {
+                ExpiringCount = certificates.Count,
+                DurationMinutes = (context.CurrentUtcDateTime - startedAt).TotalMinutes,
+                Results = new[]
+                {
+                    new CertificateRenewalResult
+                    {
+                        DnsNames = "(entire run)",
+                        Outcome = CertificateRenewalResult.Failed,
+                        Detail = $"ACME account preflight failed: {ex.Message}"
+                    }
+                }
+            });
+
+            return;
+        }
+
         // リソースグループ単位で証明書の更新を行う
         var resourceGroups = await context.GetResourceGroups();
 
