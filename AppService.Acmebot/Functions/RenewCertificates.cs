@@ -129,7 +129,7 @@ public class RenewCertificates
                         {
                             DnsNames = string.Join(",", boundCertificates.Select(x => x.SubjectName)),
                             Outcome = CertificateRenewalResult.Failed,
-                            Detail = $"site fan-out failure on {webSiteSlot.Name}: {ex.Message}"
+                            Detail = $"site fan-out failure on {webSiteSlot.Name}: {UnwrapFailureMessage(ex.Message)}"
                         });
                     }
                 }
@@ -203,7 +203,7 @@ public class RenewCertificates
                 {
                     DnsNames = ordered[i].SubjectName,
                     Outcome = CertificateRenewalResult.Failed,
-                    Detail = renewals[i].Exception?.GetBaseException().Message ?? "unexpected fan-out failure"
+                    Detail = UnwrapFailureMessage(renewals[i].Exception?.GetBaseException().Message) is { Length: > 0 } unwrapped ? unwrapped : "unexpected fan-out failure"
                 });
         }
 
@@ -282,7 +282,7 @@ public class RenewCertificates
             {
                 DnsNames = certificate.SubjectName,
                 Outcome = CertificateRenewalResult.Failed,
-                Detail = ex.Message
+                Detail = UnwrapFailureMessage(ex.Message)
             };
         }
     }
@@ -302,4 +302,10 @@ public class RenewCertificates
     {
         HandleFailure = failure => failure.IsCausedBy<RetriableOrchestratorException>()
     });
+
+    // Durable failures arrive as nested "Task 'X' (#n) failed with an unhandled
+    // exception: Task 'Y' (#m) failed ..." chains; only the innermost message is
+    // useful in the digest.
+    private static string UnwrapFailureMessage(string message) =>
+        System.Text.RegularExpressions.Regex.Replace(message ?? string.Empty, @"^(Task '[^']+' \(#\d+\) failed with an unhandled exception: )+", string.Empty);
 }

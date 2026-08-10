@@ -67,7 +67,13 @@ builder.Services.Configure<JsonSerializerOptions>(options =>
 });
 
 // Add Services
-builder.Services.AddApplicationInsightsTelemetryWorkerService();
+builder.Services.AddApplicationInsightsTelemetryWorkerService(options =>
+{
+    // The nightly renewal run bursts hundreds of trace lines in minutes; adaptive
+    // sampling silently dropped roughly half of them (renewed/failed lines missing
+    // from renewal-report.ps1 while the digest had them). Volume is tiny - keep all.
+    options.EnableAdaptiveSampling = false;
+});
 builder.Services.ConfigureFunctionsApplicationInsights();
 
 builder.Services.AddSingleton<ITelemetryInitializer, ApplicationVersionInitializer>();

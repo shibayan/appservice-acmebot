@@ -165,6 +165,10 @@ public class WebhookInvoker
 
         var inventoryEmpty = summary.InventoryCount == 0;
 
+        // Certificates due but bound to no running site are never processed by the
+        // fan-out - the orphaned-resource pile. Surface it so cleanup progress shows.
+        var unbound = Math.Max(0, summary.ExpiringCount - summary.Results.Count);
+
         object model;
 
         if (_options.Webhook.Contains("hooks.slack.com"))
@@ -173,7 +177,7 @@ public class WebhookInvoker
 
             // Plain markdown text (not attachment fields): field grids collapse into
             // unreadable run-together text when a card is copy-pasted out of Slack.
-            var text = new StringBuilder($"*Renewal digest - {instance}* ({endpoint})\nDue: {summary.ExpiringCount} | Duration: {summary.DurationMinutes:0} min");
+            var text = new StringBuilder($"*Renewal digest - {instance}* ({endpoint})\nDue: {summary.ExpiringCount} | Processed: {summary.Results.Count}{(unbound > 0 ? $" | Unbound/orphaned: {unbound}" : "")} | Duration: {summary.DurationMinutes:0} min");
 
             if (summary.InventoryCount is not null)
             {
@@ -211,7 +215,7 @@ public class WebhookInvoker
         }
         else if (_options.Webhook.Contains(".office.com"))
         {
-            var text = new StringBuilder($"**Instance**: {instance}\n\n**Endpoint**: {endpoint}\n\n**Due**: {summary.ExpiringCount}\n\n**Duration**: {summary.DurationMinutes:0} min");
+            var text = new StringBuilder($"**Instance**: {instance}\n\n**Endpoint**: {endpoint}\n\n**Due**: {summary.ExpiringCount}\n\n**Processed**: {summary.Results.Count}{(unbound > 0 ? $"\n\n**Unbound/orphaned**: {unbound}" : "")}\n\n**Duration**: {summary.DurationMinutes:0} min");
 
             if (summary.InventoryCount is not null)
             {
@@ -247,6 +251,8 @@ public class WebhookInvoker
                 instance,
                 endpoint,
                 expiringCount = summary.ExpiringCount,
+                processedCount = summary.Results.Count,
+                unboundCount = unbound,
                 inventoryCount = summary.InventoryCount,
                 durationMinutes = summary.DurationMinutes,
                 results = summary.Results
